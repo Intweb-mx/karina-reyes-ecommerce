@@ -1,0 +1,32 @@
+{
+  "name": "@inttimo/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "db:local": "mkdir -p ../../.data && pglite-server --db=../../.data/pglite --port=54332 --max-connections=4",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=../../.env --experimental-strip-types scripts/migrate.ts",
+    "db:deploy": "node --experimental-strip-types --no-warnings scripts/deploy.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.3",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
+    "@inttimo/tsconfig": "workspace:*",
+    "@types/node": "^20.19.43",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "5.9.3",
+    "vitest": "^5.0.1"
+  }
+}

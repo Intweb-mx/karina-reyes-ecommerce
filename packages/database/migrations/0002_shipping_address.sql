@@ -1,0 +1,1 @@
+ALTER TABLE "presale_reservations" ADD COLUMN "shipping_address" jsonb;
