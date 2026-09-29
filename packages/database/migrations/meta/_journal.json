@@ -22,6 +22,20 @@
       "when": 1790649909048,
       "tag": "0002_shipping_address",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790653412389,
+      "tag": "0003_terms_and_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790653412707,
+      "tag": "0004_rls_lockdown",
+      "breakpoints": true
     }
   ]
 }

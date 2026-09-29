@@ -7,8 +7,13 @@ import {
   claimStripeEvent,
   createReservation,
   generateReservationCode,
+  getCampaignStats,
+  getCurrentTerms,
   hitRateLimit,
   listReservationEvents,
+  logAdminAction,
+  publishTerms,
+  searchReservations,
   markExpired,
   markPaid,
   markPaymentFailed,
@@ -21,6 +26,7 @@ import { createTestDatabase } from "../src/testing.ts";
 let db: Database;
 let close: () => Promise<void>;
 let campaign: PresaleCampaign;
+let termsId: string;
 const ctx = { source: "stripe" as const };
 
 beforeAll(async () => {
@@ -34,6 +40,7 @@ beforeAll(async () => {
     unitAmount: 50_000,
     currency: "mxn",
   });
+  termsId = (await publishTerms(db, campaign.id, "Términos v1", "cli")).id;
 });
 
 afterAll(() => close());
@@ -48,6 +55,7 @@ function newReservation(quantity = 1) {
     unitAmount: campaign.unitAmount,
     currency: campaign.currency,
     answers: { pregunta: "respuesta" },
+    termsId,
     marketingConsent: false,
     idempotencyKey: null,
     attribution: null,
@@ -150,5 +158,57 @@ describe("webhooks y rate limit", () => {
     const results = [];
     for (let i = 0; i < 4; i++) results.push(await hitRateLimit(db, "ip:1", 3, 60));
     expect(results).toEqual([false, false, false, true]);
+  });
+});
+
+describe("términos versionados", () => {
+  it("cada publicación es una versión nueva e inmutable", async () => {
+    const v2 = await publishTerms(db, campaign.id, "  Términos v2  ", "admin@inttimo.test");
+    expect(v2).toMatchObject({ version: 2, content: "Términos v2" });
+    expect((await getCurrentTerms(db, campaign.id))?.id).toBe(v2.id);
+    await expect(db.execute(sql`update presale_terms set content = 'x' where id = ${v2.id}`)).rejects.toThrow();
+    await expect(db.execute(sql`delete from presale_terms where id = ${v2.id}`)).rejects.toThrow();
+  });
+
+  it("publicaciones simultáneas no repiten número", async () => {
+    const versions = await Promise.all([1, 2, 3].map((n) => publishTerms(db, campaign.id, `paralelo ${n}`, "cli")));
+    expect(new Set(versions.map((v) => v.version)).size).toBe(3);
+  });
+
+  it("rechaza términos vacíos", async () => {
+    await expect(publishTerms(db, campaign.id, "   ", "cli")).rejects.toThrow();
+  });
+});
+
+describe("seguridad", () => {
+  it("todas las tablas de public tienen RLS activo", async () => {
+    const result = await db.execute<{ relname: string }>(
+      sql`select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity`,
+    );
+    const rows = (result as unknown as { rows: { relname: string }[] }).rows;
+    expect(rows.map((r) => r.relname)).toEqual([]);
+  });
+
+  it("la bitácora del panel es append-only", async () => {
+    await logAdminAction(db, { actorId: null, actorEmail: "cli", action: "test", targetType: "campaign", targetId: campaign.id });
+    await expect(db.execute(sql`delete from admin_audit_log`)).rejects.toThrow();
+  });
+});
+
+describe("panel", () => {
+  it("estadísticas y búsqueda", async () => {
+    const a = await newReservation(2);
+    await markPaid(db, a.id, {}, ctx);
+    const stats = await getCampaignStats(db, campaign.id);
+    expect(stats.paidReservations).toBeGreaterThanOrEqual(1);
+    expect(stats.paidUnits).toBeGreaterThanOrEqual(2);
+
+    const byCode = await searchReservations(db, campaign.id, { query: a.code.toLowerCase(), limit: 10, offset: 0 });
+    expect(byCode.rows.map((r) => r.id)).toEqual([a.id]);
+    const wildcard = await searchReservations(db, campaign.id, { query: "%", limit: 10, offset: 0 });
+    expect(wildcard.total).toBe(0);
+    const paid = await searchReservations(db, campaign.id, { statuses: ["paid"], limit: 1, offset: 0 });
+    expect(paid.rows).toHaveLength(1);
+    expect(paid.total).toBeGreaterThanOrEqual(1);
   });
 });

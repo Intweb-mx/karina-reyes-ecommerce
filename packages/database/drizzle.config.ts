@@ -6,6 +6,6 @@ export default defineConfig({
   out: "./migrations",
   casing: "snake_case",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:54332/postgres",
+    url: process.env.DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:55322/postgres",
   },
 });

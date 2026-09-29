@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { createdAt, updatedAt } from "./columns.ts";
 
 export type QuestionType = "text" | "textarea" | "select" | "multiselect" | "boolean";
@@ -61,6 +61,30 @@ export const presaleCampaigns = pgTable(
   ],
 );
 
+/**
+ * Términos de la preventa. Cada publicación crea una versión nueva e inmutable;
+ * la vigente es la de número mayor. Cada reserva guarda la versión que aceptó.
+ */
+export const presaleTerms = pgTable(
+  "presale_terms",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    campaignId: uuid()
+      .notNull()
+      .references(() => presaleCampaigns.id, { onDelete: "restrict" }),
+    version: integer().notNull(),
+    content: text().notNull(),
+    /** Correo del administrador o "cli". */
+    createdBy: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique("presale_terms_campaign_version_unique").on(table.campaignId, table.version),
+    check("presale_terms_version_check", sql`${table.version} >= 1`),
+    check("presale_terms_content_check", sql`length(trim(${table.content})) > 0`),
+  ],
+);
+
 export const presaleReservationStatus = pgEnum("presale_reservation_status", [
   /** Reserva creada, esperando que el cliente pague en Stripe Checkout. */
   "pending_payment",
@@ -97,6 +121,9 @@ export const presaleReservations = pgTable(
     currency: text().notNull(),
     answers: jsonb().$type<Answers>().notNull(),
     termsAcceptedAt: timestamp({ withTimezone: true }).notNull(),
+    termsId: uuid()
+      .notNull()
+      .references(() => presaleTerms.id, { onDelete: "restrict" }),
     marketingConsent: boolean().notNull().default(false),
     /** Clave opcional enviada por el cliente para no duplicar reservas por doble clic. */
     idempotencyKey: text().unique(),
@@ -161,6 +188,23 @@ export const stripeWebhookEvents = pgTable("stripe_webhook_events", {
   type: text().notNull(),
   processedAt: createdAt(),
 });
+
+/** Bitácora append-only de acciones del panel (cambios y acceso a datos personales). */
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    /** Id del usuario en Supabase Auth, o null si fue la CLI. */
+    actorId: uuid(),
+    actorEmail: text().notNull(),
+    action: text().notNull(),
+    targetType: text().notNull(),
+    targetId: text(),
+    metadata: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (table) => [index("admin_audit_log_created_idx").on(table.createdAt)],
+);
 
 /** Rate limit de ventana fija compartido entre instancias serverless. */
 export const rateLimits = pgTable("rate_limits", {

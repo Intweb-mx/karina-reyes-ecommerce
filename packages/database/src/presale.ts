@@ -1,8 +1,10 @@
 import { randomInt } from "node:crypto";
-import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, lt, or, sql, sum } from "drizzle-orm";
 import type { Database } from "./client.ts";
 import {
+  adminAuditLog,
   presaleCampaigns,
+  presaleTerms,
   presaleReservationEvents,
   presaleReservations,
   rateLimits,
@@ -94,6 +96,7 @@ export type NewReservation = {
   unitAmount: number;
   currency: string;
   answers: PresaleReservation["answers"];
+  termsId: string;
   marketingConsent: boolean;
   idempotencyKey: string | null;
   attribution: Record<string, string> | null;
@@ -304,4 +307,148 @@ export async function listReservationEvents(db: Executor, reservationId: string)
     .from(presaleReservationEvents)
     .where(eq(presaleReservationEvents.reservationId, reservationId))
     .orderBy(asc(presaleReservationEvents.createdAt));
+}
+
+// ---------- Términos versionados ----------
+
+export type PresaleTerms = typeof presaleTerms.$inferSelect;
+
+export async function getCurrentTerms(db: Executor, campaignId: string): Promise<PresaleTerms | null> {
+  const [row] = await db
+    .select()
+    .from(presaleTerms)
+    .where(eq(presaleTerms.campaignId, campaignId))
+    .orderBy(desc(presaleTerms.version))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function getTermsById(db: Executor, id: string): Promise<PresaleTerms | null> {
+  const [row] = await db.select().from(presaleTerms).where(eq(presaleTerms.id, id)).limit(1);
+  return row ?? null;
+}
+
+export async function listTermsVersions(db: Executor, campaignId: string) {
+  return db
+    .select({ id: presaleTerms.id, version: presaleTerms.version, createdBy: presaleTerms.createdBy, createdAt: presaleTerms.createdAt })
+    .from(presaleTerms)
+    .where(eq(presaleTerms.campaignId, campaignId))
+    .orderBy(desc(presaleTerms.version));
+}
+
+/** Publica una versión nueva (siguiente número). Si dos publicaciones chocan, la segunda reintenta con el número siguiente. */
+export async function publishTerms(db: Database, campaignId: string, content: string, createdBy: string): Promise<PresaleTerms> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const [row] = await db
+        .insert(presaleTerms)
+        .values({
+          campaignId,
+          content: content.trim(),
+          createdBy,
+          version: sql`coalesce((select max(${presaleTerms.version}) from ${presaleTerms} where ${presaleTerms.campaignId} = ${campaignId}), 0) + 1`,
+        })
+        .returning();
+      return row!;
+    } catch (error) {
+      const code = (error as { code?: string; cause?: { code?: string } }).cause?.code ?? (error as { code?: string }).code;
+      if (code !== "23505" || attempt >= 2) throw error;
+    }
+  }
+}
+
+// ---------- Bitácora del panel ----------
+
+export type AuditEntry = {
+  actorId: string | null;
+  actorEmail: string;
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+export async function logAdminAction(db: Executor, entry: AuditEntry): Promise<void> {
+  await db.insert(adminAuditLog).values({ ...entry, targetId: entry.targetId ?? null, metadata: entry.metadata ?? {} });
+}
+
+export async function listAdminActions(db: Executor, limit = 50) {
+  return db.select().from(adminAuditLog).orderBy(desc(adminAuditLog.createdAt)).limit(limit);
+}
+
+// ---------- Panel ----------
+
+export async function listCampaigns(db: Executor): Promise<PresaleCampaign[]> {
+  return db.select().from(presaleCampaigns).orderBy(desc(presaleCampaigns.startsAt));
+}
+
+export async function updateCampaign(
+  db: Executor,
+  id: string,
+  patch: Partial<Omit<NewPresaleCampaign, "id" | "slug" | "createdAt" | "updatedAt">>,
+): Promise<PresaleCampaign | null> {
+  const [row] = await db.update(presaleCampaigns).set(patch).where(eq(presaleCampaigns.id, id)).returning();
+  return row ?? null;
+}
+
+export type CampaignStats = {
+  byStatus: Partial<Record<ReservationStatus, number>>;
+  /** Reservas pagadas (incluye parcialmente reembolsadas). */
+  paidReservations: number;
+  paidUnits: number;
+  /** Cobrado menos reembolsado, en centavos. */
+  netRevenue: number;
+  refunded: number;
+};
+
+export async function getCampaignStats(db: Executor, campaignId: string): Promise<CampaignStats> {
+  const rows = await db
+    .select({
+      status: presaleReservations.status,
+      reservations: count(),
+      units: sum(presaleReservations.quantity).mapWith(Number),
+      amount: sum(presaleReservations.totalAmount).mapWith(Number),
+      refunded: sum(presaleReservations.amountRefunded).mapWith(Number),
+    })
+    .from(presaleReservations)
+    .where(eq(presaleReservations.campaignId, campaignId))
+    .groupBy(presaleReservations.status);
+
+  const stats: CampaignStats = { byStatus: {}, paidReservations: 0, paidUnits: 0, netRevenue: 0, refunded: 0 };
+  for (const row of rows) {
+    stats.byStatus[row.status] = row.reservations;
+    if (row.status === "paid" || row.status === "partially_refunded" || row.status === "refunded") {
+      stats.netRevenue += (row.amount ?? 0) - (row.refunded ?? 0);
+      stats.refunded += row.refunded ?? 0;
+    }
+    if (row.status === "paid" || row.status === "partially_refunded") {
+      stats.paidReservations += row.reservations;
+      stats.paidUnits += row.units ?? 0;
+    }
+  }
+  return stats;
+}
+
+export type ReservationSearch = { query?: string; statuses?: ReservationStatus[]; limit: number; offset: number };
+
+/** Búsqueda paginada por folio, correo o nombre. */
+export async function searchReservations(db: Executor, campaignId: string, search: ReservationSearch) {
+  const term = search.query?.trim();
+  const escaped = term?.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const where = and(
+    eq(presaleReservations.campaignId, campaignId),
+    search.statuses?.length ? inArray(presaleReservations.status, search.statuses) : undefined,
+    escaped
+      ? or(
+          ilike(presaleReservations.code, `%${escaped}%`),
+          ilike(presaleReservations.email, `%${escaped}%`),
+          ilike(presaleReservations.fullName, `%${escaped}%`),
+        )
+      : undefined,
+  );
+  const [rows, [total]] = await Promise.all([
+    db.select().from(presaleReservations).where(where).orderBy(desc(presaleReservations.createdAt)).limit(search.limit).offset(search.offset),
+    db.select({ value: count() }).from(presaleReservations).where(where),
+  ]);
+  return { rows, total: total?.value ?? 0 };
 }

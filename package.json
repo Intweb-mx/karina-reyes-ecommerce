@@ -13,11 +13,13 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "test:e2e": "pnpm -r --if-present test:e2e",
-    "db:local": "pnpm --filter @inttimo/database db:local",
     "db:generate": "pnpm --filter @inttimo/database db:generate",
     "db:migrate": "pnpm --filter @inttimo/database db:migrate",
     "presale:upsert": "pnpm --filter inttimo presale:upsert",
     "presale:export": "pnpm --silent --filter inttimo presale:export",
-    "presale:reconcile": "pnpm --filter inttimo presale:reconcile"
+    "presale:reconcile": "pnpm --filter inttimo presale:reconcile",
+    "admin": "pnpm --filter inttimo admin",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop"
   }
 }
