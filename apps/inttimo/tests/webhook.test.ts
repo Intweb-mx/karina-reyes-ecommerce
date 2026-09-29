@@ -19,7 +19,7 @@ beforeEach(async () => {
   const deps = { db, gateway: new FakeGateway(), siteUrl: "https://inttimo.test", now: () => NOW };
   await createPresaleReservation(deps, {
     slug: "uno-mas-uno",
-    body: { fullName: "Ana Pérez", email: "ana@ejemplo.com", answers: VALID_ANSWERS, acceptTerms: true },
+    body: { fullName: "Ana Pérez", email: "ana@ejemplo.com", answers: VALID_ANSWERS, acceptTerms: true, termsVersion: 1 },
     idempotencyKey: null,
     clientIp: null,
   });

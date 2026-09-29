@@ -3,12 +3,13 @@
  *
  *   pnpm presale:upsert --file=docs/preventa/campaign.example.json
  *   pnpm presale:upsert --file=... --dry-run      # solo valida
+ *   pnpm presale:upsert --file=... --terms=terminos.md   # publica términos (versión nueva si cambiaron)
  *
  * Si el JSON no trae endsAt, el cierre es startsAt + durationDays (14 por defecto).
  */
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { createDatabase, getCampaignBySlug, listReservations, upsertCampaign } from "@inttimo/database";
+import { createDatabase, getCampaignBySlug, getCurrentTerms, listReservations, logAdminAction, publishTerms, upsertCampaign } from "@inttimo/database";
 import { campaignConfigSchema } from "../src/server/presale/campaign-config.ts";
 import { arg, fail, flag } from "./cli.ts";
 
@@ -17,6 +18,10 @@ const raw = JSON.parse(await readFile(resolve(process.env.INIT_CWD ?? process.cw
 const parsed = campaignConfigSchema.safeParse(raw);
 if (!parsed.success) fail(`Campaña no válida:\n${parsed.error.issues.map((i) => `- ${i.path.join(".") || "(raíz)"}: ${i.message}`).join("\n")}`);
 const campaign = parsed.data;
+
+const termsFile = arg("terms");
+const termsContent = termsFile ? (await readFile(resolve(process.env.INIT_CWD ?? process.cwd(), termsFile), "utf8")).trim() : null;
+if (termsFile && !termsContent) fail("El archivo de términos está vacío.");
 
 const summary = `${campaign.slug} · ${campaign.productName} · ${campaign.status}\n  ${campaign.startsAt.toISOString()} → ${campaign.endsAt.toISOString()}\n  ${campaign.unitAmount} ${campaign.currency} (centavos) · ${campaign.questions?.length ?? 0} preguntas`;
 if (flag("dry-run")) {
@@ -33,6 +38,23 @@ if (existing) {
     fail(`La campaña ya tiene ${reservations.length} reservas: cambiar el precio no afecta las existentes. Repite con --force si es intencional.`);
   }
 }
-await upsertCampaign(db, campaign);
+const currentTerms = existing ? await getCurrentTerms(db, existing.id) : null;
+if (campaign.status === "active" && !currentTerms && !termsContent) {
+  fail("Una campaña activa necesita términos: agrega --terms=archivo.md (o déjala en draft).");
+}
+
+const saved = await db.transaction(async (tx) => {
+  const row = await upsertCampaign(tx, campaign);
+  await logAdminAction(tx, { actorId: null, actorEmail: "cli", action: existing ? "campaign.update" : "campaign.create", targetType: "campaign", targetId: row.id, metadata: { slug: row.slug, status: row.status, unitAmount: row.unitAmount } });
+  return row;
+});
 console.log(`${existing ? "Actualizada" : "Creada"}:\n  ${summary}`);
+
+if (termsContent && termsContent !== currentTerms?.content) {
+  const terms = await publishTerms(db, saved.id, termsContent, "cli");
+  await logAdminAction(db, { actorId: null, actorEmail: "cli", action: "terms.publish", targetType: "campaign", targetId: saved.id, metadata: { version: terms.version } });
+  console.log(`  Términos publicados: versión ${terms.version}`);
+} else if (termsContent) {
+  console.log(`  Términos sin cambios (versión ${currentTerms?.version}).`);
+}
 process.exit(0);

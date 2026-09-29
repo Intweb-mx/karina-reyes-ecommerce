@@ -48,7 +48,10 @@ export default async function PresalePage({ params, searchParams }: PageProps<"/
           </p>
         )}
 
-        {campaign.phase === "open" && (
+        {campaign.phase === "open" && !campaign.terms && (
+          <h2 id="reserva" className="font-serif text-3xl">La preventa estará disponible en breve.</h2>
+        )}
+        {campaign.phase === "open" && campaign.terms && (
           <div className="max-w-2xl">
             <h2 id="reserva" className="font-serif text-3xl">Reserva tu lugar</h2>
             <p className="mt-2 mb-10 text-muted">Completa tus datos y el cuestionario. Al final pagarás en Stripe.</p>

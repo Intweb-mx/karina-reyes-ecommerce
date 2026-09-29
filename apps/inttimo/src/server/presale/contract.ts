@@ -20,6 +20,8 @@ export type PublicCampaign = {
   phase: PresalePhase;
   questions: QuestionDefinition[];
   deliveryNote: string | null;
+  /** Términos vigentes. El cliente debe aceptar exactamente esta versión. */
+  terms: { version: number; content: string } | null;
 };
 
 /** POST /api/preventa/[slug]/reservas (JSON). Cabecera opcional `Idempotency-Key` (8–100 caracteres). */
@@ -32,6 +34,8 @@ export type CreateReservationRequest = {
   answers: Record<string, AnswerValue>;
   /** Debe ser true. */
   acceptTerms: boolean;
+  /** `terms.version` que se mostró al cliente. Si cambió, la API responde 409 `terms_outdated`. */
+  termsVersion: number;
   marketingConsent?: boolean;
   /** Honeypot: campo oculto que debe llegar vacío. */
   website?: string;
@@ -64,6 +68,8 @@ export type ReservationStatusResponse = {
 export type ApiErrorCode =
   | "not_found"
   | "presale_not_open"
+  | "presale_not_ready"
+  | "terms_outdated"
   | "validation_error"
   | "rate_limited"
   | "idempotency_conflict"

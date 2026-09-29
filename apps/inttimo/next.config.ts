@@ -1,4 +1,10 @@
+import { loadEnvConfig } from "@next/env";
+import { resolve } from "node:path";
 import type { NextConfig } from "next";
+
+// El .env vive en la raíz del monorepo (lo comparten la app y los scripts). En Vercel no existe: usa sus variables.
+// forceReload: Next ya cargó (y cacheó) el .env de apps/inttimo antes de leer esta config.
+loadEnvConfig(resolve(process.cwd(), "../.."), process.env.NODE_ENV !== "production", undefined, true);
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -35,7 +41,10 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   transpilePackages: ["@inttimo/database", "@inttimo/shared-utils", "@inttimo/storage"],
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      { source: "/panel/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }, { key: "Cache-Control", value: "private, no-store" }] },
+    ];
   },
 };
 

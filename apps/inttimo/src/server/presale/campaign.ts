@@ -1,4 +1,4 @@
-import type { PresaleCampaign } from "@inttimo/database";
+import type { PresaleCampaign, PresaleTerms } from "@inttimo/database";
 import type { PresalePhase, PublicCampaign } from "./contract.ts";
 
 export const DEFAULT_DURATION_DAYS = 14;
@@ -14,7 +14,7 @@ export function getPhase(campaign: PresaleCampaign, now: Date): PresalePhase {
   return "open";
 }
 
-export function toPublicCampaign(campaign: PresaleCampaign, now: Date): PublicCampaign {
+export function toPublicCampaign(campaign: PresaleCampaign, terms: PresaleTerms | null, now: Date): PublicCampaign {
   return {
     slug: campaign.slug,
     productName: campaign.productName,
@@ -27,5 +27,6 @@ export function toPublicCampaign(campaign: PresaleCampaign, now: Date): PublicCa
     phase: getPhase(campaign, now),
     questions: campaign.questions,
     deliveryNote: campaign.deliveryNote,
+    terms: terms ? { version: terms.version, content: terms.content } : null,
   };
 }

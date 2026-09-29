@@ -1,4 +1,4 @@
-import { upsertCampaign, type Database, type QuestionDefinition } from "@inttimo/database";
+import { getCurrentTerms, publishTerms, upsertCampaign, type Database, type QuestionDefinition } from "@inttimo/database";
 import type Stripe from "stripe";
 import type { CheckoutSnapshot, CreateCheckoutInput, PaymentGateway } from "../src/server/presale/gateway.ts";
 
@@ -13,7 +13,7 @@ export const VALID_ANSWERS = { como_nos_conociste: "redes", acepta_contacto: tru
 export const NOW = new Date("2026-10-05T12:00:00Z");
 
 export async function seedCampaign(db: Database, overrides: Partial<Parameters<typeof upsertCampaign>[1]> = {}) {
-  return upsertCampaign(db, {
+  const campaign = await upsertCampaign(db, {
     slug: "uno-mas-uno",
     productName: "UNO+UNO",
     status: "active",
@@ -25,6 +25,8 @@ export async function seedCampaign(db: Database, overrides: Partial<Parameters<t
     questions: QUESTIONS,
     ...overrides,
   });
+  if (!(await getCurrentTerms(db, campaign.id))) await publishTerms(db, campaign.id, "Términos de prueba v1", "test");
+  return campaign;
 }
 
 export class FakeGateway implements PaymentGateway {

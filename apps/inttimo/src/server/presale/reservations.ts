@@ -5,6 +5,7 @@ import {
   findReservationByIdempotencyKey,
   findReservationBySessionId,
   getCampaignBySlug,
+  getCurrentTerms,
   hitRateLimit,
   markCheckoutFailed,
   type Database,
@@ -61,6 +62,7 @@ const baseRequestSchema = z.object({
   quantity: z.number().int().min(1).default(1),
   answers: z.record(z.string(), z.unknown()).default({}),
   acceptTerms: z.literal(true, { error: "Debes aceptar los términos de la preventa." }),
+  termsVersion: z.number({ error: "Falta la versión de los términos." }).int().positive(),
   marketingConsent: z.boolean().default(false),
   website: z.string().max(200).optional(),
   attribution: z
@@ -87,7 +89,8 @@ function fieldErrors(error: z.ZodError, prefix = ""): Record<string, string[]> {
 export async function getPublicCampaign(deps: Pick<PresaleDeps, "db" | "now">, slug: string): Promise<ServiceResult<PublicCampaign>> {
   const campaign = await getCampaignBySlug(deps.db, slug);
   if (!campaign || !isPublic(campaign)) return fail(404, "not_found", "Preventa no encontrada.");
-  return { ok: true, status: 200, data: toPublicCampaign(campaign, deps.now?.() ?? new Date()) };
+  const terms = await getCurrentTerms(deps.db, campaign.id);
+  return { ok: true, status: 200, data: toPublicCampaign(campaign, terms, deps.now?.() ?? new Date()) };
 }
 
 // ---------- Crear reserva ----------
@@ -145,6 +148,15 @@ export async function createPresaleReservation(
   // Honeypot: un bot llenó el campo oculto. Respuesta genérica, sin pistas.
   if (request.website) return fail(400, "validation_error", "Revisa los datos del formulario.");
 
+  const terms = await getCurrentTerms(deps.db, campaign.id);
+  if (!terms) {
+    console.error(JSON.stringify({ level: "error", msg: "presale_without_terms", campaign: campaign.slug }));
+    return fail(503, "presale_not_ready", "La preventa aún no está lista. Inténtalo más tarde.");
+  }
+  if (request.termsVersion !== terms.version) {
+    return fail(409, "terms_outdated", "Los términos de la preventa se actualizaron. Revísalos y vuelve a aceptarlos.");
+  }
+
   if (request.quantity > campaign.maxQuantityPerReservation) {
     return fail(400, "validation_error", "Revisa los datos del formulario.", {
       fieldErrors: { quantity: [`Máximo ${campaign.maxQuantityPerReservation} por reserva.`] },
@@ -173,6 +185,7 @@ export async function createPresaleReservation(
       unitAmount: campaign.unitAmount,
       currency: campaign.currency,
       answers: answers.data,
+      termsId: terms.id,
       marketingConsent: request.marketingConsent,
       idempotencyKey: input.idempotencyKey,
       attribution: request.attribution,

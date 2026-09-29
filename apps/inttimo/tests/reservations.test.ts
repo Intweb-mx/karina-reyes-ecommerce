@@ -1,4 +1,4 @@
-import { findReservationBySessionId, listReservationEvents, type Database } from "@inttimo/database";
+import { findReservationBySessionId, getCampaignBySlug, listReservationEvents, publishTerms, sql, type Database } from "@inttimo/database";
 import { createTestDatabase } from "@inttimo/database/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CreateReservationResponse } from "../src/server/presale/contract.ts";
@@ -16,6 +16,7 @@ const body = (overrides: Record<string, unknown> = {}) => ({
   email: "Ana@Ejemplo.com",
   answers: VALID_ANSWERS,
   acceptTerms: true,
+  termsVersion: 1,
   ...overrides,
 });
 
@@ -86,6 +87,26 @@ describe("crear reserva", () => {
     const answerErrors = !answers.ok ? answers.body.error.fieldErrors : undefined;
     expect(Object.keys(answerErrors ?? {})).toEqual(expect.arrayContaining(["answers.como_nos_conociste", "answers.acepta_contacto"]));
     expect(gateway.created).toHaveLength(0);
+  });
+
+  it("exige aceptar la versión vigente de los términos y la guarda", async () => {
+    const campaign = (await getCampaignBySlug(db, "uno-mas-uno"))!;
+    await publishTerms(db, campaign.id, "Términos v2", "test");
+    expect((await create()) as unknown).toMatchObject({ status: 409, body: { error: { code: "terms_outdated" } } });
+    expect((await create({ termsVersion: 2 })).status).toBe(201);
+    const reservation = (await db.query.presaleReservations.findFirst())!;
+    const terms = await db.query.presaleTerms.findFirst({ where: (t, { eq }) => eq(t.id, reservation.termsId) });
+    expect(terms?.version).toBe(2);
+    const publicCampaign = await getPublicCampaign(deps, "uno-mas-uno");
+    expect(publicCampaign.ok && publicCampaign.data.terms).toEqual({ version: 2, content: "Términos v2" });
+  });
+
+  it("sin términos publicados no acepta reservas", async () => {
+    await seedCampaign(db, { slug: "sin-terminos" });
+    await db.execute(sql`alter table presale_terms disable trigger presale_terms_no_update_delete`);
+    await db.execute(sql`delete from presale_terms where campaign_id = (select id from presale_campaigns where slug = 'sin-terminos')`);
+    const result = await createPresaleReservation(deps, { slug: "sin-terminos", body: body(), idempotencyKey: null, clientIp: null });
+    expect(result as unknown).toMatchObject({ status: 503, body: { error: { code: "presale_not_ready" } } });
   });
 
   it("respeta el máximo por reserva y el honeypot", async () => {

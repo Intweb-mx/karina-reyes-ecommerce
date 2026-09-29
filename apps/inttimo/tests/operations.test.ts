@@ -45,7 +45,7 @@ describe("reconciliación", () => {
     const gateway = new FakeGateway();
     const created = await createPresaleReservation(
       { db, gateway, siteUrl: "https://inttimo.test", now: () => NOW },
-      { slug: "uno-mas-uno", body: { fullName: "Ana", email: "ana@ejemplo.com", answers: VALID_ANSWERS, acceptTerms: true }, idempotencyKey: null, clientIp: null },
+      { slug: "uno-mas-uno", body: { fullName: "Ana", email: "ana@ejemplo.com", answers: VALID_ANSWERS, acceptTerms: true, termsVersion: 1 }, idempotencyKey: null, clientIp: null },
     );
     expect(created.ok).toBe(true);
     gateway.snapshots.set("cs_test_000000000001", { status: "complete", paymentStatus: "paid", paymentIntentId: "pi_9" });

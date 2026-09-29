@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { ApiError, CreateReservationResponse, PublicCampaign } from "@/server/presale/contract";
 import { formatMoney } from "@/lib/format";
@@ -20,6 +21,7 @@ function FieldError({ id, errors }: { id: string; errors?: string[] }) {
 }
 
 export function ReservationForm({ campaign }: { campaign: PublicCampaign }) {
+  const router = useRouter();
   // Una clave por visita: un doble clic no crea dos pagos.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
@@ -55,6 +57,7 @@ export function ReservationForm({ campaign }: { campaign: PublicCampaign }) {
           quantity,
           answers,
           acceptTerms: form.get("acceptTerms") === "on",
+          termsVersion: campaign.terms?.version,
           marketingConsent: form.get("marketingConsent") === "on",
           website: form.get("website"),
           attribution,
@@ -67,6 +70,8 @@ export function ReservationForm({ campaign }: { campaign: PublicCampaign }) {
       }
       setErrors(data.error.fieldErrors ?? {});
       setFormError(data.error.message);
+      // Términos nuevos: se recarga la campaña para mostrarlos (el formulario conserva lo escrito).
+      if (data.error.code === "terms_outdated") router.refresh();
     } catch {
       setFormError("No pudimos enviar tu reserva. Revisa tu conexión e inténtalo de nuevo.");
     }
@@ -198,10 +203,15 @@ export function ReservationForm({ campaign }: { campaign: PublicCampaign }) {
       </div>
 
       <div className="space-y-3 border-t border-border pt-6">
+        {campaign.terms && (
+          <details className="border border-border bg-surface px-4 py-3 text-sm">
+            <summary className="cursor-pointer font-medium">Leer los términos de la preventa</summary>
+            <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-line text-muted">{campaign.terms.content}</div>
+          </details>
+        )}
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" name="acceptTerms" className="mt-0.5 size-4 accent-fg" aria-invalid={!!errors.acceptTerms} aria-describedby={describedBy("acceptTerms")} />
-          {/* PLACEHOLDER: enlazar a los términos de la preventa cuando estén aprobados. */}
-          <span>Acepto los términos de la preventa.</span>
+          <span>He leído y acepto los términos de la preventa.</span>
         </label>
         <FieldError id="acceptTerms" errors={errors.acceptTerms} />
         <label className="flex items-start gap-3 text-sm text-muted">
