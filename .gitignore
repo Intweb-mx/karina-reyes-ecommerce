@@ -39,3 +39,4 @@ pnpm-debug.log*
 
 # Credenciales locales (nunca subir)
 .admin-credentials*
+.vercel
