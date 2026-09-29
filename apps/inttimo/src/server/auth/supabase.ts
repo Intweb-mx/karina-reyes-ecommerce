@@ -11,8 +11,9 @@ export function supabaseConfig() {
 
 /** Cliente por petición (nunca compartido entre usuarios). */
 export async function createSupabaseServerClient() {
-  const { url, key } = supabaseConfig();
+  // Leer cookies primero marca la ruta como dinámica aunque falte configuración (evita prerender en el build).
   const cookieStore = await cookies();
+  const { url, key } = supabaseConfig();
   return createServerClient(url, key, {
     cookies: {
       getAll: () => cookieStore.getAll(),
