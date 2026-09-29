@@ -9,6 +9,9 @@ type Props = {
   /** Hora del servidor al renderizar, para corregir relojes desfasados. */
   serverTime: string;
   label: string;
+  /** Texto accesible con la fecha completa (el contador en sí no se anuncia cada segundo). */
+  description?: string;
+  tone?: "light" | "ink";
 };
 
 const UNITS = [
@@ -27,7 +30,7 @@ function split(remaining: number) {
   });
 }
 
-export function Countdown({ target, serverTime, label }: Props) {
+export function Countdown({ target, serverTime, label, description, tone = "light" }: Props) {
   const router = useRouter();
   const targetMs = new Date(target).getTime();
   // null hasta montar: el HTML del servidor y el primer render del cliente coinciden.
@@ -49,15 +52,17 @@ export function Countdown({ target, serverTime, label }: Props) {
   }, [targetMs, serverTime, router]);
 
   const parts = split(remaining ?? targetMs - new Date(serverTime).getTime());
+  const ink = tone === "ink";
 
   return (
     <div>
-      <p className="text-xs tracking-[0.2em] text-muted uppercase">{label}</p>
-      <div className="mt-3 flex gap-3 sm:gap-5" role="timer" aria-live="off">
-        {parts.map((part) => (
-          <div key={part.key} className="min-w-16 border border-border bg-surface px-3 py-3 text-center sm:min-w-20">
-            <span className="block font-serif text-3xl tabular-nums sm:text-4xl">{String(part.value).padStart(2, "0")}</span>
-            <span className="mt-1 block text-[0.65rem] tracking-[0.18em] text-muted uppercase">{part.label}</span>
+      <p className={`eyebrow ${ink ? "text-on-ink-muted" : "text-muted"}`}>{label}</p>
+      {description && <p className="sr-only">{description}</p>}
+      <div className="mt-4 grid grid-cols-4" role="timer" aria-live="off">
+        {parts.map((part, index) => (
+          <div key={part.key} className={`px-1 text-center ${index > 0 ? (ink ? "border-l border-on-ink/15" : "border-l border-border") : ""}`}>
+            <span className="block font-serif text-4xl leading-none font-medium lining-nums tabular-nums sm:text-5xl">{String(part.value).padStart(2, "0")}</span>
+            <span className={`mt-2 block text-[0.625rem] font-semibold tracking-[0.2em] uppercase ${ink ? "text-on-ink-muted" : "text-muted"}`}>{part.label}</span>
           </div>
         ))}
       </div>

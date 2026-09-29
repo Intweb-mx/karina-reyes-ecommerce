@@ -1,37 +1,111 @@
 @import "tailwindcss";
 
-/* Tokens provisionales de inttimo (placeholder de la preventa): ajustar con la identidad final. */
+/*
+ * Tokens de inttimo (sistema visual provisional, ver brief §1).
+ * Cálido, editorial y con mucho espacio negativo. No reutilizar tokens de Karina Reyes.
+ * Las fuentes (--font-display / --font-body) las inyecta next/font en layout.tsx.
+ */
 :root {
-  --color-bg: #f6f3ee;
-  --color-surface: #fbf9f6;
-  --color-fg: #151412;
-  --color-muted: #6b665f;
-  --color-border: #d9d3ca;
-  --color-accent: #151412;
+  --color-bg: #f5f0e8;
+  --color-surface: #fbf8f3;
+  --color-sand: #ebe3d6;
+  --color-fg: #1b1a17;
+  --color-muted: #6b645a;
+  --color-border: #dcd3c5;
+  --color-accent: #1b1a17;
+  --color-ink: #221c17;
+  --color-on-ink: #f5f0e8;
+  --color-on-ink-muted: #b9ae9f;
+  --color-success: #3c5a44;
+  --color-warning: #8a5a1c;
   --color-danger: #9b2c2c;
-  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --font-serif: var(--font-display), "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-base: 240ms;
 }
 
 @theme inline {
   --color-bg: var(--color-bg);
   --color-surface: var(--color-surface);
+  --color-sand: var(--color-sand);
   --color-fg: var(--color-fg);
   --color-muted: var(--color-muted);
   --color-border: var(--color-border);
   --color-accent: var(--color-accent);
+  --color-ink: var(--color-ink);
+  --color-on-ink: var(--color-on-ink);
+  --color-on-ink-muted: var(--color-on-ink-muted);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
   --color-danger: var(--color-danger);
   --font-serif: var(--font-serif);
   --font-sans: var(--font-sans);
+  --ease-soft: var(--ease-out-soft);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+  font-variant-numeric: lining-nums;
+}
+
+::selection {
+  background: var(--color-sand);
+  color: var(--color-fg);
 }
 
 :focus-visible {
   outline: 2px solid var(--color-fg);
   outline-offset: 3px;
+}
+
+/* Sobre fondos oscuros el foco se invierte para seguir siendo visible. */
+.surface-ink :focus-visible {
+  outline-color: var(--color-on-ink);
+}
+
+/* Rótulo editorial: mayúsculas espaciadas pequeñas. */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise {
+  animation: rise-in 700ms var(--ease-out-soft) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
