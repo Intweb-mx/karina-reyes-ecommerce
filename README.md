@@ -4,16 +4,19 @@ Repositorio de **inttimo**, la marca de e-commerce del ecosistema digital de Kar
 
 La web personal de Karina Reyes vive en un repositorio separado: [`karina-reyes-ecosyste`](https://github.com/Intweb-mx/karina-reyes-ecosyste).
 
-Toda la operación de este repositorio está en [`CLAUDE.md`](./CLAUDE.md). Léelo antes de tocar código — incluye un **gate obligatorio**: no se construye checkout, pagos, envíos ni panel operativo real hasta que la web de Karina Reyes esté aprobada.
+Toda la operación de este repositorio está en [`CLAUDE.md`](./CLAUDE.md). Léelo antes de tocar código — incluye un **gate obligatorio** para la tienda completa, con una excepción aprobada para la preventa.
 
 ## Estado actual
 
-Scaffold inicial: monorepo pnpm con `apps/inttimo` (Next.js vacío) y `packages/tsconfig`, `packages/storage`, `packages/shared-utils` duplicados desde el repo de Karina Reyes como base reutilizable. Ver `docs/decisions/ADR-001-repositorio-separado.md`.
+- **Preventa de UNO+UNO** (prioridad 1): backend completo — base de datos, API, Stripe Checkout, webhooks, correos y CLI de operación. Contrato de API para frontend y guía de operación en [`docs/preventa/README.md`](./docs/preventa/README.md). Las páginas las construye frontend.
+- Tienda completa: bloqueada por el gate (ver CLAUDE.md §1).
 
 ## Comandos
 
 ```bash
 pnpm install
+pnpm db:local        # PostgreSQL local en :54332 (dejarlo corriendo)
+pnpm db:migrate
 pnpm dev:inttimo     # http://localhost:3000
 pnpm lint
 pnpm typecheck

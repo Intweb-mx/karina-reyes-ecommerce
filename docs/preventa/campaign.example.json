@@ -1,0 +1,47 @@
+{
+  "slug": "uno-mas-uno",
+  "productName": "UNO+UNO",
+  "productSku": null,
+  "status": "draft",
+  "startsAt": null,
+  "durationDays": 14,
+  "unitAmount": null,
+  "currency": "mxn",
+  "maxQuantityPerReservation": 1,
+  "deliveryNote": null,
+  "questions": [
+    {
+      "id": "ejemplo_texto",
+      "label": "EJEMPLO — reemplazar por la pregunta aprobada",
+      "type": "text",
+      "required": true,
+      "maxLength": 200
+    },
+    {
+      "id": "ejemplo_opcion",
+      "label": "EJEMPLO — pregunta de opción única",
+      "type": "select",
+      "required": true,
+      "options": [
+        { "value": "opcion_a", "label": "EJEMPLO opción A" },
+        { "value": "opcion_b", "label": "EJEMPLO opción B" }
+      ]
+    },
+    {
+      "id": "ejemplo_multiple",
+      "label": "EJEMPLO — pregunta de opción múltiple",
+      "type": "multiselect",
+      "required": false,
+      "options": [
+        { "value": "opcion_a", "label": "EJEMPLO opción A" },
+        { "value": "opcion_b", "label": "EJEMPLO opción B" }
+      ]
+    },
+    {
+      "id": "ejemplo_comentarios",
+      "label": "EJEMPLO — comentarios libres",
+      "type": "textarea",
+      "required": false
+    }
+  ]
+}

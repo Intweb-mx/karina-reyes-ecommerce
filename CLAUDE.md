@@ -30,7 +30,15 @@ No crear rutas, lógica de checkout, pagos, SkyDropX, inventario real o panel op
 
 Se puede dejar preparada la arquitectura de este repo (scaffold, tipos, tokens visuales, configuración) pero **no desarrollar lógica de negocio real de la Fase 2 antes de esa aprobación**. Si no tienes constancia de esa aprobación en la conversación actual, pregunta antes de construir cualquier funcionalidad transaccional.
 
-Estado actual del scaffold: `apps/inttimo` es un Next.js vacío (layout + página placeholder). `packages/tsconfig`, `packages/storage` y `packages/shared-utils` (solo `mail.ts`) están duplicados desde el repo de Karina Reyes como base reutilizable. No hay `packages/database` todavía — el esquema de productos/pedidos/inventario se diseña cuando arranque la Fase 2 de verdad.
+### Excepción aprobada: preventa de UNO+UNO (prioridad 1)
+
+> **Decisión del usuario (2026-09-28):** construir ya la preventa de UNO+UNO — contador de 14 días, cuestionario y pago del precio completo con **Stripe**, sin límite de lugares. Ver `docs/decisions/ADR-002-preventa-stripe.md` y `docs/preventa/README.md`.
+
+- La excepción cubre **solo la preventa**: `packages/database` (tablas `presale_*`), `apps/inttimo/src/server/presale/`, rutas `/api/preventa/*` y `/api/webhooks/stripe`, y las páginas `/preventa/[slug]` y `/preventa/[slug]/confirmacion`.
+- Catálogo, carrito, checkout general, inventario, SkyDropX, cuentas y panel operativo siguen bloqueados por el gate de arriba.
+- El frontend de la preventa lo construye un colaborador. El backend es el contrato de `apps/inttimo/src/server/presale/contract.ts`; no romperlo sin avisar.
+- Solo `gateway.ts` importa el SDK de Stripe. El precio vive en la base; nunca se acepta del cliente.
+- PostgreSQL local de este repo en el puerto **54332** (`pnpm db:local`). El 54322 lo usan Supabase local y el repo de Karina Reyes: nunca apuntar migraciones ahí.
 
 ---
 
@@ -104,6 +112,7 @@ Pero:
 │       └── ...
 │
 ├── packages/
+│   ├── database/                # PostgreSQL + Drizzle ORM: esquema, migraciones y consultas (@inttimo/database)
 │   ├── tsconfig/                # config TypeScript estricta compartida (@inttimo/tsconfig)
 │   ├── storage/                 # almacenamiento compatible con S3 (@inttimo/storage)
 │   ├── shared-utils/            # utilidades genéricas, hoy solo mail.ts (@inttimo/shared-utils)
@@ -113,10 +122,11 @@ Pero:
 └── docs/
     ├── briefs/
     ├── mockups/
-    └── decisions/
+    ├── decisions/
+    └── preventa/                # contrato de API y operación de la preventa
 ```
 
-Cuando la Fase 2 arranque de verdad, aquí se añade `packages/database` (PostgreSQL + Drizzle ORM) con el esquema propio de inttimo: productos, variantes, inventario, pedidos, cupones, territorios, etc. (ver §23 en adelante). No reutilizar el esquema de Karina Reyes — son dominios de datos distintos.
+`packages/database` hoy contiene solo el esquema de la preventa. Cuando arranque la tienda completa, ahí se añaden productos, variantes, inventario, pedidos, cupones, territorios, etc. (ver §11 en adelante). No reutilizar el esquema de Karina Reyes — son dominios de datos distintos. Cambios de esquema: editar `packages/database/src/schema/*` → `pnpm db:generate` → `pnpm db:migrate`; las migraciones de producción corren en el build de Vercel (`VERCEL_ENV=production`).
 
 Si en algún momento se decide compartir código de verdad entre este repo y `karina-reyes-ecosyste` (en vez de mantener copias duplicadas), documentarlo en un ADR antes de hacerlo — no improvisar un submódulo o paquete publicado sin decisión explícita.
 
@@ -435,7 +445,9 @@ No guardar números completos de tarjeta, CVV ni datos sensibles de pago.
 
 ## 15. Mercado Pago
 
-Integración objetivo: **Mercado Pago**.
+> **Actualización 2026-09-28:** la preventa usa **Stripe** por decisión del usuario (ADR-002). Para la tienda completa la pasarela está pendiente de decidir (Stripe o Mercado Pago); no integrar Mercado Pago sin confirmarlo. Las reglas de abajo (webhooks verificados, idempotencia, reconciliación, nunca confiar en la URL de éxito) aplican a cualquier pasarela.
+
+Integración objetivo original: **Mercado Pago**.
 
 Reglas:
 
@@ -974,6 +986,12 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm test:e2e
+pnpm db:local          # PostgreSQL local (PGlite) en :54332
+pnpm db:generate
+pnpm db:migrate
+pnpm presale:upsert --file=...    # crear/editar campaña de preventa
+pnpm presale:export --slug=...    # CSV de reservas
+pnpm presale:reconcile            # sincronizar con Stripe si falló un webhook
 ```
 
 ---
