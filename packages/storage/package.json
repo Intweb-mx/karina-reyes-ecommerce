@@ -1,0 +1,25 @@
+{
+  "name": "@inttimo/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./url": "./src/url.ts",
+    "./local": "./src/local.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1138.0",
+    "image-size": "2.0.4"
+  },
+  "devDependencies": {
+    "@inttimo/tsconfig": "workspace:*",
+    "@types/node": "^20.19.43",
+    "typescript": "5.9.3",
+    "vitest": "^5.0.1"
+  }
+}

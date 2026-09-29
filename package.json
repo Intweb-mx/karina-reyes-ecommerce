@@ -1,0 +1,17 @@
+{
+  "name": "karina-reyes-ecommerce",
+  "private": true,
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "dev": "pnpm --filter inttimo dev",
+    "dev:inttimo": "pnpm --filter inttimo dev",
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm -r --if-present test:e2e"
+  }
+}

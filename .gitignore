@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+.next/
+out/
+dist/
+build/
+.turbo/
+.vercel/
+
+# env
+.env
+.env.*
+!.env.example
+
+# testing
+coverage/
+playwright-report/
+test-results/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# local dev data y archivos subidos en desarrollo (STORAGE_DRIVER=local)
+.data/
+.local-storage/
+
+# Credenciales locales (nunca subir)
+.admin-credentials*

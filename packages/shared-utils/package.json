@@ -1,0 +1,19 @@
+{
+  "name": "@inttimo/shared-utils",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./mail": "./src/mail.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@inttimo/tsconfig": "workspace:*",
+    "@types/node": "^20.19.43",
+    "typescript": "5.9.3",
+    "vitest": "^5.0.1"
+  }
+}
