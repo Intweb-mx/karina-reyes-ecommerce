@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
   poweredByHeader: false,
-  transpilePackages: ["@inttimo/shared-utils", "@inttimo/storage"],
+  transpilePackages: ["@inttimo/database", "@inttimo/shared-utils", "@inttimo/storage"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

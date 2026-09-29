@@ -4,18 +4,25 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm --filter @inttimo/database db:deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "presale:upsert": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/presale-upsert.ts",
+    "presale:export": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/presale-export.ts",
+    "presale:reconcile": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/presale-reconcile.ts"
   },
   "dependencies": {
+    "@inttimo/database": "workspace:*",
     "@inttimo/shared-utils": "workspace:*",
     "@inttimo/storage": "workspace:*",
     "next": "16.3.6",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "stripe": "22.6.2",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@inttimo/tsconfig": "workspace:*",
