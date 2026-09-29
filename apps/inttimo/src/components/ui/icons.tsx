@@ -75,3 +75,25 @@ export const RefundIcon = (props: IconProps) => (
     <path d="M8 5L4 9l4 4" />
   </Base>
 );
+
+export const ReceiptIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z" />
+    <path d="M9 8.5h6M9 12h6M9 15.5h3" />
+  </Base>
+);
+
+export const CopyIcon = (props: IconProps) => (
+  <Base {...props}>
+    <rect x="8.5" y="8.5" width="11" height="11" rx="1.5" />
+    <path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5" />
+  </Base>
+);
+
+export const PrintIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M7 8.5V3.5h10v5" />
+    <rect x="3.5" y="8.5" width="17" height="8" rx="1.5" />
+    <path d="M7 14.5h10v6H7z" />
+  </Base>
+);

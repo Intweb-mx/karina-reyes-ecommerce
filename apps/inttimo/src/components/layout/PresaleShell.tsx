@@ -12,10 +12,10 @@ export function PresaleShell({ children }: { children: ReactNode }) {
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:bg-fg focus:px-4 focus:py-2 focus:text-sm focus:text-bg">
         Saltar al contenido
       </a>
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-8 sm:py-5">
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-bg/85 backdrop-blur-md supports-[backdrop-filter]:bg-bg/75 print:static print:border-0">
+        <div className="container-page flex h-(--header-height) items-center justify-between">
           <Wordmark />
-          <p className="flex items-center gap-2 text-xs text-muted">
+          <p className="flex items-center gap-2 text-xs text-muted print:hidden">
             <LockIcon className="size-4" />
             <span className="hidden sm:inline">Pago seguro con Stripe</span>
             <span className="sm:hidden">Pago seguro</span>
@@ -27,8 +27,8 @@ export function PresaleShell({ children }: { children: ReactNode }) {
         {children}
       </div>
 
-      <footer className="mt-auto border-t border-border/70">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10 sm:flex-row sm:items-end sm:justify-between sm:px-8">
+      <footer className="mt-auto border-t border-border/70 print:hidden">
+        <div className="container-page flex flex-col gap-6 py-10 sm:flex-row sm:items-end sm:justify-between">
           <Wordmark />
           <p className="text-xs text-muted">© {new Date().getFullYear()} inttimo. Todos los derechos reservados.</p>
         </div>

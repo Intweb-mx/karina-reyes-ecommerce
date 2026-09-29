@@ -61,7 +61,9 @@ export function Countdown({ target, serverTime, label, description, tone = "ligh
       <div className="mt-4 grid grid-cols-4" role="timer" aria-live="off">
         {parts.map((part, index) => (
           <div key={part.key} className={`px-1 text-center ${index > 0 ? (ink ? "border-l border-on-ink/15" : "border-l border-border") : ""}`}>
-            <span className="block font-serif text-4xl leading-none font-medium lining-nums tabular-nums sm:text-5xl">{String(part.value).padStart(2, "0")}</span>
+            <span key={part.value} className="animate-tick block font-serif text-4xl leading-none font-medium lining-nums tabular-nums sm:text-5xl">
+              {String(part.value).padStart(2, "0")}
+            </span>
             <span className={`mt-2 block text-[0.625rem] font-semibold tracking-[0.2em] uppercase ${ink ? "text-on-ink-muted" : "text-muted"}`}>{part.label}</span>
           </div>
         ))}

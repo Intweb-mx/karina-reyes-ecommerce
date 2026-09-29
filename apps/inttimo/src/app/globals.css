@@ -1,31 +1,5 @@
 @import "tailwindcss";
-
-/*
- * Tokens de inttimo (sistema visual provisional, ver brief §1).
- * Cálido, editorial y con mucho espacio negativo. No reutilizar tokens de Karina Reyes.
- * Las fuentes (--font-display / --font-body) las inyecta next/font en layout.tsx.
- */
-:root {
-  --color-bg: #f5f0e8;
-  --color-surface: #fbf8f3;
-  --color-sand: #ebe3d6;
-  --color-fg: #1b1a17;
-  --color-muted: #6b645a;
-  --color-border: #dcd3c5;
-  --color-accent: #1b1a17;
-  --color-ink: #221c17;
-  --color-on-ink: #f5f0e8;
-  --color-on-ink-muted: #b9ae9f;
-  --color-success: #3c5a44;
-  --color-warning: #8a5a1c;
-  --color-danger: #9b2c2c;
-
-  --font-serif: var(--font-display), "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --font-sans: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-
-  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --duration-base: 240ms;
-}
+@import "../styles/tokens.css";
 
 @theme inline {
   --color-bg: var(--color-bg);
@@ -48,6 +22,7 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: calc(var(--header-height) + 1.5rem);
   -webkit-text-size-adjust: 100%;
 }
 
@@ -74,12 +49,80 @@ body {
   outline-color: var(--color-on-ink);
 }
 
+@utility container-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--container-max);
+  padding-inline: var(--container-gutter);
+}
+
+@utility section-y {
+  padding-block: var(--section-space);
+}
+
 /* Rótulo editorial: mayúsculas espaciadas pequeñas. */
-.eyebrow {
+@utility eyebrow {
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.24em;
   text-transform: uppercase;
+}
+
+/*
+ * Casillas y radios propios: mismos elementos nativos (accesibles, teclado, lectores),
+ * con apariencia editorial en lugar de la del sistema operativo.
+ */
+.choice {
+  appearance: none;
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.0625rem;
+  border: 1.5px solid color-mix(in oklab, var(--color-fg) 35%, transparent);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-base) var(--ease-out-soft),
+    border-color var(--duration-base) var(--ease-out-soft);
+}
+.choice[type="radio"] {
+  border-radius: 9999px;
+}
+.choice::before {
+  content: "";
+  transform: scale(0);
+  transition: transform 180ms var(--ease-out-soft);
+}
+.choice[type="checkbox"]::before {
+  width: 0.75rem;
+  height: 0.75rem;
+  background: var(--color-on-ink);
+  clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 37% 70%);
+}
+.choice[type="radio"]::before {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--color-on-ink);
+}
+.choice:checked {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}
+.choice:checked::before {
+  transform: scale(1);
+}
+.choice:hover:not(:checked) {
+  border-color: var(--color-fg);
+}
+.choice:focus-visible {
+  outline: 2px solid var(--color-fg);
+  outline-offset: 3px;
+}
+.choice[aria-invalid="true"]:not(:checked) {
+  border-color: var(--color-danger);
 }
 
 @keyframes rise-in {
@@ -93,8 +136,41 @@ body {
   }
 }
 
-.animate-rise {
-  animation: rise-in 700ms var(--ease-out-soft) both;
+@utility animate-rise {
+  animation: rise-in var(--duration-slow) var(--ease-out-soft) both;
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@utility animate-pop {
+  animation: pop-in 520ms var(--ease-out-soft) both;
+}
+
+@keyframes tick {
+  from {
+    opacity: 0.35;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-tick {
+  animation: tick 380ms var(--ease-out-soft) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -107,5 +183,11 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
   }
 }
