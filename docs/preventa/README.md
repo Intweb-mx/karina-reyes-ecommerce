@@ -47,7 +47,8 @@ Tipos TypeScript de todas las respuestas: [`apps/inttimo/src/server/presale/cont
   "serverTime": "2026-10-05T12:00:00.000Z",
   "phase": "open",
   "questions": [ { "id": "...", "label": "...", "type": "select", "required": true, "options": [{ "value": "...", "label": "..." }] } ],
-  "deliveryNote": null
+  "deliveryNote": null,
+  "terms": { "version": 1, "content": "Texto de los términos…" }
 }
 ```
 
@@ -64,6 +65,7 @@ Tipos TypeScript de todas las respuestas: [`apps/inttimo/src/server/presale/cont
 | `boolean` | checkbox | `true` / `false` (si `required`, debe ser `true`) |
 
 - `deliveryNote`: texto aprobado sobre la entrega; mostrarlo solo si no es `null`.
+- `terms`: términos vigentes. Mostrarlos (o enlazarlos) junto a la casilla de aceptación y enviar `termsVersion: terms.version`. Si es `null`, la preventa aún no acepta reservas: no mostrar el formulario.
 - 404 si no existe o está en borrador.
 
 ## `POST /api/preventa/[slug]/reservas`
@@ -78,6 +80,7 @@ Cabeceras: `Content-Type: application/json` y **`Idempotency-Key`** (recomendado
   "quantity": 1,
   "answers": { "id_pregunta": "valor" },
   "acceptTerms": true,
+  "termsVersion": 1,
   "marketingConsent": false,
   "website": "",
   "attribution": { "utm_source": "instagram" }
@@ -98,6 +101,8 @@ Cabeceras: `Content-Type: application/json` y **`Idempotency-Key`** (recomendado
 | 404 | `not_found` | Preventa no existe |
 | 409 | `presale_not_open` | `error.phase` = `upcoming` o `closed` |
 | 409 | `idempotency_conflict` | Pedir recargar la página |
+| 409 | `terms_outdated` | Los términos cambiaron: recargar la campaña, mostrarlos y pedir aceptarlos de nuevo |
+| 503 | `presale_not_ready` | La campaña no tiene términos publicados |
 | 429 | `rate_limited` | Esperar unos minutos |
 | 503 | `payment_unavailable` / `service_unavailable` | Reintentar más tarde (nunca mostrar como éxito) |
 
@@ -119,17 +124,20 @@ El endpoint consulta a Stripe directamente si la reserva sigue pendiente, así q
 
 ## Operación
 
+Producción y despliegue: ver [`docs/deploy.md`](../deploy.md). Administración diaria: **panel** en `/panel` (reservas, búsqueda, detalle, edición de campaña y términos, CSV, bitácora).
+
 ### Primera vez (local)
 
 ```bash
-cp .env.example .env
+cp .env.example .env                  # SUPABASE_SECRET_KEY: el que imprime `supabase start`
 pnpm install
-pnpm db:local          # PostgreSQL local en :54332 (dejarlo corriendo)
+pnpm supabase:start                   # Supabase local (puertos 55321–55329)
 pnpm db:migrate
-pnpm presale:upsert --file=ruta/campana.json --dry-run   # valida
-pnpm presale:upsert --file=ruta/campana.json             # guarda
-pnpm dev:inttimo
-stripe listen --forward-to localhost:3000/api/webhooks/stripe   # copia el whsec_… a STRIPE_WEBHOOK_SECRET
+pnpm admin --create --email=tu@correo.com
+pnpm presale:upsert --file=ruta/campana.json --terms=ruta/terminos.md --dry-run   # valida
+pnpm presale:upsert --file=ruta/campana.json --terms=ruta/terminos.md             # guarda
+pnpm dev                              # http://localhost:3100 · panel en /panel
+stripe listen --forward-to localhost:3100/api/webhooks/stripe   # copia el whsec_… a STRIPE_WEBHOOK_SECRET
 ```
 
 Pagos de prueba: tarjeta `4242 4242 4242 4242`, cualquier fecha futura y CVC.
@@ -142,7 +150,8 @@ Copiar [`campaign.example.json`](./campaign.example.json) y completar. La planti
 - Cierre = `startsAt` + `durationDays` (14). O indicar `endsAt` explícito.
 - `unitAmount` en centavos, IVA incluido o no según defina el negocio (se cobra exactamente ese monto).
 - `status`: `draft` (invisible) → `active` → `closed` (cierra antes de tiempo).
-- Cambiar el precio con reservas existentes exige `--force` (las reservas ya creadas conservan su precio).
+- Cambiar el precio con reservas existentes exige `--force` en la CLI o confirmar en el panel (las reservas ya creadas conservan su precio).
+- Una campaña `active` exige términos publicados (`--terms=archivo.md` o desde el panel). Cada publicación es una versión nueva e inmutable; cada reserva guarda la versión que aceptó.
 - No cambiar el `id` de una pregunta con reservas existentes: es la clave de las respuestas.
 
 ### Stripe (dashboard)

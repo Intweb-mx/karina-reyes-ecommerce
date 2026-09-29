@@ -38,7 +38,16 @@ Se puede dejar preparada la arquitectura de este repo (scaffold, tipos, tokens v
 - Catálogo, carrito, checkout general, inventario, SkyDropX, cuentas y panel operativo siguen bloqueados por el gate de arriba.
 - El frontend de la preventa lo construye un colaborador. El backend es el contrato de `apps/inttimo/src/server/presale/contract.ts`; no romperlo sin avisar.
 - Solo `gateway.ts` importa el SDK de Stripe. El precio vive en la base; nunca se acepta del cliente.
-- PostgreSQL local de este repo en el puerto **54332** (`pnpm db:local`). El 54322 lo usan Supabase local y el repo de Karina Reyes: nunca apuntar migraciones ahí.
+- Nunca apuntar migraciones al puerto 54322: lo usa el Supabase local de otro proyecto (AJL-Group).
+
+### Plataforma: Supabase completo (producción real)
+
+> **Decisión del usuario (2026-09-28):** Supabase completo — PostgreSQL + Supabase Auth. Esto es un sistema real, listo para producción y tráfico; el backend de Karina Reyes es una demo y **no** es referencia de arquitectura. Ver `docs/decisions/ADR-003-supabase.md`.
+
+- Drizzle es el ORM y la herramienta de migraciones. El navegador nunca consulta tablas; todo pasa por el servidor.
+- **Toda tabla nueva** lleva RLS activado y sin privilegios para `anon`/`authenticated` (test en `packages/database/tests`).
+- Panel: Supabase Auth, sin registro público, rol `app_metadata.role = "admin"`.
+- Supabase local en puertos 55321–55329 (`supabase start`). PGlite solo en tests.
 
 ---
 
@@ -986,7 +995,8 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm test:e2e
-pnpm db:local          # PostgreSQL local (PGlite) en :54332
+pnpm supabase:start    # Supabase local (puertos 55321–55329)
+pnpm admin --create --email=...   # administradores del panel (también --reset-mfa, --revoke, --list)
 pnpm db:generate
 pnpm db:migrate
 pnpm presale:upsert --file=...    # crear/editar campaña de preventa
