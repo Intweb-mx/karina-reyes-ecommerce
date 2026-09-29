@@ -16,7 +16,18 @@ Página /preventa/[slug]
   Si cancela en Stripe regresa a /preventa/[slug]?cancelado=1
 ```
 
-Frontend debe crear dos páginas: `/preventa/[slug]` y `/preventa/[slug]/confirmacion`. Las URLs de regreso de Stripe apuntan ahí.
+Las dos páginas (`/preventa/[slug]` y `/preventa/[slug]/confirmacion`) ya existen como **placeholder funcional** para rediseñar libremente. Las URLs de regreso de Stripe apuntan ahí, así que conservar esas rutas.
+
+| Archivo | Qué es |
+|---|---|
+| `apps/inttimo/src/app/preventa/[slug]/page.tsx` | Página de preventa (Server Component: lee la campaña directo de la base) |
+| `apps/inttimo/src/app/preventa/[slug]/confirmacion/page.tsx` | Página de regreso de Stripe |
+| `apps/inttimo/src/components/presale/Countdown.tsx` | Contador (corrige el reloj del cliente con `serverTime`) |
+| `apps/inttimo/src/components/presale/ReservationForm.tsx` | Formulario + cuestionario dinámico, errores por campo, honeypot, `Idempotency-Key` |
+| `apps/inttimo/src/components/presale/ConfirmationStatus.tsx` | Estado de la reserva con reintentos |
+| `apps/inttimo/src/app/globals.css` | Tokens de color/tipografía provisionales |
+
+La lógica de esos componentes (llamadas a la API, manejo de errores, accesibilidad) ya funciona; lo pendiente es diseño, fotografía, tipografías finales y el enlace a los términos (marcado `PLACEHOLDER`).
 
 Tipos TypeScript de todas las respuestas: [`apps/inttimo/src/server/presale/contract.ts`](../../apps/inttimo/src/server/presale/contract.ts). En Server Components se puede llamar directo a `getPublicCampaign` (ver `reservations.ts`) sin hacer fetch a la propia API.
 

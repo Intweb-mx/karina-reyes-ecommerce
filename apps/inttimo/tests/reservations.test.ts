@@ -80,7 +80,7 @@ describe("crear reserva", () => {
     const result = await create({ email: "no-es-correo", acceptTerms: false, answers: { como_nos_conociste: "tv" } });
     expect(result.status).toBe(400);
     const errors = !result.ok ? result.body.error.fieldErrors : undefined;
-    expect(Object.keys(errors ?? {})).toEqual(expect.arrayContaining(["email", "acceptTerms"]));
+    expect(Object.keys(errors ?? {})).toEqual(expect.arrayContaining(["email", "acceptTerms", "answers.como_nos_conociste", "answers.acepta_contacto"]));
 
     const answers = await create({ answers: { como_nos_conociste: "tv" } });
     const answerErrors = !answers.ok ? answers.body.error.fieldErrors : undefined;

@@ -3,11 +3,12 @@ import { createDatabase, type Database } from "@inttimo/database";
 import { sendMail } from "@inttimo/shared-utils/mail";
 import Stripe from "stripe";
 import type { ApiError } from "./contract.ts";
-import { createStripeGateway } from "./gateway.ts";
+import { createStripeGateway, type PaymentGateway } from "./gateway.ts";
 import { sendConfirmationIfNeeded } from "./notifications.ts";
 import type { PresaleDeps, ServiceResult } from "./reservations.ts";
 
-let db: Database | undefined;
+// En globalThis: la recarga en caliente de `next dev` reevalúa este módulo y sin esto abriría un pool nuevo en cada cambio.
+const cache = globalThis as typeof globalThis & { __inttimoDb?: Database };
 let stripe: Stripe | undefined;
 
 export class ConfigError extends Error {}
@@ -19,7 +20,7 @@ function requireEnv(name: string): string {
 }
 
 export function getDb(): Database {
-  return (db ??= createDatabase());
+  return (cache.__inttimoDb ??= createDatabase());
 }
 
 export function getStripe(): Stripe {
@@ -34,10 +35,16 @@ export function confirmPaid(reservationId: string) {
   return sendConfirmationIfNeeded(getDb(), reservationId, { send: sendMail, notifyEmail: process.env.PRESALE_NOTIFY_EMAIL || null });
 }
 
+/** Stripe se inicializa al usarse: sin llave, la validación y las consultas siguen funcionando. */
+const lazyGateway: PaymentGateway = {
+  createCheckout: (input) => createStripeGateway(getStripe()).createCheckout(input),
+  retrieveCheckout: (sessionId) => createStripeGateway(getStripe()).retrieveCheckout(sessionId),
+};
+
 export function getPresaleDeps(): PresaleDeps {
   return {
     db: getDb(),
-    gateway: createStripeGateway(getStripe()),
+    gateway: lazyGateway,
     siteUrl: requireEnv("NEXT_PUBLIC_SITE_URL"),
     onPaid: confirmPaid,
   };

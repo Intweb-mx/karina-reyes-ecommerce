@@ -131,8 +131,15 @@ export async function createPresaleReservation(
     return fail(400, "validation_error", "Idempotency-Key no válida (8–100 caracteres: letras, números, _ o -).");
   }
 
+  // Datos y respuestas se validan juntos para mostrar todos los errores de una vez.
   const parsed = baseRequestSchema.safeParse(input.body);
-  if (!parsed.success) return fail(400, "validation_error", "Revisa los datos del formulario.", { fieldErrors: fieldErrors(parsed.error) });
+  const rawAnswers = parsed.success ? parsed.data.answers : ((input.body as { answers?: unknown } | null)?.answers ?? {});
+  const answers = buildAnswersSchema(campaign.questions).safeParse(rawAnswers);
+  if (!parsed.success || !answers.success) {
+    return fail(400, "validation_error", "Revisa los datos del formulario.", {
+      fieldErrors: { ...(parsed.error ? fieldErrors(parsed.error) : {}), ...(answers.error ? fieldErrors(answers.error, "answers") : {}) },
+    });
+  }
   const request = parsed.data;
 
   // Honeypot: un bot llenó el campo oculto. Respuesta genérica, sin pistas.
@@ -142,11 +149,6 @@ export async function createPresaleReservation(
     return fail(400, "validation_error", "Revisa los datos del formulario.", {
       fieldErrors: { quantity: [`Máximo ${campaign.maxQuantityPerReservation} por reserva.`] },
     });
-  }
-
-  const answers = buildAnswersSchema(campaign.questions).safeParse(request.answers);
-  if (!answers.success) {
-    return fail(400, "validation_error", "Revisa tus respuestas.", { fieldErrors: fieldErrors(answers.error, "answers") });
   }
 
   if (input.idempotencyKey) {

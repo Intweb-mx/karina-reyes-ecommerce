@@ -7,12 +7,9 @@ import {
   type PresaleReservation,
 } from "@inttimo/database";
 import { escapeHtml, type Mail } from "@inttimo/shared-utils/mail";
+import { formatMoney } from "../../lib/format.ts";
 
 export type MailSender = (mail: Mail) => Promise<void>;
-
-export function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat("es-MX", { style: "currency", currency: currency.toUpperCase() }).format(amount / 100);
-}
 
 function customerMail(reservation: PresaleReservation, productName: string, deliveryNote: string | null): Mail {
   const total = formatMoney(reservation.totalAmount, reservation.currency);
