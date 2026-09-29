@@ -1,37 +1,193 @@
 @import "tailwindcss";
-
-/* Tokens provisionales de inttimo (placeholder de la preventa): ajustar con la identidad final. */
-:root {
-  --color-bg: #f6f3ee;
-  --color-surface: #fbf9f6;
-  --color-fg: #151412;
-  --color-muted: #6b665f;
-  --color-border: #d9d3ca;
-  --color-accent: #151412;
-  --color-danger: #9b2c2c;
-  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-}
+@import "../styles/tokens.css";
 
 @theme inline {
   --color-bg: var(--color-bg);
   --color-surface: var(--color-surface);
+  --color-sand: var(--color-sand);
   --color-fg: var(--color-fg);
   --color-muted: var(--color-muted);
   --color-border: var(--color-border);
   --color-accent: var(--color-accent);
+  --color-ink: var(--color-ink);
+  --color-on-ink: var(--color-on-ink);
+  --color-on-ink-muted: var(--color-on-ink-muted);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
   --color-danger: var(--color-danger);
   --font-serif: var(--font-serif);
   --font-sans: var(--font-sans);
+  --ease-soft: var(--ease-out-soft);
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: calc(var(--header-height) + 1.5rem);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+  font-variant-numeric: lining-nums;
+}
+
+::selection {
+  background: var(--color-sand);
+  color: var(--color-fg);
 }
 
 :focus-visible {
   outline: 2px solid var(--color-fg);
   outline-offset: 3px;
+}
+
+/* Sobre fondos oscuros el foco se invierte para seguir siendo visible. */
+.surface-ink :focus-visible {
+  outline-color: var(--color-on-ink);
+}
+
+@utility container-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--container-max);
+  padding-inline: var(--container-gutter);
+}
+
+@utility section-y {
+  padding-block: var(--section-space);
+}
+
+/* Rótulo editorial: mayúsculas espaciadas pequeñas. */
+@utility eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+/*
+ * Casillas y radios propios: mismos elementos nativos (accesibles, teclado, lectores),
+ * con apariencia editorial en lugar de la del sistema operativo.
+ */
+.choice {
+  appearance: none;
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.0625rem;
+  border: 1.5px solid color-mix(in oklab, var(--color-fg) 35%, transparent);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-base) var(--ease-out-soft),
+    border-color var(--duration-base) var(--ease-out-soft);
+}
+.choice[type="radio"] {
+  border-radius: 9999px;
+}
+.choice::before {
+  content: "";
+  transform: scale(0);
+  transition: transform 180ms var(--ease-out-soft);
+}
+.choice[type="checkbox"]::before {
+  width: 0.75rem;
+  height: 0.75rem;
+  background: var(--color-on-ink);
+  clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 37% 70%);
+}
+.choice[type="radio"]::before {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--color-on-ink);
+}
+.choice:checked {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}
+.choice:checked::before {
+  transform: scale(1);
+}
+.choice:hover:not(:checked) {
+  border-color: var(--color-fg);
+}
+.choice:focus-visible {
+  outline: 2px solid var(--color-fg);
+  outline-offset: 3px;
+}
+.choice[aria-invalid="true"]:not(:checked) {
+  border-color: var(--color-danger);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-rise {
+  animation: rise-in var(--duration-slow) var(--ease-out-soft) both;
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@utility animate-pop {
+  animation: pop-in 520ms var(--ease-out-soft) both;
+}
+
+@keyframes tick {
+  from {
+    opacity: 0.35;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-tick {
+  animation: tick 380ms var(--ease-out-soft) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
 }

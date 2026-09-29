@@ -1,0 +1,43 @@
+/*
+ * Tokens de inttimo (sistema visual provisional, ver brief §1 y CLAUDE.md §40).
+ * Cálido, editorial y con mucho espacio negativo. No reutilizar tokens de Karina Reyes.
+ * Las fuentes (--font-display / --font-body) las inyecta next/font en app/layout.tsx.
+ */
+:root {
+  /* Color */
+  --color-bg: #f5f0e8;
+  --color-surface: #fbf8f3;
+  --color-sand: #ebe3d6;
+  --color-fg: #1b1a17;
+  --color-muted: #6b645a;
+  --color-border: #dcd3c5;
+  --color-accent: #1b1a17;
+  --color-ink: #221c17;
+  --color-on-ink: #f5f0e8;
+  --color-on-ink-muted: #b9ae9f;
+  --color-success: #3c5a44;
+  --color-warning: #8a5a1c;
+  --color-danger: #9b2c2c;
+
+  /* Tipografía */
+  --font-serif: var(--font-display), "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Layout */
+  --container-max: 72rem;
+  --container-gutter: 1rem;
+  --section-space: 4rem;
+  --header-height: 4.5rem;
+
+  /* Movimiento */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-base: 240ms;
+  --duration-slow: 700ms;
+}
+
+@media (min-width: 40rem) {
+  :root {
+    --container-gutter: 2rem;
+    --section-space: 6rem;
+  }
+}
