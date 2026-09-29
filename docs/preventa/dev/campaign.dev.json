@@ -1,0 +1,39 @@
+{
+  "slug": "demo",
+  "productName": "DEMO — solo desarrollo",
+  "productSku": null,
+  "status": "active",
+  "startsAt": "2026-01-01T00:00:00-06:00",
+  "endsAt": "2030-12-31T23:59:00-06:00",
+  "unitAmount": 100000,
+  "currency": "mxn",
+  "maxQuantityPerReservation": 2,
+  "deliveryNote": "DEMO: texto de entrega de ejemplo, no aprobado.",
+  "questions": [
+    { "id": "demo_texto", "label": "DEMO — pregunta de texto", "type": "text", "required": true, "maxLength": 120 },
+    {
+      "id": "demo_opcion",
+      "label": "DEMO — opción única",
+      "type": "select",
+      "required": true,
+      "options": [
+        { "value": "a", "label": "Opción A" },
+        { "value": "b", "label": "Opción B" }
+      ]
+    },
+    {
+      "id": "demo_multiple",
+      "label": "DEMO — opción múltiple",
+      "type": "multiselect",
+      "required": false,
+      "helpText": "Puedes elegir varias.",
+      "options": [
+        { "value": "x", "label": "Opción X" },
+        { "value": "y", "label": "Opción Y" },
+        { "value": "z", "label": "Opción Z" }
+      ]
+    },
+    { "id": "demo_comentarios", "label": "DEMO — comentarios", "type": "textarea", "required": false },
+    { "id": "demo_si_no", "label": "DEMO — casilla obligatoria", "type": "boolean", "required": true }
+  ]
+}

@@ -8,7 +8,7 @@ Toda la operación de este repositorio está en [`CLAUDE.md`](./CLAUDE.md). Lée
 
 ## Estado actual
 
-- **Preventa de UNO+UNO** (prioridad 1): backend completo — base de datos, API, Stripe Checkout, webhooks, correos y CLI de operación. Contrato de API para frontend y guía de operación en [`docs/preventa/README.md`](./docs/preventa/README.md). Las páginas las construye frontend.
+- **Preventa de UNO+UNO** (prioridad 1): backend completo — base de datos, API, Stripe Checkout, webhooks, correos y CLI de operación. Contrato de API para frontend y guía de operación en [`docs/preventa/README.md`](./docs/preventa/README.md). Las páginas las construye frontend: guía de arranque en [`docs/frontend.md`](./docs/frontend.md).
 - Tienda completa: bloqueada por el gate (ver CLAUDE.md §1).
 
 ## Comandos

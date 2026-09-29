@@ -20,6 +20,7 @@
     "presale:reconcile": "pnpm --filter inttimo presale:reconcile",
     "admin": "pnpm --filter inttimo admin",
     "supabase:start": "supabase start",
-    "supabase:stop": "supabase stop"
+    "supabase:stop": "supabase stop",
+    "dev:seed": "pnpm --filter inttimo presale:upsert --file=docs/preventa/dev/campaign.dev.json --terms=docs/preventa/dev/terminos.dev.md"
   }
 }
