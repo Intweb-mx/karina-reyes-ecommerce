@@ -1,25 +1,28 @@
 import type { ComponentProps, ReactNode } from "react";
 import { AlertIcon, CheckIcon } from "@/components/ui/icons";
 
-export const inputClass =
-  "block w-full min-h-13 border border-border bg-surface px-4 py-3 text-base text-fg outline-none placeholder:text-muted/60 " +
+/*
+ * Campos del formulario de preventa.
+ * Estados visibles: reposo → hover (borde más oscuro) → foco (borde tinta + halo arena) → válido (marca verde) / error (borde y halo rojo).
+ */
+const fieldSurface =
+  "border border-border bg-[#fffdf9] text-fg shadow-[inset_0_1px_2px_rgb(34_28_23/0.04)] outline-none " +
   "transition-[border-color,box-shadow,background-color] duration-(--duration-base) ease-soft " +
-  "hover:border-fg/35 focus:border-fg focus:bg-bg focus:shadow-[0_0_0_4px_var(--color-sand)] focus-visible:outline-none " +
-  "aria-invalid:border-danger aria-invalid:focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--color-danger)_14%,transparent)]";
-export const labelClass = "block text-sm font-semibold";
-export const tileClass =
-  "group/tile relative flex min-h-13 cursor-pointer items-start gap-3.5 border border-border bg-surface px-4 py-3.5 text-sm leading-snug " +
-  "transition-[border-color,background-color,box-shadow] duration-(--duration-base) ease-soft " +
-  "hover:border-fg/35 hover:bg-bg has-checked:border-ink has-checked:bg-bg has-checked:shadow-[inset_0_0_0_1px_var(--color-ink)]";
+  "hover:border-fg/30 focus:border-fg focus:shadow-[0_0_0_4px_var(--color-sand)] focus-visible:outline-none " +
+  "aria-invalid:border-danger/70 aria-invalid:bg-danger/[0.02] aria-invalid:focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--color-danger)_14%,transparent)]";
+
+export const inputClass = `block w-full min-h-14 px-4 text-[1.0625rem] placeholder:text-muted/55 ${fieldSurface}`;
+export const textareaClass = `block w-full min-h-36 resize-y px-4 py-3.5 text-[1.0625rem] leading-relaxed placeholder:text-muted/55 ${fieldSurface}`;
+export const labelClass = "block text-[0.9375rem] font-semibold tracking-[-0.005em]";
 
 export function Optional() {
-  return <span className="font-normal text-muted"> (opcional)</span>;
+  return <span className="ml-1 text-xs font-normal tracking-normal text-muted">(opcional)</span>;
 }
 
 export function FieldError({ id, errors }: { id: string; errors?: string[] }) {
   if (!errors?.length) return null;
   return (
-    <p id={`${id}-error`} className="animate-rise mt-2 flex items-start gap-1.5 text-sm text-danger [animation-duration:300ms]">
+    <p id={`${id}-error`} className="animate-rise mt-2 flex items-start gap-1.5 text-sm font-medium text-danger [animation-duration:280ms]">
       <AlertIcon className="mt-0.5 size-4 shrink-0" />
       {errors.join(" ")}
     </p>
@@ -40,34 +43,99 @@ export function Hint({ id, children }: { id: string; children: ReactNode }) {
 }
 
 export function CharCount({ value, max }: { value: string; max: number }) {
-  const near = value.length >= max * 0.9;
+  const ratio = value.length / max;
   return (
-    <p aria-hidden="true" className={`mt-1.5 text-right text-xs lining-nums tabular-nums ${near ? "text-warning" : "text-muted"}`}>
-      {value.length}/{max}
-    </p>
+    <span aria-hidden="true" className={`text-xs lining-nums tabular-nums transition-colors ${ratio >= 0.9 ? "text-warning" : "text-muted/80"}`}>
+      {value.length.toLocaleString("es-MX")} / {max.toLocaleString("es-MX")}
+    </span>
   );
 }
 
-/** Input de texto con marca de "correcto" a la derecha cuando el campo ya se validó. */
-export function TextInput({ valid, className = "", ...props }: { valid?: boolean } & ComponentProps<"input">) {
+/** Estado a la derecha del campo: marca verde si es válido, alerta si hay error. */
+function TrailingState({ valid, invalid }: { valid?: boolean; invalid?: boolean }) {
+  if (invalid) {
+    return (
+      <span aria-hidden="true" className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-danger">
+        <AlertIcon className="animate-pop size-5" />
+      </span>
+    );
+  }
+  if (!valid) return null;
   return (
-    <div className="relative mt-2">
-      <input {...props} className={`${inputClass} ${valid ? "pr-11" : ""} ${className}`} />
-      {valid && (
-        <span aria-hidden="true" className="animate-pop pointer-events-none absolute top-1/2 right-3.5 grid size-5 -translate-y-1/2 place-items-center rounded-full bg-success text-on-ink">
-          <CheckIcon className="size-3" />
+    <span aria-hidden="true" className="animate-pop pointer-events-none absolute top-1/2 right-4 grid size-5 -translate-y-1/2 place-items-center rounded-full bg-success text-on-ink">
+      <CheckIcon className="size-3" />
+    </span>
+  );
+}
+
+/** Campo de texto con icono opcional a la izquierda y estado (correcto / error) a la derecha. */
+export function TextInput({ valid, icon, className = "", ...props }: { valid?: boolean; icon?: ReactNode } & ComponentProps<"input">) {
+  const invalid = props["aria-invalid"] === true || props["aria-invalid"] === "true";
+  return (
+    <div className="group/field relative mt-2.5">
+      {icon && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-muted/70 transition-colors duration-(--duration-base) group-focus-within/field:text-fg"
+        >
+          {icon}
         </span>
       )}
+      <input {...props} className={`${inputClass} ${icon ? "pl-12" : ""} ${valid || invalid ? "pr-12" : ""} ${className}`} />
+      <TrailingState valid={valid} invalid={invalid} />
     </div>
   );
 }
 
-/** Tarjeta seleccionable (radio o casilla) con control propio y borde marcado al elegirla. */
-export function ChoiceTile({ invalid, children, ...input }: { invalid?: boolean; children: ReactNode } & ComponentProps<"input">) {
+/** Área de texto con contador integrado en la esquina inferior. */
+export function TextArea({ value, max, ...props }: { value: string; max: number } & Omit<ComponentProps<"textarea">, "value" | "maxLength">) {
   return (
-    <label className={`${tileClass} ${invalid ? "border-danger/60" : ""}`}>
-      <input {...input} className="choice" aria-invalid={invalid || undefined} />
-      <span className="flex-1 pt-px">{children}</span>
+    <div className="relative mt-2.5">
+      <textarea {...props} value={value} maxLength={max} className={`${textareaClass} pb-9`} />
+      <span className="pointer-events-none absolute right-4 bottom-3">
+        <CharCount value={value} max={max} />
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Tarjeta seleccionable (radio o casilla).
+ * Con `marker` (A, B, C…) el control nativo queda oculto a la vista pero accesible, y la insignia muestra el estado;
+ * sin `marker` se usa la casilla propia `.choice`.
+ */
+export function ChoiceTile({ invalid, marker, description, children, ...input }: { invalid?: boolean; marker?: string; description?: ReactNode; children: ReactNode } & ComponentProps<"input">) {
+  const round = input.type === "radio";
+  return (
+    <label
+      className={`group/tile relative flex min-h-14 cursor-pointer items-center gap-4 border bg-[#fffdf9] px-4 py-3 text-[0.9375rem] leading-snug select-none
+        transition-[border-color,background-color,box-shadow,transform] duration-(--duration-base) ease-soft
+        hover:-translate-y-px hover:border-fg/35 hover:shadow-[0_10px_24px_-18px_rgb(34_28_23/0.5)]
+        active:translate-y-0
+        has-checked:border-ink has-checked:bg-surface has-checked:shadow-[inset_0_0_0_1px_var(--color-ink),0_10px_24px_-18px_rgb(34_28_23/0.45)]
+        has-focus-visible:outline-2 has-focus-visible:outline-offset-3 has-focus-visible:outline-fg
+        ${invalid ? "border-danger/60" : "border-border"}`}
+    >
+      {marker ? (
+        <>
+          <input {...input} className="peer sr-only" aria-invalid={invalid || undefined} />
+          <span
+            aria-hidden="true"
+            className={`grid size-8 shrink-0 place-items-center border text-xs font-semibold transition-colors duration-(--duration-base) ease-soft ${round ? "rounded-full" : ""}
+              border-border bg-bg text-muted group-hover/tile:border-fg/40 group-hover/tile:text-fg
+              peer-checked:border-ink peer-checked:bg-ink peer-checked:text-on-ink`}
+          >
+            <span className="group-has-checked/tile:hidden">{marker}</span>
+            <CheckIcon className="hidden size-4 group-has-checked/tile:block group-has-checked/tile:animate-[pop-in_420ms_var(--ease-out-soft)_both]" />
+          </span>
+        </>
+      ) : (
+        <input {...input} className="choice" aria-invalid={invalid || undefined} />
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block">{children}</span>
+        {description && <span className="mt-0.5 block text-sm text-muted">{description}</span>}
+      </span>
     </label>
   );
 }
@@ -79,7 +147,7 @@ export function FormSection({ step, title, id, complete, children }: { step: str
       <h3 id={`${id}-title`} className="flex items-center gap-4">
         <span
           aria-hidden="true"
-          className={`grid size-10 shrink-0 place-items-center rounded-full border font-serif text-lg transition-colors duration-(--duration-base) ${
+          className={`grid size-10 shrink-0 place-items-center rounded-full border font-serif text-lg lining-nums transition-colors duration-(--duration-base) ${
             complete ? "border-success bg-success text-on-ink" : "border-border text-fg/60"
           }`}
         >
@@ -88,7 +156,7 @@ export function FormSection({ step, title, id, complete, children }: { step: str
         <span className="font-serif text-3xl leading-tight font-medium">{title}</span>
         {complete && <span className="sr-only">(completo)</span>}
       </h3>
-      <div className="mt-8 space-y-7 sm:pl-14">{children}</div>
+      <div className="mt-8 space-y-8 sm:pl-14">{children}</div>
     </section>
   );
 }

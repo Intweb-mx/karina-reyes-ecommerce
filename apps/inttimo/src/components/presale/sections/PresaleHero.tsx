@@ -2,7 +2,7 @@ import type { PublicCampaign } from "@/server/presale/contract";
 import { AnchorButton } from "@/components/ui/Button";
 import { LockIcon } from "@/components/ui/icons";
 import { phaseCopy } from "@/content/presale";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, formatShortDate } from "@/lib/format";
 import { Countdown } from "../Countdown";
 
 export function PresaleHero({ campaign, accepting }: { campaign: PublicCampaign; accepting: boolean }) {
@@ -10,14 +10,14 @@ export function PresaleHero({ campaign, accepting }: { campaign: PublicCampaign;
   const open = campaign.phase === "open";
 
   return (
-    <section id="preventa-hero" aria-labelledby="producto" className="container-page grid gap-10 pt-10 pb-16 sm:pt-16 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-center lg:gap-16 lg:pt-24 lg:pb-24">
+    <section id="preventa-hero" aria-labelledby="producto" className="container-page grid gap-10 pt-10 pb-16 sm:pt-16 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-center lg:gap-20 lg:pt-20 lg:pb-24">
       <div className="animate-rise">
         <p className="flex flex-wrap items-center gap-3">
           <span className="eyebrow text-muted">Preventa</span>
           <span aria-hidden="true" className="h-px w-8 bg-border" />
           <PhaseBadge phase={campaign.phase} />
         </p>
-        <h1 id="producto" className="mt-6 font-serif text-[clamp(3.5rem,11vw,7.5rem)] leading-[0.9] font-medium tracking-[-0.02em] text-balance">
+        <h1 id="producto" className="mt-6 font-serif text-[clamp(3.25rem,9vw,6.5rem)] leading-[0.92] font-medium tracking-[-0.02em] text-balance">
           {campaign.productName}
         </h1>
         <p className="mt-6 max-w-lg font-serif text-2xl leading-snug text-fg/80 italic sm:text-3xl">{copy.lede}</p>
@@ -35,7 +35,10 @@ export function PresaleHero({ campaign, accepting }: { campaign: PublicCampaign;
         )}
       </div>
 
-      <aside aria-label="Resumen de la preventa" className="surface-ink animate-rise bg-ink p-6 text-on-ink [animation-delay:120ms] sm:p-10">
+      <aside
+        aria-label="Resumen de la preventa"
+        className="surface-ink animate-rise relative isolate bg-ink bg-[radial-gradient(120%_70%_at_100%_0%,#3a2f26_0%,transparent_60%)] p-7 text-on-ink [animation-delay:120ms] before:pointer-events-none before:absolute before:inset-2.5 before:-z-10 before:border before:border-on-ink/10 sm:p-10 lg:p-12"
+      >
         {campaign.phase === "closed" ? (
           <div>
             <p className="eyebrow text-on-ink-muted">Cerró el</p>
@@ -45,23 +48,33 @@ export function PresaleHero({ campaign, accepting }: { campaign: PublicCampaign;
           <>
             <Countdown
               tone="ink"
+              live={open}
               target={open ? campaign.endsAt : campaign.startsAt}
+              start={open ? campaign.startsAt : undefined}
               serverTime={campaign.serverTime}
               label={copy.countdownLabel!}
               description={`${open ? "La preventa cierra" : "La preventa abre"} el ${formatDate(open ? campaign.endsAt : campaign.startsAt)}.`}
             />
-            <p className="mt-6 text-xs text-on-ink-muted">
-              {open ? "Cierre" : "Apertura"}: {formatDate(open ? campaign.endsAt : campaign.startsAt)}
-            </p>
+            <dl className="mt-6 grid grid-cols-2 gap-4 text-xs">
+              {open ? (
+                <>
+                  <DateItem label="Abrió" iso={campaign.startsAt} />
+                  <DateItem label="Cierra" iso={campaign.endsAt} align="right" />
+                </>
+              ) : (
+                <DateItem label="Abre" iso={campaign.startsAt} />
+              )}
+            </dl>
           </>
         )}
 
-        <div className="mt-8 flex items-end justify-between gap-4 border-t border-on-ink/15 pt-6">
-          <div>
-            <p className="eyebrow text-on-ink-muted">Precio de preventa</p>
-            <p className="mt-2 font-serif text-4xl leading-none font-medium sm:text-5xl">{formatMoney(campaign.unitAmount, campaign.currency)}</p>
-          </div>
-          <p className="pb-1 text-xs tracking-[0.12em] text-on-ink-muted uppercase">{campaign.currency}</p>
+        <div className="mt-8 border-t border-on-ink/15 pt-7">
+          <p className="eyebrow text-on-ink-muted">Precio de preventa</p>
+          <p className="mt-3 flex items-baseline gap-2.5">
+            <span className="font-serif text-[clamp(2.75rem,6vw,3.75rem)] leading-none font-medium lining-nums">{formatMoney(campaign.unitAmount, campaign.currency)}</span>
+            <span className="text-xs font-semibold tracking-[0.16em] text-on-ink-muted uppercase">{campaign.currency}</span>
+          </p>
+          <p className="mt-2 text-xs text-on-ink-muted">Pago único del precio completo.</p>
         </div>
 
         {accepting && (
@@ -69,7 +82,7 @@ export function PresaleHero({ campaign, accepting }: { campaign: PublicCampaign;
             Reservar mi lugar
           </AnchorButton>
         )}
-        <p className="mt-4 flex items-center gap-2 text-xs text-on-ink-muted">
+        <p className={`${accepting ? "mt-4" : "mt-8 border-t border-on-ink/15 pt-6"} flex items-center justify-center gap-2 text-center text-xs text-on-ink-muted`}>
           <LockIcon className="size-3.5 shrink-0" />
           Pago procesado por Stripe. No guardamos datos de tu tarjeta.
         </p>
@@ -85,5 +98,16 @@ function PhaseBadge({ phase }: { phase: PublicCampaign["phase"] }) {
       <span aria-hidden="true" className={`size-1.5 rounded-full ${dot} ${phase === "open" ? "motion-safe:animate-pulse" : ""}`} />
       {phaseCopy[phase].badge}
     </span>
+  );
+}
+
+function DateItem({ label, iso, align = "left" }: { label: string; iso: string; align?: "left" | "right" }) {
+  return (
+    <div className={align === "right" ? "text-right" : ""}>
+      <dt className="text-[0.625rem] font-semibold tracking-[0.2em] text-on-ink-muted uppercase">{label}</dt>
+      <dd className="mt-1 text-sm text-on-ink lining-nums">
+        <time dateTime={iso}>{formatShortDate(iso)}</time>
+      </dd>
+    </div>
   );
 }

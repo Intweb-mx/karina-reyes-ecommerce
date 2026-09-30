@@ -97,3 +97,34 @@ export const PrintIcon = (props: IconProps) => (
     <path d="M7 14.5h10v6H7z" />
   </Base>
 );
+
+export const UserIcon = (props: IconProps) => (
+  <Base {...props}>
+    <circle cx="12" cy="8" r="3.75" />
+    <path d="M4.5 20c.9-3.6 3.9-5.5 7.5-5.5s6.6 1.9 7.5 5.5" />
+  </Base>
+);
+
+export const PhoneIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M5 4.5h3.2l1.6 4-2 1.3a10.5 10.5 0 0 0 6.4 6.4l1.3-2 4 1.6V19a1.5 1.5 0 0 1-1.6 1.5A15.5 15.5 0 0 1 3.5 6.1 1.5 1.5 0 0 1 5 4.5z" />
+  </Base>
+);
+
+export const ChevronDownIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M6 9.5l6 6 6-6" />
+  </Base>
+);
+
+export const MinusIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M5 12h14" />
+  </Base>
+);
+
+export const PlusIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 5v14M5 12h14" />
+  </Base>
+);

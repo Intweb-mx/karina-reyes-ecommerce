@@ -39,14 +39,17 @@ body {
   color: var(--color-fg);
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-fg);
-  outline-offset: 3px;
-}
+/* En @layer base para que las utilidades de cada componente (p. ej. focus-visible:outline-none en campos con halo) puedan sustituirlo. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-fg);
+    outline-offset: 3px;
+  }
 
-/* Sobre fondos oscuros el foco se invierte para seguir siendo visible. */
-.surface-ink :focus-visible {
-  outline-color: var(--color-on-ink);
+  /* Sobre fondos oscuros el foco se invierte para seguir siendo visible. */
+  .surface-ink :focus-visible {
+    outline-color: var(--color-on-ink);
+  }
 }
 
 @utility container-page {
@@ -156,6 +159,36 @@ body {
 
 @utility animate-pop {
   animation: pop-in 520ms var(--ease-out-soft) both;
+}
+
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@utility animate-indeterminate {
+  animation: indeterminate 1.1s var(--ease-out-soft) infinite;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+@utility animate-shake {
+  animation: shake 280ms ease-in-out 1;
 }
 
 @keyframes tick {
