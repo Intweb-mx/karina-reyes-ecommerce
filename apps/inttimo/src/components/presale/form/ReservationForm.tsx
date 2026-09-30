@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import type { PublicCampaign } from "@/server/presale/contract";
 import { formCopy } from "@/content/presale";
+import { ChevronDownIcon, MailIcon, PhoneIcon, UserIcon } from "@/components/ui/icons";
 import { formatMoney } from "@/lib/format";
 import { ErrorSummary } from "./ErrorSummary";
 import { ChoiceTile, FieldError, FormSection, Hint, Optional, TextInput, describedBy, labelClass } from "./fields";
@@ -55,6 +56,8 @@ export function ReservationForm({ campaign }: { campaign: PublicCampaign }) {
               <TextInput
                 id="fullName"
                 name="fullName"
+                icon={<UserIcon className="size-5" />}
+                placeholder="Nombre y apellidos"
                 autoComplete="name"
                 autoCapitalize="words"
                 enterKeyHint="next"
@@ -73,6 +76,7 @@ export function ReservationForm({ campaign }: { campaign: PublicCampaign }) {
               <TextInput
                 id="email"
                 name="email"
+                icon={<MailIcon className="size-5" />}
                 type="email"
                 inputMode="email"
                 autoComplete="email"
@@ -98,6 +102,8 @@ export function ReservationForm({ campaign }: { campaign: PublicCampaign }) {
               <TextInput
                 id="phone"
                 name="phone"
+                icon={<PhoneIcon className="size-5" />}
+                placeholder="+52 55 1234 5678"
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
@@ -141,16 +147,17 @@ export function ReservationForm({ campaign }: { campaign: PublicCampaign }) {
 
         <FormSection step={hasQuestions ? "03" : "02"} title={formCopy.sections.confirm} id="paso-confirmacion" complete={done.confirm}>
           {campaign.terms && (
-            <details className="group border border-border bg-surface text-sm transition-colors open:bg-bg">
-              <summary className="flex min-h-13 cursor-pointer list-none items-center justify-between gap-4 px-5 py-3.5 font-semibold transition-colors hover:bg-sand/40 [&::-webkit-details-marker]:hidden">
+            <details className="group border border-border bg-[#fffdf9] text-sm transition-shadow duration-(--duration-base) open:shadow-[0_10px_24px_-18px_rgb(34_28_23/0.45)]">
+              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-sand/40 [&::-webkit-details-marker]:hidden">
                 <span>
-                  Leer los términos de la preventa <span className="font-normal text-muted">· versión {campaign.terms.version}</span>
+                  <span className="block font-semibold">Términos de la preventa</span>
+                  <span className="mt-0.5 block text-xs text-muted">Versión {campaign.terms.version} · Toca para leer</span>
                 </span>
                 <span
                   aria-hidden="true"
-                  className="grid size-7 shrink-0 place-items-center rounded-full border border-border text-base leading-none font-normal text-muted transition-transform duration-(--duration-base) ease-soft group-open:rotate-45"
+                  className="grid size-8 shrink-0 place-items-center rounded-full border border-border text-muted transition-[transform,background-color,color] duration-(--duration-base) ease-soft group-open:rotate-180 group-open:bg-ink group-open:text-on-ink group-open:border-ink"
                 >
-                  +
+                  <ChevronDownIcon className="size-4" />
                 </span>
               </summary>
               <div className="max-h-80 overflow-y-auto border-t border-border px-5 py-5 leading-relaxed whitespace-pre-line text-fg/80">{campaign.terms.content}</div>
@@ -169,7 +176,7 @@ export function ReservationForm({ campaign }: { campaign: PublicCampaign }) {
             </ChoiceTile>
             <FieldError id="acceptTerms" errors={errors.acceptTerms} />
           </div>
-          <label className="flex cursor-pointer items-start gap-3.5 px-4 text-sm text-muted">
+          <label className="flex cursor-pointer items-start gap-3.5 px-4 text-sm text-muted transition-colors hover:text-fg">
             <input type="checkbox" className="choice" checked={values.marketingConsent} onChange={(e) => setField("marketingConsent", e.target.checked)} />
             <span className="pt-px">
               Quiero recibir noticias de inttimo por correo.<Optional />

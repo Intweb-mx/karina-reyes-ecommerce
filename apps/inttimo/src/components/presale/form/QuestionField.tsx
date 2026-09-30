@@ -1,4 +1,4 @@
-import { CharCount, ChoiceTile, FieldError, Hint, Optional, TextInput, describedBy, inputClass, labelClass } from "./fields";
+import { ChoiceTile, FieldError, Hint, Optional, TextArea, TextInput, describedBy, labelClass } from "./fields";
 import { answerKey, type AnswerValue, type QuestionDefinition } from "./validation";
 
 const DEFAULT_MAX = { text: 200, textarea: 2000 } as const;
@@ -48,20 +48,18 @@ export function QuestionField({ question, value, errors, valid, onChange, onBlur
             onChange={(e) => onChange(e.target.value)}
           />
         ) : (
-          <textarea
+          <TextArea
             id={id}
             value={text}
-            maxLength={max}
+            max={max}
             required={question.required}
             rows={4}
-            className={`${inputClass} mt-2 min-h-32 resize-y`}
             aria-invalid={invalid}
             aria-describedby={describe}
             onBlur={onBlur}
             onChange={(e) => onChange(e.target.value)}
           />
         )}
-        {question.type === "textarea" && <CharCount value={text} max={max} />}
         <FieldError id={id} errors={errors} />
       </div>
     );
@@ -85,6 +83,7 @@ export function QuestionField({ question, value, errors, valid, onChange, onBlur
   return (
     <fieldset aria-describedby={describe}>
       <legend className={labelClass}>{label}</legend>
+      {multiple && !hint && <p className="mt-1.5 text-sm text-muted">Elige todas las que apliquen.</p>}
       {hint && <Hint id={id}>{question.helpText}</Hint>}
       <div className={`mt-3 grid gap-2.5 ${options.length > 2 ? "sm:grid-cols-2" : ""}`}>
         {options.map((option, index) => {
@@ -92,6 +91,7 @@ export function QuestionField({ question, value, errors, valid, onChange, onBlur
           return (
             <ChoiceTile
               key={option.value}
+              marker={String.fromCharCode(65 + index)}
               id={index === 0 ? id : undefined}
               type={multiple ? "checkbox" : "radio"}
               name={id}
