@@ -19,7 +19,7 @@ export function PresaleBonus({ bonus }: { bonus: NonNullable<ProductContent["bon
         <p className="mt-4 leading-relaxed text-ink/80">{bonus.body}</p>
         <p className="mt-3 text-sm leading-relaxed text-ink/70">{bonus.note}</p>
       </div>
-      <div className="relative aspect-[16/10] min-h-56 bg-sand @3xl:aspect-auto @3xl:min-h-72">
+      <div className="relative aspect-[16/10] bg-sand @3xl:aspect-auto @3xl:min-h-72">
         <Image src={bonus.image.src} alt={bonus.image.alt} fill sizes="(min-width: 1024px) 28vw, (min-width: 640px) 45vw, 100vw" className="object-cover" />
         {bonus.image.placeholder && <PlaceholderTag />}
       </div>

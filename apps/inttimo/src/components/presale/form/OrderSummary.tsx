@@ -31,7 +31,7 @@ type SummaryProps = {
 export function PurchaseSummary({ productName, product, unitAmount, currency, quantity, maxQuantity, onQuantity, quantityErrors }: SummaryProps) {
   const money = (amount: number) => formatMoney(amount, currency);
   const stepButton =
-    "grid size-9 place-items-center text-fg transition-colors duration-(--duration-base) hover:bg-sand active:bg-sand/80 disabled:cursor-not-allowed disabled:text-muted/40 disabled:hover:bg-transparent";
+    "grid size-11 place-items-center text-fg sm:size-9 transition-colors duration-(--duration-base) hover:bg-sand active:bg-sand/80 disabled:cursor-not-allowed disabled:text-muted/40 disabled:hover:bg-transparent";
 
   return (
     <section aria-labelledby="tu-compra">
@@ -71,7 +71,7 @@ export function PurchaseSummary({ productName, product, unitAmount, currency, qu
                 <button type="button" className={stepButton} onClick={() => onQuantity(quantity - 1)} disabled={quantity <= 1} aria-label="Quitar uno">
                   <MinusIcon className="size-3.5" />
                 </button>
-                <output id="quantity" aria-live="polite" className="w-9 text-center font-semibold lining-nums tabular-nums">
+                <output id="quantity" aria-live="polite" className="w-10 text-center font-semibold lining-nums tabular-nums">
                   {quantity}
                 </output>
                 <button type="button" className={stepButton} onClick={() => onQuantity(quantity + 1)} disabled={quantity >= maxQuantity} aria-label="Agregar uno">

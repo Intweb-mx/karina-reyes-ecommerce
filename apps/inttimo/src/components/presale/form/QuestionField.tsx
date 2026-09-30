@@ -80,12 +80,14 @@ export function QuestionField({ question, value, errors, valid, onChange, onBlur
   const multiple = question.type === "multiselect";
   const options = question.options ?? [];
   const selected = multiple ? (Array.isArray(value) ? value : []) : value;
+  // Opciones cortas (p. ej. "Instagram", "5–10") caben en 2 columnas desde móvil: listas más breves y menos scroll.
+  const short = options.every((option) => option.label.length <= 14);
   return (
     <fieldset aria-describedby={describe}>
       <legend className={labelClass}>{label}</legend>
       {multiple && !hint && <p className="mt-1.5 text-sm text-muted">Elige todas las que apliquen.</p>}
       {hint && <Hint id={id}>{question.helpText}</Hint>}
-      <div className={`mt-3 grid gap-2.5 ${options.length > 2 ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2"}`}>
+      <div className={`mt-3 grid gap-2.5 ${short ? "grid-cols-2" : ""} ${options.length > 2 ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2"}`}>
         {options.map((option, index) => {
           const checked = multiple ? (selected as string[]).includes(option.value) : selected === option.value;
           return (
