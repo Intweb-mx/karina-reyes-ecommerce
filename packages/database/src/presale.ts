@@ -54,6 +54,17 @@ export async function getCampaignBySlug(db: Executor, slug: string): Promise<Pre
   return row ?? null;
 }
 
+/** Campaña que se muestra en la raíz del sitio: la activa más reciente o, si no hay, la última cerrada. Nunca un borrador. */
+export async function getFeaturedCampaign(db: Executor): Promise<PresaleCampaign | null> {
+  const [row] = await db
+    .select()
+    .from(presaleCampaigns)
+    .where(inArray(presaleCampaigns.status, ["active", "closed"]))
+    .orderBy(sql`${presaleCampaigns.status} = 'active' desc`, desc(presaleCampaigns.startsAt))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function getCampaignById(db: Executor, id: string): Promise<PresaleCampaign | null> {
   const [row] = await db.select().from(presaleCampaigns).where(eq(presaleCampaigns.id, id)).limit(1);
   return row ?? null;
