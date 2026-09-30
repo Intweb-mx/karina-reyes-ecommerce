@@ -18,13 +18,16 @@
   --color-success: #3c5a44;
   --color-warning: #8a5a1c;
   --color-danger: #9b2c2c;
+  /* Acento comercial (CTA de compra): bronce cálido, contraste AA con texto crema. */
+  --color-bronze: #7d5431;
+  --color-bronze-strong: #62411f;
 
   /* Tipografía */
   --font-serif: var(--font-display), "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --font-sans: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* Layout */
-  --container-max: 72rem;
+  --container-max: 80rem;
   --container-gutter: 1rem;
   --section-space: 4rem;
   --header-height: 4.5rem;

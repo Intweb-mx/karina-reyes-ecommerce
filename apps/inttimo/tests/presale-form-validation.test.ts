@@ -52,3 +52,12 @@ describe("validación del formulario de preventa", () => {
     expect(progress(valid, questions)).toEqual({ contact: true, questions: { answered: 3, total: 3, done: true }, confirm: true });
   });
 });
+
+describe("avance con cuestionario solo opcional", () => {
+  const optional: QuestionDefinition[] = [{ id: "origen", label: "Origen", type: "select", required: false, options: [{ value: "ig", label: "Instagram" }] }];
+
+  it("no marca la sección como completa hasta responder alguna pregunta", () => {
+    expect(progress(emptyValues, optional).questions.done).toBe(false);
+    expect(progress({ ...emptyValues, answers: { origen: "ig" } }, optional).questions.done).toBe(true);
+  });
+});

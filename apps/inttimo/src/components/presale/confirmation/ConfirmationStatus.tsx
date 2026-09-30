@@ -28,7 +28,7 @@ export function ConfirmationStatus({ slug, sessionId }: { slug: string; sessionI
         setState({ kind: "ready", data, gaveUp: waiting && polls >= MAX_POLLS });
         if (waiting && polls < MAX_POLLS) timer = setTimeout(load, POLL_MS);
       } catch {
-        if (active) setState({ kind: "error", message: "No pudimos consultar tu reserva. Recarga la página en un momento." });
+        if (active) setState({ kind: "error", message: "No pudimos consultar tu compra. Recarga la página en un momento." });
       }
     }
 
