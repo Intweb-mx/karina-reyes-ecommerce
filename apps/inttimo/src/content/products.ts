@@ -61,12 +61,10 @@ const PRODUCTS: Record<string, ProductContent> = {
 };
 
 /**
- * Contenido de la campaña. En desarrollo, la campaña DEMO (`pnpm dev:seed`) usa el de UNO+UNO
- * para poder revisar el diseño completo en local; en producción solo se usa el slug exacto.
+ * Contenido de la campaña. La campaña `demo` (`pnpm presale:upsert` con campaign.dev.json) usa el de UNO+UNO
+ * para poder revisar el diseño completo también en Vercel mientras no exista la campaña real.
+ * Retirar el alias `demo` cuando se cargue la campaña `uno-mas-uno` con datos aprobados.
  */
 export function getProductContent(slug: string): ProductContent | null {
-  if (PRODUCTS[slug]) return PRODUCTS[slug]!;
-  if (process.env.NODE_ENV !== "production" && slug === "demo") return unoMasUno;
-  return null;
+  return PRODUCTS[slug] ?? (slug === "demo" ? unoMasUno : null);
 }
-
