@@ -30,7 +30,7 @@
   --container-max: 80rem;
   --container-gutter: 1rem;
   --section-space: 4rem;
-  --header-height: 4.5rem;
+  --header-height: 3.75rem;
 
   /* Movimiento */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
@@ -42,5 +42,6 @@
   :root {
     --container-gutter: 2rem;
     --section-space: 6rem;
+    --header-height: 4.5rem;
   }
 }

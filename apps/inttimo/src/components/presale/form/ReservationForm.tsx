@@ -54,7 +54,7 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
         <CheckoutSteps steps={steps} />
       </div>
 
-      <div className="mt-10 grid gap-8 lg:mt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] lg:gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] xl:gap-12">
+      <div className="mt-8 grid gap-6 sm:mt-10 sm:gap-8 lg:mt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] lg:gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] xl:gap-12">
         {/* Datos */}
         <div className="space-y-8">
           <ErrorSummary ref={summaryRef} errors={errors} labels={labels} message={formError} />
@@ -157,9 +157,9 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
         <aside
           id="paso-confirmacion"
           aria-labelledby="paso-confirmacion-title"
-          className="scroll-mt-28 self-start border border-border bg-[#fffdf9] shadow-[0_30px_60px_-40px_rgb(34_28_23/0.45)] lg:sticky lg:top-24"
+          className="scroll-mt-24 self-start border border-border bg-[#fffdf9] shadow-[0_30px_60px_-40px_rgb(34_28_23/0.45)] max-sm:-mx-4 max-sm:border-x-0 lg:sticky lg:top-24"
         >
-          <header className="flex items-center gap-3 border-b border-border px-6 py-5 sm:px-7">
+          <header className="flex items-center gap-3 border-b border-border px-5 py-5 sm:px-7">
             <span
               aria-hidden="true"
               className={`grid size-8 shrink-0 place-items-center rounded-full border font-serif lining-nums transition-colors ${done.confirm ? "border-success bg-success text-on-ink" : "border-border text-fg/60"}`}
@@ -171,7 +171,7 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
             </h3>
           </header>
 
-          <div className="space-y-6 px-6 py-6 sm:px-7">
+          <div className="space-y-6 px-5 py-6 sm:px-7">
             <PurchaseSummary
               productName={campaign.productName}
               product={product}

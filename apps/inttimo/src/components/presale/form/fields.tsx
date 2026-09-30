@@ -108,7 +108,7 @@ export function ChoiceTile({ invalid, marker, description, children, ...input }:
   const round = input.type === "radio";
   return (
     <label
-      className={`group/tile relative flex min-h-14 cursor-pointer items-center gap-4 border bg-[#fffdf9] px-4 py-3 text-[0.9375rem] leading-snug select-none
+      className={`group/tile relative flex min-h-14 cursor-pointer items-center gap-3 border bg-[#fffdf9] px-3.5 py-3 sm:gap-4 sm:px-4 text-[0.9375rem] leading-snug select-none
         transition-[border-color,background-color,box-shadow,transform] duration-(--duration-base) ease-soft
         hover:-translate-y-px hover:border-fg/35 hover:shadow-[0_10px_24px_-18px_rgb(34_28_23/0.5)]
         active:translate-y-0
@@ -146,7 +146,7 @@ export function FormSection({ step, title, description, id, complete, children }
     <section
       id={id}
       aria-labelledby={`${id}-title`}
-      className={`scroll-mt-28 border bg-[#fffdf9] p-6 shadow-[0_1px_2px_rgb(34_28_23/0.04)] transition-colors duration-500 sm:p-8 ${complete ? "border-success/40" : "border-border"}`}
+      className={`scroll-mt-24 border bg-[#fffdf9] px-5 py-6 shadow-[0_1px_2px_rgb(34_28_23/0.04)] transition-colors duration-500 max-sm:-mx-4 max-sm:border-x-0 sm:p-8 ${complete ? "border-success/40" : "border-border"}`}
     >
       <header className="flex items-start gap-4">
         <span
@@ -158,14 +158,14 @@ export function FormSection({ step, title, description, id, complete, children }
           {complete ? <CheckIcon key="done" className="animate-pop size-4" /> : step}
         </span>
         <div>
-          <h3 id={`${id}-title`} className="font-serif text-[1.75rem] leading-tight font-medium">
+          <h3 id={`${id}-title`} className="font-serif text-[1.625rem] leading-tight font-medium sm:text-[1.75rem]">
             {title}
             {complete && <span className="sr-only"> (completo)</span>}
           </h3>
           {description && <p className="mt-1 text-sm text-muted">{description}</p>}
         </div>
       </header>
-      <div className="mt-7 space-y-7">{children}</div>
+      <div className="mt-6 space-y-7 sm:mt-7">{children}</div>
     </section>
   );
 }
