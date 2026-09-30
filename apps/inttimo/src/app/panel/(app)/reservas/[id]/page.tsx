@@ -19,7 +19,8 @@ function answerText(value: unknown, options?: { value: string; label: string }[]
 }
 
 function stripePaymentUrl(paymentIntentId: string): string {
-  const test = !process.env.STRIPE_SECRET_KEY?.startsWith("sk_live");
+  // Claves live: sk_live_… (estándar) o rk_live_… (restringida).
+  const test = !/^(sk|rk)_live_/.test(process.env.STRIPE_SECRET_KEY ?? "");
   return `https://dashboard.stripe.com/${test ? "test/" : ""}payments/${paymentIntentId}`;
 }
 
