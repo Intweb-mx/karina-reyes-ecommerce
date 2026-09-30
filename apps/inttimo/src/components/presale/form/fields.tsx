@@ -140,11 +140,15 @@ export function ChoiceTile({ invalid, marker, description, children, ...input }:
   );
 }
 
-/** Sección numerada del formulario (01, 02, 03…); el número cambia a una marca al completarla. */
-export function FormSection({ step, title, id, complete, children }: { step: string; title: string; id: string; complete?: boolean; children: ReactNode }) {
+/** Sección numerada del checkout en tarjeta (01, 02…); el número cambia a una marca al completarla. */
+export function FormSection({ step, title, description, id, complete, children }: { step: string; title: string; description?: string; id: string; complete?: boolean; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-24 border-t border-border pt-8">
-      <h3 id={`${id}-title`} className="flex items-center gap-4">
+    <section
+      id={id}
+      aria-labelledby={`${id}-title`}
+      className={`scroll-mt-28 border bg-[#fffdf9] p-6 shadow-[0_1px_2px_rgb(34_28_23/0.04)] transition-colors duration-500 sm:p-8 ${complete ? "border-success/40" : "border-border"}`}
+    >
+      <header className="flex items-start gap-4">
         <span
           aria-hidden="true"
           className={`grid size-10 shrink-0 place-items-center rounded-full border font-serif text-lg lining-nums transition-colors duration-(--duration-base) ${
@@ -153,10 +157,15 @@ export function FormSection({ step, title, id, complete, children }: { step: str
         >
           {complete ? <CheckIcon key="done" className="animate-pop size-4" /> : step}
         </span>
-        <span className="font-serif text-3xl leading-tight font-medium">{title}</span>
-        {complete && <span className="sr-only">(completo)</span>}
-      </h3>
-      <div className="mt-8 space-y-8 sm:pl-14">{children}</div>
+        <div>
+          <h3 id={`${id}-title`} className="font-serif text-[1.75rem] leading-tight font-medium">
+            {title}
+            {complete && <span className="sr-only"> (completo)</span>}
+          </h3>
+          {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+        </div>
+      </header>
+      <div className="mt-7 space-y-7">{children}</div>
     </section>
   );
 }

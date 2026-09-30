@@ -74,9 +74,11 @@ export function validateReservation(values: ReservationValues, questions: Questi
 export function progress(values: ReservationValues, questions: QuestionDefinition[]) {
   const required = questions.filter((q) => q.required);
   const answered = required.filter((q) => isAnswered(q, values.answers[q.id])).length;
+  // Con solo preguntas opcionales, la sección cuenta como completa cuando se responde al menos una.
+  const anyAnswered = questions.some((q) => isAnswered(q, values.answers[q.id]));
   return {
     contact: validateField("fullName", values, questions).length === 0 && validateField("email", values, questions).length === 0,
-    questions: { answered, total: required.length, done: answered === required.length },
+    questions: { answered, total: required.length, done: answered === required.length && (required.length > 0 || anyAnswered) },
     confirm: values.acceptTerms,
   };
 }

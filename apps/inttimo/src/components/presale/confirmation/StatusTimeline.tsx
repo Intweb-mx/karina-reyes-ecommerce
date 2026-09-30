@@ -7,14 +7,14 @@ type StepState = "done" | "current" | "failed" | "todo";
 function stepsFor(status: PublicReservationStatus): { label: string; state: StepState; note?: string }[] {
   const failed = status === "payment_failed" || status === "expired" || status === "canceled";
   return [
-    { label: "Reserva creada", state: "done" },
+    { label: "Pedido creado", state: "done" },
     {
       label: "Pago",
       state: status === "paid" || status === "refunded" ? "done" : failed ? "failed" : "current",
       note: status === "processing" ? "En espera de acreditación" : status === "pending_payment" ? "Confirmando" : failed ? "No completado" : undefined,
     },
     {
-      label: status === "refunded" ? "Reembolsada" : "Lugar confirmado",
+      label: status === "refunded" ? "Reembolsada" : "Preventa registrada",
       state: status === "paid" || status === "refunded" ? "done" : "todo",
     },
   ];
@@ -30,7 +30,7 @@ const DOT: Record<StepState, string> = {
 export function StatusTimeline({ status }: { status: PublicReservationStatus }) {
   const steps = stepsFor(status);
   return (
-    <ol aria-label="Estado de tu reserva" className="grid grid-cols-3">
+    <ol aria-label="Estado de tu compra" className="grid grid-cols-3">
       {steps.map((step, index) => (
         <li key={step.label} className="relative flex flex-col items-center text-center">
           {index > 0 && (

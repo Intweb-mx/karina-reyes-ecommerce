@@ -85,7 +85,7 @@ export function QuestionField({ question, value, errors, valid, onChange, onBlur
       <legend className={labelClass}>{label}</legend>
       {multiple && !hint && <p className="mt-1.5 text-sm text-muted">Elige todas las que apliquen.</p>}
       {hint && <Hint id={id}>{question.helpText}</Hint>}
-      <div className={`mt-3 grid gap-2.5 ${options.length > 2 ? "sm:grid-cols-2" : ""}`}>
+      <div className={`mt-3 grid gap-2.5 ${options.length > 2 ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2"}`}>
         {options.map((option, index) => {
           const checked = multiple ? (selected as string[]).includes(option.value) : selected === option.value;
           return (

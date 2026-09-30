@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { submitLabel } from "./OrderSummary";
+import { formCopy } from "@/content/presale";
 
 /**
  * En móvil, mientras se llena el formulario, mantiene a la vista el total y el botón de pago.
@@ -13,7 +13,7 @@ export function MobileCheckoutBar({ total, status, completed, steps }: { total: 
 
   useEffect(() => {
     const form = document.getElementById("reserva");
-    const summary = document.getElementById("resumen-reserva");
+    const summary = document.getElementById("pagar");
     if (!form || !summary) return;
     const inView = new Map<Element, boolean>();
     const observer = new IntersectionObserver((entries) => {
@@ -40,8 +40,8 @@ export function MobileCheckoutBar({ total, status, completed, steps }: { total: 
           </p>
           <p className="font-serif text-2xl leading-tight font-medium lining-nums tabular-nums">{total}</p>
         </div>
-        <Button type="submit" size="md" loading={busy} disabled={busy} className="shrink-0">
-          {busy ? submitLabel(status) : "Pagar"}
+        <Button type="submit" variant="bronze" size="md" loading={busy} disabled={busy} className="shrink-0">
+          {busy ? (status === "redirecting" ? formCopy.redirecting : formCopy.submitting) : formCopy.submitShort}
         </Button>
       </div>
     </div>

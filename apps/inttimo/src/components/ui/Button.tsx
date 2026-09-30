@@ -3,7 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { ArrowDownIcon, ArrowRightIcon } from "./icons";
 import { Spinner } from "./Spinner";
 
-type Variant = "primary" | "inverse" | "outline" | "ghost";
+type Variant = "primary" | "bronze" | "inverse" | "outline" | "ghost";
 type Size = "sm" | "md" | "lg";
 type Arrow = "right" | "down" | false;
 
@@ -15,7 +15,7 @@ type Arrow = "right" | "down" | false;
  * - Se hunde al presionar; anillo de foco separado del borde para teclado.
  */
 const base =
-  "group/button relative isolate inline-flex items-center justify-between gap-4 overflow-hidden font-semibold tracking-[0.16em] uppercase select-none " +
+  "group/button relative isolate inline-flex items-center justify-between gap-4 overflow-hidden whitespace-nowrap font-semibold tracking-[0.16em] uppercase select-none " +
   "transition-[color,background-color,border-color,box-shadow,transform] duration-(--duration-base) ease-soft active:translate-y-px active:scale-[0.99] " +
   "focus-visible:outline-2 focus-visible:outline-offset-4 " +
   "before:absolute before:inset-0 before:-z-10 before:origin-left before:scale-x-0 before:transition-transform before:duration-500 before:ease-soft hover:before:scale-x-100 " +
@@ -27,6 +27,7 @@ const sheen =
 
 const variants: Record<Variant, string> = {
   primary: `bg-accent text-bg shadow-[0_1px_0_rgb(255_255_255/0.08)_inset,0_10px_24px_-14px_rgb(34_28_23/0.7)] hover:shadow-[0_1px_0_rgb(255_255_255/0.08)_inset,0_16px_32px_-16px_rgb(34_28_23/0.8)] before:bg-[#3a3129] ${sheen}`,
+  bronze: `bg-bronze text-on-ink shadow-[0_1px_0_rgb(255_255_255/0.12)_inset,0_12px_28px_-14px_rgb(98_65_31/0.8)] hover:shadow-[0_1px_0_rgb(255_255_255/0.12)_inset,0_18px_36px_-16px_rgb(98_65_31/0.9)] before:bg-bronze-strong ${sheen}`,
   inverse: `bg-on-ink text-ink before:bg-sand ${sheen}`,
   outline: "border border-fg/80 bg-transparent text-fg before:bg-fg hover:border-fg hover:text-bg",
   ghost: "text-fg before:bg-sand/80",
@@ -46,7 +47,7 @@ function ArrowSegment({ arrow, variant, size }: { arrow: Arrow; variant: Variant
   if (!arrow) return null;
   const Icon = arrow === "down" ? ArrowDownIcon : ArrowRightIcon;
   const motion = arrow === "down" ? "group-hover/button:translate-y-0.5" : "group-hover/button:translate-x-1";
-  const tint = variant === "primary" ? "bg-bg/10 group-hover/button:bg-bg/15" : variant === "inverse" ? "bg-ink/[0.07] group-hover/button:bg-ink/10" : "";
+  const tint = variant === "primary" || variant === "bronze" ? "bg-bg/10 group-hover/button:bg-bg/15" : variant === "inverse" ? "bg-ink/[0.07] group-hover/button:bg-ink/10" : "";
   const segment = size === "lg" ? `grid size-10 place-items-center transition-colors duration-(--duration-base) ${tint}` : "";
   return (
     <span aria-hidden="true" className={segment}>

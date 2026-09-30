@@ -29,7 +29,7 @@ export function QuantityStepper({ value, max, onChange, errors }: { value: numbe
         </button>
       </div>
       <p id="quantity-hint" className="mt-1.5 text-sm text-muted">
-        Máximo {max} por reserva.
+        Máximo {max} por compra.
       </p>
       <FieldError id="quantity" errors={errors} />
     </div>

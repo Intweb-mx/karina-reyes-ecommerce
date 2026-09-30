@@ -128,3 +128,52 @@ export const PlusIcon = (props: IconProps) => (
     <path d="M12 5v14M5 12h14" />
   </Base>
 );
+
+export const HeartIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 20s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z" />
+  </Base>
+);
+
+export const PeopleIcon = (props: IconProps) => (
+  <Base {...props}>
+    <circle cx="9" cy="8.5" r="3" />
+    <circle cx="16.5" cy="9.5" r="2.5" />
+    <path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8M14.5 14.6c.6-.2 1.3-.3 2-.3 2.2 0 3.9 1.5 4.4 4" />
+  </Base>
+);
+
+export const LeafIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z" />
+    <path d="M5 19l8-8" />
+  </Base>
+);
+
+export const GemIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M7 4.5h10l3.5 5-8.5 10-8.5-10z" />
+    <path d="M3.5 9.5h17M9.5 4.5 12 19.5l2.5-15" />
+  </Base>
+);
+
+export const CalendarIcon = (props: IconProps) => (
+  <Base {...props}>
+    <rect x="3.5" y="5.5" width="17" height="15" rx="1.5" />
+    <path d="M3.5 10h17M8 3.5v4M16 3.5v4" />
+  </Base>
+);
+
+export const BoxIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M3.5 7.5 12 3.5l8.5 4v9L12 20.5l-8.5-4z" />
+    <path d="M3.5 7.5 12 11.5l8.5-4M12 11.5v9" />
+  </Base>
+);
+
+export const GiftIcon = (props: IconProps) => (
+  <Base {...props}>
+    <rect x="3.5" y="8.5" width="17" height="4" />
+    <path d="M5 12.5v8h14v-8M12 8.5v12M12 8.5S10.5 4 8 4.5 7 8.5 12 8.5zM12 8.5S13.5 4 16 4.5s1 4-4 4z" />
+  </Base>
+);

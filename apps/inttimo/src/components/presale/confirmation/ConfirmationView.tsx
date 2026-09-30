@@ -3,10 +3,11 @@
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import type { ReservationStatusResponse } from "@/server/presale/contract";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { AlertIcon, CheckIcon, ClockIcon, CloseIcon, MailIcon, PrintIcon, RefundIcon } from "@/components/ui/icons";
+import { AlertIcon, CalendarIcon, CheckIcon, ClockIcon, CloseIcon, MailIcon, PrintIcon, RefundIcon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { slowPaymentCopy, statusCopy, type Tone } from "@/content/presale";
-import { formatDate, formatMoney } from "@/lib/format";
+import { getProductContent } from "@/content/products";
+import { formatCalendarDate, formatDate, formatMoney } from "@/lib/format";
 import { CopyButton } from "./CopyButton";
 import { StatusTimeline } from "./StatusTimeline";
 
@@ -27,7 +28,7 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
 
   if (state.kind === "error") {
     return (
-      <Header icon={AlertIcon} toneClass="bg-danger/10 text-danger" eyebrow="Reserva" title={title ?? "No encontramos tu reserva."} body={state.message}>
+      <Header icon={AlertIcon} toneClass="bg-danger/10 text-danger" eyebrow="Compra" title={title ?? "No encontramos tu compra."} body={state.message}>
         <RetryLink slug={slug} />
       </Header>
     );
@@ -39,6 +40,8 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
   const tone = TONE[copy.tone];
   const retry = data.status === "payment_failed" || data.status === "expired" || data.status === "canceled";
   const settled = data.status === "paid" || data.status === "processing";
+  const launchDate = getProductContent(slug)?.launchDate;
+  const launch = launchDate ? formatCalendarDate(launchDate) : null;
 
   return (
     <div aria-live="polite">
@@ -59,14 +62,14 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
       </div>
 
       <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] lg:gap-12">
-        <section aria-labelledby="detalle-reserva" className="border border-border bg-surface p-6 sm:p-8 print:border-fg/40">
+        <section aria-labelledby="detalle-compra" className="border border-border bg-surface p-6 sm:p-8 print:border-fg/40">
           <div className="flex items-center justify-between gap-4">
-            <h2 id="detalle-reserva" className="eyebrow text-muted">
-              Detalle de tu reserva
+            <h2 id="detalle-compra" className="eyebrow text-muted">
+              Detalle de tu compra
             </h2>
           </div>
           <dl className="mt-6 divide-y divide-border text-sm">
-            <Row label="Folio">
+            <Row label="Folio de compra">
               <span className="flex flex-wrap items-center justify-end gap-3">
                 <span className="font-mono text-base tracking-wider">{data.reservationCode}</span>
                 <CopyButton value={data.reservationCode} label="Copiar" />
@@ -95,9 +98,17 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
                   ves, busca en spam o promociones.
                 </span>
               </li>
+              {launch && (
+                <li className="flex gap-4">
+                  <CalendarIcon className="mt-0.5 size-5 shrink-0" />
+                  <span>
+                    Tu pedido queda registrado para el lanzamiento oficial del <strong className="font-semibold lining-nums">{launch}</strong>.
+                  </span>
+                </li>
+              )}
               <li className="flex gap-4">
                 <CheckIcon className="mt-0.5 size-5 shrink-0" />
-                <span>Guarda tu folio: es tu comprobante de reserva.</span>
+                <span>Guarda tu folio: es el comprobante de tu compra de preventa.</span>
               </li>
             </ul>
           </section>
@@ -116,7 +127,7 @@ function LoadingState() {
         </span>
         <p className="eyebrow text-muted">Un momento</p>
       </div>
-      <p className="mt-8 font-serif text-[clamp(2.75rem,8vw,5rem)] leading-[0.95] font-medium">Consultando tu reserva…</p>
+      <p className="mt-8 font-serif text-[clamp(2.75rem,8vw,5rem)] leading-[0.95] font-medium">Consultando tu compra…</p>
       <div aria-hidden="true" className="mt-12 h-56 max-w-2xl border border-border bg-surface motion-safe:animate-pulse" />
     </div>
   );
