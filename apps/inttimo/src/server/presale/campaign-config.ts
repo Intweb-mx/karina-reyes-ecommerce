@@ -18,6 +18,8 @@ export const campaignConfigSchema = z
     unitAmount: z.number({ error: "unitAmount: precio aprobado en centavos (entero)" }).int().positive(),
     currency: z.enum(["mxn", "usd"]).default("mxn"),
     maxQuantityPerReservation: z.number().int().min(1).max(20).default(1),
+    /** Unidades totales de la campaña; sin sobreventa. Si falta, no hay tope. */
+    totalUnits: z.number().int().positive().nullable().optional(),
     questions: questionsSchema,
     deliveryNote: z.string().trim().max(1000).nullable().optional(),
   })
@@ -33,6 +35,7 @@ export const campaignConfigSchema = z
       unitAmount: config.unitAmount,
       currency: config.currency,
       maxQuantityPerReservation: config.maxQuantityPerReservation,
+      totalUnits: config.totalUnits ?? null,
       questions: config.questions,
       deliveryNote: config.deliveryNote ?? null,
     };

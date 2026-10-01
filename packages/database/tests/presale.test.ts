@@ -3,9 +3,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "../src/client.ts";
 import {
   applyRefund,
+  attachCheckoutSession,
   claimConfirmationEmail,
   claimStripeEvent,
+  countHeldUnits,
   createReservation,
+  getRemainingUnits,
+  InsufficientStockError,
   generateReservationCode,
   getCampaignStats,
   getCurrentTerms,
@@ -210,5 +214,90 @@ describe("panel", () => {
     const paid = await searchReservations(db, campaign.id, { statuses: ["paid"], limit: 1, offset: 0 });
     expect(paid.rows).toHaveLength(1);
     expect(paid.total).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("inventario sin sobreventa", () => {
+  const now = new Date("2026-01-05T12:00:00Z");
+  let limited: PresaleCampaign;
+  let limitedTermsId: string;
+
+  beforeAll(async () => {
+    limited = await upsertCampaign(db, { ...campaign, slug: "con-tope", totalUnits: 5 });
+    limitedTermsId = (await publishTerms(db, limited.id, "Términos v1", "cli")).id;
+  });
+
+  const reserve = (quantity: number, at = now) =>
+    createReservation(
+      db,
+      {
+        campaignId: limited.id,
+        fullName: "Cliente Prueba",
+        email: "cliente@ejemplo.com",
+        phone: null,
+        quantity,
+        unitAmount: limited.unitAmount,
+        currency: limited.currency,
+        answers: {},
+        termsId: limitedTermsId,
+        marketingConsent: false,
+        idempotencyKey: null,
+        attribution: null,
+      },
+      at,
+    );
+
+  it("sin tope no hay límite y getRemainingUnits devuelve null", async () => {
+    expect(await getRemainingUnits(db, campaign, now)).toBeNull();
+  });
+
+  it("aparta unidades y rechaza lo que exceda el inventario", async () => {
+    const first = await reserve(3);
+    expect(await getRemainingUnits(db, limited, now)).toBe(2);
+    await expect(reserve(3)).rejects.toMatchObject({ name: "InsufficientStockError", remaining: 2 });
+    const second = await reserve(2);
+    expect(await getRemainingUnits(db, limited, now)).toBe(0);
+    await expect(reserve(1)).rejects.toBeInstanceOf(InsufficientStockError);
+
+    // Un pago fallido libera lo apartado; uno pagado lo conserva.
+    await markPaymentFailed(db, first.id, ctx);
+    expect(await getRemainingUnits(db, limited, now)).toBe(3);
+    await markPaid(db, second.id, {}, ctx);
+    expect(await getRemainingUnits(db, limited, now)).toBe(3);
+  });
+
+  it("compras simultáneas nunca suman más que el tope", async () => {
+    const results = await Promise.allSettled(Array.from({ length: 6 }, () => reserve(1)));
+    expect(results.filter((r) => r.status === "fulfilled").length).toBeLessThanOrEqual(3);
+    expect(await countHeldUnits(db, limited.id, now)).toBeLessThanOrEqual(5);
+  });
+
+  it("un Checkout vencido libera su cantidad; uno sin sesión solo la aparta unos minutos", async () => {
+    const fresh = await upsertCampaign(db, { ...campaign, slug: "vencimientos", totalUnits: 10 });
+    const termsId = (await publishTerms(db, fresh.id, "v1", "cli")).id;
+    const make = (quantity: number) =>
+      createReservation(db, { campaignId: fresh.id, fullName: "Cliente", email: "c@e.com", phone: null, quantity, unitAmount: fresh.unitAmount, currency: "mxn", answers: {}, termsId, marketingConsent: false, idempotencyKey: null, attribution: null });
+
+    const withSession = await make(2);
+    await attachCheckoutSession(db, withSession.id, { id: "cs_test_x", url: "https://checkout.test/x", expiresAt: new Date(Date.now() + 3_600_000) });
+    await make(3); // sin sesión asociada
+
+    const soon = new Date(Date.now() + 60_000);
+    expect(await countHeldUnits(db, fresh.id, soon)).toBe(5);
+    const later = new Date(Date.now() + 2 * 3_600_000);
+    expect(await countHeldUnits(db, fresh.id, later)).toBe(0);
+  });
+
+  it("el reembolso total libera inventario; el parcial no", async () => {
+    const fresh = await upsertCampaign(db, { ...campaign, slug: "reembolsos", totalUnits: 2 });
+    const termsId = (await publishTerms(db, fresh.id, "v1", "cli")).id;
+    const make = (quantity: number) =>
+      createReservation(db, { campaignId: fresh.id, fullName: "Cliente", email: "c@e.com", phone: null, quantity, unitAmount: fresh.unitAmount, currency: "mxn", answers: {}, termsId, marketingConsent: false, idempotencyKey: null, attribution: null }, now);
+    const paid = (await markPaid(db, (await make(2)).id, {}, ctx))!;
+    expect(await getRemainingUnits(db, fresh, now)).toBe(0);
+    const partial = (await applyRefund(db, paid, 10_000, ctx))!;
+    expect(await getRemainingUnits(db, fresh, now)).toBe(0);
+    await applyRefund(db, partial, paid.totalAmount, ctx);
+    expect(await getRemainingUnits(db, fresh, now)).toBe(2);
   });
 });

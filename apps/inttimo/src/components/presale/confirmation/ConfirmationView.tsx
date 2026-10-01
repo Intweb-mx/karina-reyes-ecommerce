@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import type { ReservationStatusResponse } from "@/server/presale/contract";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { AlertIcon, CalendarIcon, CheckIcon, ClockIcon, CloseIcon, MailIcon, PrintIcon, RefundIcon } from "@/components/ui/icons";
+import { AlertIcon, BoxIcon, CalendarIcon, CheckIcon, ClockIcon, CloseIcon, MailIcon, PrintIcon, ReceiptIcon, RefundIcon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
-import { slowPaymentCopy, statusCopy, type Tone } from "@/content/presale";
+import { business, legalPaths } from "@/content/legal";
+import { legalNotice, slowPaymentCopy, statusCopy, type Tone } from "@/content/presale";
 import { getProductContent } from "@/content/products";
 import { formatCalendarDate, formatDate, formatMoney } from "@/lib/format";
 import { CopyButton } from "./CopyButton";
@@ -110,10 +112,40 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
                 <CheckIcon className="mt-0.5 size-5 shrink-0" />
                 <span>Guarda tu folio: es el comprobante de tu compra de preventa.</span>
               </li>
+              <li className="flex gap-4">
+                <BoxIcon className="mt-0.5 size-5 shrink-0" />
+                <span>
+                  Si es con envío, te comunicaremos la guía de rastreo. Si es con recolección en Chihuahua, te avisaremos cuando esté LISTO PARA RECOGER. Consulta la{" "}
+                  <Link href={legalPaths.shipping} className="underline underline-offset-4">
+                    Política de Envíos y Recolección
+                  </Link>
+                  .
+                </span>
+              </li>
+              <li className="flex gap-4">
+                <ReceiptIcon className="mt-0.5 size-5 shrink-0" />
+                <span>{legalNotice.invoice}</span>
+              </li>
             </ul>
           </section>
         )}
       </div>
+
+      <p className="mt-12 border-t border-border pt-6 text-sm leading-relaxed text-muted">
+        ¿Dudas o incidencias con tu compra? Escríbenos a{" "}
+        <a href={`mailto:${business.email}`} className="underline underline-offset-4 hover:text-fg">
+          {business.email}
+        </a>{" "}
+        o por{" "}
+        <a href={business.whatsappUrl} rel="noopener" className="underline underline-offset-4 hover:text-fg">
+          WhatsApp {business.whatsapp}
+        </a>{" "}
+        ({business.hours}; respuesta {business.responseTime}). Consulta la{" "}
+        <Link href={legalPaths.refunds} className="underline underline-offset-4 hover:text-fg">
+          Política de Cambios y Reembolsos
+        </Link>
+        .
+      </p>
     </div>
   );
 }

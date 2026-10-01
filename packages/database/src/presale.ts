@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { and, asc, count, desc, eq, ilike, inArray, lt, or, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lt, or, sql, sum } from "drizzle-orm";
 import type { Database } from "./client.ts";
 import {
   adminAuditLog,
@@ -113,8 +113,63 @@ export type NewReservation = {
   attribution: Record<string, string> | null;
 };
 
-export async function createReservation(db: Database, input: NewReservation): Promise<PresaleReservation> {
+/** Ventana en la que una reserva sin sesión de Checkout aún cuenta como inventario apartado (mientras se crea el pago). */
+const UNATTACHED_HOLD_MINUTES = 5;
+
+/**
+ * Unidades que ocupan inventario: vendidas (pagadas o con pago en proceso) y apartadas por un Checkout todavía vigente.
+ * Las reservas vencidas, fallidas, canceladas o reembolsadas por completo liberan su cantidad.
+ */
+export async function countHeldUnits(db: Executor, campaignId: string, now: Date = new Date()): Promise<number> {
+  const unattachedSince = new Date(now.getTime() - UNATTACHED_HOLD_MINUTES * 60_000);
+  const [row] = await db
+    .select({ units: sum(presaleReservations.quantity).mapWith(Number) })
+    .from(presaleReservations)
+    .where(
+      and(
+        eq(presaleReservations.campaignId, campaignId),
+        or(
+          inArray(presaleReservations.status, ["paid", "partially_refunded", "processing"]),
+          and(
+            eq(presaleReservations.status, "pending_payment"),
+            or(
+              gt(presaleReservations.checkoutExpiresAt, now),
+              and(isNull(presaleReservations.checkoutExpiresAt), gt(presaleReservations.createdAt, unattachedSince)),
+            ),
+          ),
+        ),
+      ),
+    );
+  return row?.units ?? 0;
+}
+
+/** Unidades aún disponibles, o null si la campaña no tiene tope. */
+export async function getRemainingUnits(db: Executor, campaign: Pick<PresaleCampaign, "id" | "totalUnits">, now: Date = new Date()): Promise<number | null> {
+  if (campaign.totalUnits === null) return null;
+  return Math.max(0, campaign.totalUnits - (await countHeldUnits(db, campaign.id, now)));
+}
+
+/** La cantidad pedida supera el inventario de la campaña. */
+export class InsufficientStockError extends Error {
+  readonly remaining: number;
+  constructor(remaining: number) {
+    super(`Solo quedan ${remaining} unidades.`);
+    this.name = "InsufficientStockError";
+    this.remaining = remaining;
+  }
+}
+
+/**
+ * Crea la reserva apartando inventario. Bloquea la fila de la campaña durante la transacción: dos compras
+ * simultáneas se serializan y nunca pueden sumar más que `totalUnits` (sin sobreventa).
+ */
+export async function createReservation(db: Database, input: NewReservation, now: Date = new Date()): Promise<PresaleReservation> {
   return db.transaction(async (tx) => {
+    const [campaign] = await tx.select().from(presaleCampaigns).where(eq(presaleCampaigns.id, input.campaignId)).for("update");
+    if (campaign?.totalUnits != null) {
+      const remaining = Math.max(0, campaign.totalUnits - (await countHeldUnits(tx, campaign.id, now)));
+      if (input.quantity > remaining) throw new InsufficientStockError(remaining);
+    }
     const [row] = await tx
       .insert(presaleReservations)
       .values({

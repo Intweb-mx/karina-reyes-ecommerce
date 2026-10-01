@@ -4,12 +4,15 @@
  *   pnpm presale:upsert --file=docs/preventa/campaign.example.json
  *   pnpm presale:upsert --file=... --dry-run      # solo valida
  *   pnpm presale:upsert --file=... --terms=terminos.md   # publica términos (versión nueva si cambiaron)
+ *   pnpm presale:upsert --file=... --terms-legal         # publica los Términos y Condiciones aprobados (src/content/legal)
  *
  * Si el JSON no trae endsAt, el cierre es startsAt + durationDays (14 por defecto).
  */
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createDatabase, getCampaignBySlug, getCurrentTerms, listReservations, logAdminAction, publishTerms, upsertCampaign } from "@inttimo/database";
+import { renderLegalText } from "../src/content/legal/text.ts";
+import { terminos } from "../src/content/legal/terminos.ts";
 import { campaignConfigSchema } from "../src/server/presale/campaign-config.ts";
 import { arg, fail, flag } from "./cli.ts";
 
@@ -20,10 +23,15 @@ if (!parsed.success) fail(`Campaña no válida:\n${parsed.error.issues.map((i) =
 const campaign = parsed.data;
 
 const termsFile = arg("terms");
-const termsContent = termsFile ? (await readFile(resolve(process.env.INIT_CWD ?? process.cwd(), termsFile), "utf8")).trim() : null;
+if (termsFile && flag("terms-legal")) fail("Usa --terms=archivo o --terms-legal, no ambos.");
+const termsContent = flag("terms-legal")
+  ? renderLegalText(terminos)
+  : termsFile
+    ? (await readFile(resolve(process.env.INIT_CWD ?? process.cwd(), termsFile), "utf8")).trim()
+    : null;
 if (termsFile && !termsContent) fail("El archivo de términos está vacío.");
 
-const summary = `${campaign.slug} · ${campaign.productName} · ${campaign.status}\n  ${campaign.startsAt.toISOString()} → ${campaign.endsAt.toISOString()}\n  ${campaign.unitAmount} ${campaign.currency} (centavos) · ${campaign.questions?.length ?? 0} preguntas`;
+const summary = `${campaign.slug} · ${campaign.productName} · ${campaign.status}\n  ${campaign.startsAt.toISOString()} → ${campaign.endsAt.toISOString()}\n  ${campaign.unitAmount} ${campaign.currency} (centavos) · ${campaign.questions?.length ?? 0} preguntas · ${campaign.totalUnits ?? "sin tope de"} unidades`;
 if (flag("dry-run")) {
   console.log(`Válida (sin guardar):\n  ${summary}`);
   process.exit(0);
@@ -40,7 +48,7 @@ if (existing) {
 }
 const currentTerms = existing ? await getCurrentTerms(db, existing.id) : null;
 if (campaign.status === "active" && !currentTerms && !termsContent) {
-  fail("Una campaña activa necesita términos: agrega --terms=archivo.md (o déjala en draft).");
+  fail("Una campaña activa necesita términos: agrega --terms-legal o --terms=archivo.md (o déjala en draft).");
 }
 
 const saved = await db.transaction(async (tx) => {

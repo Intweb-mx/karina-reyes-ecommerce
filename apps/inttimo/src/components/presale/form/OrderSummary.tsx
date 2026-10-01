@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import { CalendarIcon, CheckIcon, GiftIcon, LockIcon, MinusIcon, PlusIcon } from "@/components/ui/icons";
 import type { ProductContent } from "@/content/products";
-import { formCopy } from "@/content/presale";
-import { formatCalendarDate, formatMoney } from "@/lib/format";
+import { formCopy, legalNotice } from "@/content/presale";
+import { formatCalendarDate, formatDateRange, formatMoney } from "@/lib/format";
 import { FieldError } from "./fields";
 
 type Status = "idle" | "submitting" | "redirecting";
@@ -22,13 +22,16 @@ type SummaryProps = {
   maxQuantity: number;
   onQuantity: (value: number) => void;
   quantityErrors?: string[];
+  startsAt: string;
+  endsAt: string;
+  totalUnits: number | null;
 };
 
 /**
  * "Tu compra" en formato tabla: producto, cantidad (editable aquí mismo), precio unitario, total,
  * lanzamiento y condición de preventa. Se muestra junto a los términos y el pago (brief §9).
  */
-export function PurchaseSummary({ productName, product, unitAmount, currency, quantity, maxQuantity, onQuantity, quantityErrors }: SummaryProps) {
+export function PurchaseSummary({ productName, product, unitAmount, currency, quantity, maxQuantity, onQuantity, quantityErrors, startsAt, endsAt, totalUnits }: SummaryProps) {
   const money = (amount: number) => formatMoney(amount, currency);
   const stepButton =
     "grid size-11 place-items-center text-fg sm:size-9 transition-colors duration-(--duration-base) hover:bg-sand active:bg-sand/80 disabled:cursor-not-allowed disabled:text-muted/40 disabled:hover:bg-transparent";
@@ -122,6 +125,20 @@ export function PurchaseSummary({ productName, product, unitAmount, currency, qu
           <CheckIcon className="mt-0.5 size-4 shrink-0 text-fg/60" />
           Compra en preventa: pagas hoy el precio completo y tu pedido queda registrado para el lanzamiento.
         </p>
+        <p className="flex items-start gap-2.5 text-muted">
+          <CheckIcon className="mt-0.5 size-4 shrink-0 text-fg/60" />
+          {legalNotice.period(formatDateRange(startsAt, endsAt))}
+        </p>
+        <p className="flex items-start gap-2.5 text-muted">
+          <CheckIcon className="mt-0.5 size-4 shrink-0 text-fg/60" />
+          {legalNotice.priority}
+        </p>
+        {totalUnits !== null && (
+          <p className="flex items-start gap-2.5 text-muted">
+            <CheckIcon className="mt-0.5 size-4 shrink-0 text-fg/60" />
+            {legalNotice.stock(totalUnits)}
+          </p>
+        )}
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 # Preventa — backend
 
-Reserva de lugar en la preventa de UNO+UNO: contador de 14 días, cuestionario y pago del **precio completo** con Stripe Checkout. Sin límite de lugares.
+Reserva de lugar en la preventa de UNO+UNO: contador de 14 días, cuestionario y pago del **precio completo** con Stripe Checkout. Tope opcional de unidades sin sobreventa (`totalUnits`).
 
 El backend está terminado; la UI la construye frontend. Este documento es el contrato entre ambos.
 
@@ -177,3 +177,16 @@ pnpm presale:reconcile                                                      # si
 - Cada reserva tiene timeline append-only (`presale_reservation_events`), bloqueado contra UPDATE/DELETE en la base.
 - El correo de confirmación se envía una sola vez; si falla, se reintenta.
 - Si Stripe o la base fallan, la API responde 503; nunca simula éxito.
+
+## Salida a producción (campaña real UNO+UNO)
+
+Archivo listo: `docs/preventa/uno-mas-uno.json` ($500 MXN = 50000 centavos, 1–15 oct 2026 hora de Chihuahua, 500 unidades, máx. 2 por compra, sin preguntas pre-pago). Los términos salen del texto aprobado en `apps/inttimo/src/content/legal/`.
+
+```bash
+# desde tu terminal, con DATABASE_URL de producción (migración 0005 aplicada por el build de Vercel)
+pnpm presale:upsert --file=docs/preventa/uno-mas-uno.json --terms-legal --dry-run
+pnpm presale:upsert --file=docs/preventa/uno-mas-uno.json --terms-legal
+```
+
+Antes de poner la clave live de Stripe, la campaña `demo` debe estar en `draft` o `closed` (cobraría $1,000 reales).
+Si cambian los Términos y Condiciones, editar `content/legal/terminos.ts` y volver a correr con `--terms-legal`: crea una versión nueva y las compras ya hechas conservan la que aceptaron.

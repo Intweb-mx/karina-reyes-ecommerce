@@ -37,7 +37,6 @@ export const formCopy = {
   intro: "Completa tus datos para realizar tu compra de preventa. Al continuar, te llevaremos a Stripe para efectuar el pago de forma segura.",
   sections: { contact: "Tus datos", questions: "Cuéntanos un poco", confirm: "Confirma tu compra" },
   questionsIntro: "Nos ayuda a conocerte mejor. Solo toma unos segundos.",
-  acceptTerms: "He leído y acepto los términos y condiciones de la preventa.",
   submit: (productName: string) => `Pagar mi ${productName}`,
   submitShort: "Pagar",
   submitting: "Preparando pago…",
@@ -48,10 +47,21 @@ export const formCopy = {
   termsUpdated: "Los términos se actualizaron. Revísalos y vuelve a aceptarlos para continuar.",
 };
 
+/** Avisos cortos obligatorios del checkout ("Implementación legal en web", §5, §6 y §11). */
+export const legalNotice = {
+  dataUse: "Tus datos serán utilizados para procesar tu compra, gestionar tu pedido, entrega y atención. Consulta nuestro",
+  shippingLink: "Consulta nuestra Política de Envíos y Recolección",
+  invoice: "¿Requieres factura? Solicítala después de realizar tu compra.",
+  priority: "Los pedidos de preventa tendrán prioridad de preparación y entrega, con el objetivo de ser recibidos antes del lanzamiento oficial, sujeto a logística y paquetería.",
+  stock: (units: number) => `Disponibilidad limitada: hasta ${units} unidades en esta preventa.`,
+  period: (range: string) => `Preventa: ${range}, o hasta agotar existencias.`,
+};
+
 export const stateCopy = {
   notReady: { title: "La preventa estará disponible en breve.", body: "Estamos terminando los últimos detalles. Vuelve a esta página en unos minutos." },
   upcoming: (date: string) => ({ title: "La preventa aún no abre.", body: `Abre el ${date}; si mantienes esta página abierta, se actualizará sola al llegar la hora.` }),
   closed: { title: "La preventa ha cerrado.", body: "Gracias por tu interés. Ya no es posible comprar en esta preventa." },
+  soldOut: { title: "Las unidades de preventa se agotaron.", body: "Gracias por tu interés. Ya no hay unidades disponibles en esta preventa." },
   canceled: "No se realizó ningún cargo y tu compra no se completó. Puedes intentarlo de nuevo cuando quieras.",
 };
 

@@ -53,7 +53,7 @@ export function validateField(key: string, values: ReservationValues, questions:
     case "phone":
       return PHONE.test(values.phone) && values.phone.length <= 30 ? [] : ["Teléfono no válido."];
     case "acceptTerms":
-      return values.acceptTerms ? [] : ["Debes aceptar los términos de la preventa."];
+      return values.acceptTerms ? [] : ["Debes aceptar los Términos y Condiciones y el Aviso de Privacidad para continuar."];
   }
   const question = questions.find((q) => answerKey(q.id) === key);
   if (!question || !question.required) return [];

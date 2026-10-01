@@ -14,7 +14,7 @@ export function getPhase(campaign: PresaleCampaign, now: Date): PresalePhase {
   return "open";
 }
 
-export function toPublicCampaign(campaign: PresaleCampaign, terms: PresaleTerms | null, now: Date): PublicCampaign {
+export function toPublicCampaign(campaign: PresaleCampaign, terms: PresaleTerms | null, now: Date, remainingUnits: number | null = null): PublicCampaign {
   return {
     slug: campaign.slug,
     productName: campaign.productName,
@@ -25,6 +25,8 @@ export function toPublicCampaign(campaign: PresaleCampaign, terms: PresaleTerms 
     endsAt: campaign.endsAt.toISOString(),
     serverTime: now.toISOString(),
     phase: getPhase(campaign, now),
+    totalUnits: campaign.totalUnits,
+    soldOut: remainingUnits !== null && remainingUnits <= 0,
     questions: campaign.questions,
     deliveryNote: campaign.deliveryNote,
     terms: terms ? { version: terms.version, content: terms.content } : null,

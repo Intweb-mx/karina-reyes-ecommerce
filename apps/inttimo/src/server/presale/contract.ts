@@ -18,6 +18,10 @@ export type PublicCampaign = {
   endsAt: string;
   serverTime: string;
   phase: PresalePhase;
+  /** Unidades totales de la campaña (para mostrar "hasta N unidades"); null si no hay tope. No incluye lo ya vendido. */
+  totalUnits: number | null;
+  /** true si la campaña tiene tope de unidades y ya no queda inventario (no se acepta ninguna compra más). */
+  soldOut: boolean;
   questions: QuestionDefinition[];
   deliveryNote: string | null;
   /** Términos vigentes. El cliente debe aceptar exactamente esta versión. */
@@ -68,6 +72,7 @@ export type ReservationStatusResponse = {
 export type ApiErrorCode =
   | "not_found"
   | "presale_not_open"
+  | "sold_out"
   | "presale_not_ready"
   | "terms_outdated"
   | "validation_error"

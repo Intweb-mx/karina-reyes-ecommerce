@@ -7,28 +7,46 @@ import {
   type PresaleReservation,
 } from "@inttimo/database";
 import { escapeHtml, type Mail } from "@inttimo/shared-utils/mail";
+import { business } from "../../content/legal/business.ts";
 import { formatMoney } from "../../lib/format.ts";
 
 export type MailSender = (mail: Mail) => Promise<void>;
 
+function formatAddress(address: PresaleReservation["shippingAddress"]): string | null {
+  if (!address) return null;
+  const parts = [address.name, address.line1, address.line2, [address.postalCode, address.city].filter(Boolean).join(" "), address.state].filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
+}
+
+/** Contenido mínimo exigido tras el pago: folio, producto, cantidad, importe, entrega y contacto ("Implementación legal en web", §8). */
 function customerMail(reservation: PresaleReservation, productName: string, deliveryNote: string | null): Mail {
   const total = formatMoney(reservation.totalAmount, reservation.currency);
+  const address = formatAddress(reservation.shippingAddress);
   const lines = [
     `Hola ${reservation.fullName}:`,
     "",
-    `Confirmamos tu lugar en la preventa de ${productName}.`,
+    `Recibimos tu pedido de preventa de ${productName}. Gracias por tu compra.`,
     "",
-    `Folio: ${reservation.code}`,
+    `Número de pedido: ${reservation.code}`,
+    `Producto: ${productName}`,
     `Cantidad: ${reservation.quantity}`,
-    `Total pagado: ${total}`,
+    `Importe pagado: ${total}`,
+    ...(address ? [`Datos de entrega: ${address}`] : []),
+    `Correo de contacto del pedido: ${reservation.email}`,
     ...(deliveryNote ? ["", deliveryNote] : []),
     "",
-    "Guarda este correo: tu folio es tu comprobante de reserva.",
+    "Si tu pedido es con envío, te comunicaremos la guía de rastreo cuando esté disponible. Si es con recolección en Chihuahua, te avisaremos cuando esté LISTO PARA RECOGER.",
+    "",
+    "¿Requieres factura? Solicítala después de realizar tu compra.",
+    "",
+    `Guarda este correo: tu número de pedido es tu comprobante de compra.`,
+    "",
+    `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · ${business.hours} · respuesta ${business.responseTime}.`,
     "",
     "— inttimo",
   ];
   const html = lines.map((line) => (line ? `<p>${escapeHtml(line)}</p>` : "")).join("");
-  return { to: reservation.email, subject: `Tu lugar en la preventa de ${productName} (${reservation.code})`, text: lines.join("\n"), html };
+  return { to: reservation.email, subject: `Recibimos tu pedido de preventa de ${productName} (${reservation.code})`, text: lines.join("\n"), html };
 }
 
 function internalMail(to: string, reservation: PresaleReservation, productName: string): Mail {

@@ -3,8 +3,10 @@
 import type { FormEvent } from "react";
 import type { PublicCampaign } from "@/server/presale/contract";
 import type { ProductContent } from "@/content/products";
-import { formCopy } from "@/content/presale";
-import { ChevronDownIcon, MailIcon, PhoneIcon, UserIcon } from "@/components/ui/icons";
+import Link from "next/link";
+import { formCopy, legalNotice } from "@/content/presale";
+import { acceptanceText, legalPaths } from "@/content/legal";
+import { MailIcon, PhoneIcon, UserIcon } from "@/components/ui/icons";
 import { formatMoney } from "@/lib/format";
 import { CheckoutSteps } from "./CheckoutSteps";
 import { ErrorSummary } from "./ErrorSummary";
@@ -31,7 +33,7 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
     email: "Correo electrónico",
     phone: "Teléfono",
     quantity: "Cantidad",
-    acceptTerms: "Términos",
+    acceptTerms: "Aceptación",
     ...Object.fromEntries(campaign.questions.map((q) => [answerKey(q.id), q.label])),
   };
 
@@ -128,6 +130,13 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
                 <FieldError id="phone" errors={errors.phone} />
               </div>
             </div>
+            <p className="mt-6 text-xs leading-relaxed text-muted">
+              {legalNotice.dataUse}{" "}
+              <Link href={legalPaths.privacy} target="_blank" rel="noopener" className="underline underline-offset-4 hover:text-fg">
+                Aviso de Privacidad
+              </Link>
+              .
+            </p>
           </FormSection>
 
           {hasQuestions && (
@@ -181,25 +190,10 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
               maxQuantity={campaign.maxQuantityPerReservation}
               onQuantity={setQuantity}
               quantityErrors={errors.quantity}
+              startsAt={campaign.startsAt}
+              endsAt={campaign.endsAt}
+              totalUnits={campaign.totalUnits}
             />
-
-            {campaign.terms && (
-              <details className="group border border-border text-sm">
-                <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-sand/40 [&::-webkit-details-marker]:hidden">
-                  <span>
-                    <span className="block font-semibold">Términos y condiciones</span>
-                    <span className="block text-xs text-muted">Versión {campaign.terms.version} · Toca para leer</span>
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    className="grid size-7 shrink-0 place-items-center rounded-full border border-border text-muted transition-[transform,background-color,color] duration-(--duration-base) group-open:rotate-180 group-open:border-ink group-open:bg-ink group-open:text-on-ink"
-                  >
-                    <ChevronDownIcon className="size-3.5" />
-                  </span>
-                </summary>
-                <div className="max-h-64 overflow-y-auto border-t border-border px-4 py-4 leading-relaxed whitespace-pre-line text-fg/80">{campaign.terms.content}</div>
-              </details>
-            )}
 
             <div className="space-y-3">
               <div>
@@ -211,7 +205,13 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
                   aria-describedby={describedBy("acceptTerms", { errors: errors.acceptTerms })}
                   onChange={(e) => setField("acceptTerms", e.target.checked, true)}
                 >
-                  <span className="text-sm font-medium">{formCopy.acceptTerms}</span>
+                  <span className="text-sm leading-relaxed font-medium">
+                    {acceptanceText.beforeTerms}
+                    <LegalLink href={legalPaths.terms}>{acceptanceText.terms}</LegalLink>
+                    {acceptanceText.between}
+                    <LegalLink href={legalPaths.privacy}>{acceptanceText.privacy}</LegalLink>
+                    {acceptanceText.after}
+                  </span>
                 </ChoiceTile>
                 <FieldError id="acceptTerms" errors={errors.acceptTerms} />
               </div>
@@ -224,11 +224,29 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
             </div>
 
             <PayBlock productName={campaign.productName} status={status} />
+
+            <ul className="space-y-1.5 text-center text-xs leading-relaxed text-muted">
+              <li>
+                <Link href={legalPaths.shipping} target="_blank" rel="noopener" className="underline underline-offset-4 hover:text-fg">
+                  {legalNotice.shippingLink}
+                </Link>
+              </li>
+              <li>{legalNotice.invoice}</li>
+            </ul>
           </div>
         </aside>
       </div>
 
       <MobileCheckoutBar total={total} status={status} completed={completed} steps={steps.length} />
     </form>
+  );
+}
+
+/** Enlace a un documento legal: se abre en otra pestaña para no perder lo capturado en el formulario. */
+function LegalLink({ href, children }: { href: string; children: string }) {
+  return (
+    <Link href={href} target="_blank" rel="noopener" className="underline underline-offset-4 hover:text-bronze-strong">
+      {children}
+    </Link>
   );
 }

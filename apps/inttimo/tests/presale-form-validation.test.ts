@@ -29,7 +29,7 @@ describe("validación del formulario de preventa", () => {
       "answers.texto": ["Esta pregunta es obligatoria."],
       "answers.opcion": ["Esta pregunta es obligatoria."],
       "answers.si": ["Esta pregunta es obligatoria."],
-      acceptTerms: ["Debes aceptar los términos de la preventa."],
+      acceptTerms: ["Debes aceptar los Términos y Condiciones y el Aviso de Privacidad para continuar."],
     });
   });
 

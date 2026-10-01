@@ -47,6 +47,8 @@ export const presaleCampaigns = pgTable(
     /** ISO 4217 en minúsculas, como la usa Stripe. */
     currency: text().notNull().default("mxn"),
     maxQuantityPerReservation: integer().notNull().default(1),
+    /** Unidades totales a la venta en la campaña (sin sobreventa). Nulo = sin tope. */
+    totalUnits: integer(),
     questions: jsonb().$type<QuestionDefinition[]>().notNull().default([]),
     /** Texto aprobado sobre la entrega (p. ej. fecha estimada). Nulo si aún no está aprobado. */
     deliveryNote: text(),
@@ -58,6 +60,7 @@ export const presaleCampaigns = pgTable(
     check("presale_campaigns_amount_check", sql`${table.unitAmount} > 0`),
     check("presale_campaigns_currency_check", sql`${table.currency} ~ '^[a-z]{3}$'`),
     check("presale_campaigns_max_quantity_check", sql`${table.maxQuantityPerReservation} between 1 and 20`),
+    check("presale_campaigns_total_units_check", sql`${table.totalUnits} is null or ${table.totalUnits} > 0`),
   ],
 );
 

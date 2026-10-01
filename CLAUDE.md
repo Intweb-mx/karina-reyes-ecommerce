@@ -32,7 +32,7 @@ Se puede dejar preparada la arquitectura de este repo (scaffold, tipos, tokens v
 
 ### Excepción aprobada: preventa de UNO+UNO (prioridad 1)
 
-> **Decisión del usuario (2026-09-28):** construir ya la preventa de UNO+UNO — contador de 14 días, cuestionario y pago del precio completo con **Stripe**, sin límite de lugares. Ver `docs/decisions/ADR-002-preventa-stripe.md` y `docs/preventa/README.md`.
+> **Decisión del usuario (2026-09-28):** construir ya la preventa de UNO+UNO — contador de 14 días, cuestionario y pago del precio completo con **Stripe**. **Actualización 2026-09-30:** la preventa real es del 1 al 15 de octubre de 2026, $500 MXN, hasta 500 unidades **sin sobreventa** (`presale_campaigns.total_units`), con las 4 páginas legales aprobadas (`/terminos-y-condiciones`, `/aviso-de-privacidad`, `/envios-y-recoleccion`, `/cambios-y-reembolsos`, texto en `apps/inttimo/src/content/legal/`). Ver `docs/decisions/ADR-002-preventa-stripe.md` y `docs/preventa/README.md`.
 
 - La excepción cubre **solo la preventa**: `packages/database` (tablas `presale_*`), `apps/inttimo/src/server/presale/`, rutas `/api/preventa/*` y `/api/webhooks/stripe`, y las páginas `/preventa/[slug]` y `/preventa/[slug]/confirmacion`.
 - Catálogo, carrito, checkout general, inventario, SkyDropX, cuentas y panel operativo siguen bloqueados por el gate de arriba.

@@ -1,0 +1,14 @@
+{
+  "slug": "uno-mas-uno",
+  "productName": "UNO+UNO",
+  "productSku": null,
+  "status": "active",
+  "startsAt": "2026-10-01T00:00:00-06:00",
+  "endsAt": "2026-10-15T23:59:59-06:00",
+  "unitAmount": 50000,
+  "currency": "mxn",
+  "maxQuantityPerReservation": 2,
+  "totalUnits": 500,
+  "deliveryNote": null,
+  "questions": []
+}
