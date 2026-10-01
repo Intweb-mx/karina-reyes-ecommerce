@@ -62,6 +62,8 @@ export const stateCopy = {
   upcoming: (date: string) => ({ title: "La preventa aún no abre.", body: `Abre el ${date}; si mantienes esta página abierta, se actualizará sola al llegar la hora.` }),
   closed: { title: "La preventa ha cerrado.", body: "Gracias por tu interés. Ya no es posible comprar en esta preventa." },
   soldOut: { title: "Las unidades de preventa se agotaron.", body: "Gracias por tu interés. Ya no hay unidades disponibles en esta preventa." },
+  /** Panel del hero cuando la campaña agotó su tope de unidades (campaign.soldOut). */
+  soldOutCard: { badge: "Agotado", title: "Agotado", body: "Se vendieron todas las unidades de esta preventa." },
   canceled: "No se realizó ningún cargo y tu compra no se completó. Puedes intentarlo de nuevo cuando quieras.",
 };
 

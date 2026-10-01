@@ -177,3 +177,21 @@ export const GiftIcon = (props: IconProps) => (
     <path d="M5 12.5v8h14v-8M12 8.5v12M12 8.5S10.5 4 8 4.5 7 8.5 12 8.5zM12 8.5S13.5 4 16 4.5s1 4-4 4z" />
   </Base>
 );
+
+export const StarIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />
+  </Base>
+);
+
+export const ChatIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M4.5 19.5l1.2-3.6A7.5 7.5 0 1 1 8.4 18.6z" />
+  </Base>
+);
+
+export const ArrowUpIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 20V4M6 10l6-6 6 6" />
+  </Base>
+);

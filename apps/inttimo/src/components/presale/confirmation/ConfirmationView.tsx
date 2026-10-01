@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import type { ReservationStatusResponse } from "@/server/presale/contract";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { AlertIcon, BoxIcon, CalendarIcon, CheckIcon, ClockIcon, CloseIcon, MailIcon, PrintIcon, ReceiptIcon, RefundIcon } from "@/components/ui/icons";
+import { AlertIcon, BoxIcon, CalendarIcon, ChatIcon, CheckIcon, ClockIcon, CloseIcon, MailIcon, PrintIcon, ReceiptIcon, RefundIcon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { business, legalPaths } from "@/content/legal";
 import { legalNotice, slowPaymentCopy, statusCopy, type Tone } from "@/content/presale";
@@ -131,21 +131,30 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
         )}
       </div>
 
-      <p className="mt-12 border-t border-border pt-6 text-sm leading-relaxed text-muted">
-        ¿Dudas o incidencias con tu compra? Escríbenos a{" "}
-        <a href={`mailto:${business.email}`} className="underline underline-offset-4 hover:text-fg">
-          {business.email}
-        </a>{" "}
-        o por{" "}
-        <a href={business.whatsappUrl} rel="noopener" className="underline underline-offset-4 hover:text-fg">
-          WhatsApp {business.whatsapp}
-        </a>{" "}
-        ({business.hours}; respuesta {business.responseTime}). Consulta la{" "}
-        <Link href={legalPaths.refunds} className="underline underline-offset-4 hover:text-fg">
-          Política de Cambios y Reembolsos
-        </Link>
-        .
-      </p>
+      <section aria-labelledby="ayuda" className="mt-12 grid gap-6 border border-border bg-surface px-6 py-6 max-sm:-mx-4 max-sm:border-x-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-8 print:hidden">
+        <div>
+          <h2 id="ayuda" className="font-serif text-2xl font-medium">
+            ¿Dudas o incidencias con tu compra?
+          </h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">
+            Horario: {business.hours}. Respuesta: {business.responseTime}. Consulta la{" "}
+            <Link href={legalPaths.refunds} className="underline underline-offset-4 hover:text-fg">
+              Política de Cambios y Reembolsos
+            </Link>
+            .
+          </p>
+        </div>
+        <div className="flex flex-col gap-2.5 sm:min-w-56">
+          <a href={`mailto:${business.email}`} className="inline-flex min-h-12 items-center justify-center gap-2 border border-fg/80 px-4 text-sm font-medium transition-colors hover:bg-fg hover:text-bg">
+            <MailIcon className="size-4" />
+            Escríbenos por correo
+          </a>
+          <a href={business.whatsappUrl} rel="noopener" className="inline-flex min-h-12 items-center justify-center gap-2 border border-fg/80 px-4 text-sm font-medium transition-colors hover:bg-fg hover:text-bg">
+            <ChatIcon className="size-4" />
+            WhatsApp {business.whatsapp}
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

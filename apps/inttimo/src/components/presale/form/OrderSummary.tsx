@@ -1,7 +1,7 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
-import { CalendarIcon, CheckIcon, GiftIcon, LockIcon, MinusIcon, PlusIcon } from "@/components/ui/icons";
+import { BoxIcon, CalendarIcon, CheckIcon, ClockIcon, GiftIcon, LockIcon, MinusIcon, PlusIcon, StarIcon } from "@/components/ui/icons";
 import type { ProductContent } from "@/content/products";
 import { formCopy, legalNotice } from "@/content/presale";
 import { formatCalendarDate, formatDateRange, formatMoney } from "@/lib/format";
@@ -70,7 +70,7 @@ export function PurchaseSummary({ productName, product, unitAmount, currency, qu
           </Row>
           <Row label={<span id="cantidad-label">Cantidad</span>}>
             {maxQuantity > 1 ? (
-              <span role="group" aria-labelledby="cantidad-label" className="inline-flex items-center border border-border bg-[#fffdf9]">
+              <span role="group" aria-labelledby="cantidad-label" aria-describedby={quantityErrors?.length ? "quantity-error" : undefined} className={`inline-flex items-center border bg-[#fffdf9] ${quantityErrors?.length ? "border-danger shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-danger)_14%,transparent)]" : "border-border"}`}>
                 <button type="button" className={stepButton} onClick={() => onQuantity(quantity - 1)} disabled={quantity <= 1} aria-label="Quitar uno">
                   <MinusIcon className="size-3.5" />
                 </button>
@@ -85,10 +85,16 @@ export function PurchaseSummary({ productName, product, unitAmount, currency, qu
               <span className="lining-nums">1</span>
             )}
           </Row>
-          {maxQuantity > 1 && (
+          {(maxQuantity > 1 || quantityErrors?.length) && (
             <tr>
               <td colSpan={2} className="pt-0 pb-3 text-right text-xs text-muted">
-                Máximo {maxQuantity} por compra.
+                {quantityErrors?.length ? (
+                  <div className="flex justify-end text-left [&>p]:mt-0">
+                    <FieldError id="quantity" errors={quantityErrors} />
+                  </div>
+                ) : (
+                  <>Máximo {maxQuantity} por compra.</>
+                )}
               </td>
             </tr>
           )}
@@ -110,37 +116,37 @@ export function PurchaseSummary({ productName, product, unitAmount, currency, qu
           </tr>
         </tfoot>
       </table>
-      <FieldError id="quantity" errors={quantityErrors} />
 
-      <div className="mt-6 space-y-2.5 bg-bg/70 px-4 py-4 text-sm">
-        {product?.launchDate && (
-          <p className="flex items-start gap-2.5">
-            <CalendarIcon className="mt-0.5 size-4 shrink-0 text-fg/60" />
-            <span>
+      <div className="mt-6 bg-bg/70 px-4 py-4">
+        <p className="eyebrow text-muted">Detalles de la preventa</p>
+        <ul className="mt-3 space-y-3 text-sm leading-relaxed">
+          {product?.launchDate && (
+            <Detail icon={<CalendarIcon />}>
               Lanzamiento oficial: <strong className="font-semibold lining-nums">{formatCalendarDate(product.launchDate)}</strong>
-            </span>
-          </p>
-        )}
-        <p className="flex items-start gap-2.5 text-muted">
-          <CheckIcon className="mt-0.5 size-4 shrink-0 text-fg/60" />
-          Compra en preventa: pagas hoy el precio completo y tu pedido queda registrado para el lanzamiento.
-        </p>
-        <p className="flex items-start gap-2.5 text-muted">
-          <CheckIcon className="mt-0.5 size-4 shrink-0 text-fg/60" />
-          {legalNotice.period(formatDateRange(startsAt, endsAt))}
-        </p>
-        <p className="flex items-start gap-2.5 text-muted">
-          <CheckIcon className="mt-0.5 size-4 shrink-0 text-fg/60" />
-          {legalNotice.priority}
-        </p>
-        {totalUnits !== null && (
-          <p className="flex items-start gap-2.5 text-muted">
-            <CheckIcon className="mt-0.5 size-4 shrink-0 text-fg/60" />
-            {legalNotice.stock(totalUnits)}
-          </p>
-        )}
+            </Detail>
+          )}
+          <Detail icon={<ClockIcon />}>{legalNotice.period(formatDateRange(startsAt, endsAt))}</Detail>
+          {totalUnits !== null && <Detail icon={<BoxIcon />}>{legalNotice.stock(totalUnits)}</Detail>}
+          <Detail icon={<CheckIcon />} muted>
+            Compra en preventa: pagas hoy el precio completo y tu pedido queda registrado para el lanzamiento.
+          </Detail>
+          <Detail icon={<StarIcon />} muted>
+            {legalNotice.priority}
+          </Detail>
+        </ul>
       </div>
     </section>
+  );
+}
+
+function Detail({ icon, muted, children }: { icon: ReactNode; muted?: boolean; children: ReactNode }) {
+  return (
+    <li className={`flex items-start gap-3 ${muted ? "text-muted" : ""}`}>
+      <span aria-hidden="true" className="mt-0.5 grid size-5 shrink-0 place-items-center text-fg/60 [&>svg]:size-4">
+        {icon}
+      </span>
+      <span className="min-w-0">{children}</span>
+    </li>
   );
 }
 

@@ -9,6 +9,7 @@ import { HowItWorks } from "./sections/HowItWorks";
 import { PresaleBonus } from "./sections/PresaleBonus";
 import { PresaleHero } from "./sections/PresaleHero";
 import { ProductIncludes } from "./sections/ProductIncludes";
+import { SoldOutPanel } from "./sections/SoldOutPanel";
 import { StateMessage } from "./sections/StateMessage";
 
 /**
@@ -74,7 +75,7 @@ export function PresaleView({ campaign, canceled }: { campaign: PublicCampaign; 
             </div>
           )}
           <section id="reserva" aria-labelledby="reserva-titulo" className="container-page section-y border-t border-border/70">
-            {open && campaign.soldOut && <StateMessage id="reserva-titulo" {...stateCopy.soldOut} />}
+            {open && campaign.soldOut && <SoldOutPanel id="reserva-titulo" launchDate={product?.launchDate} />}
             {open && !campaign.terms && !campaign.soldOut && <StateMessage id="reserva-titulo" {...stateCopy.notReady} />}
             {campaign.phase === "upcoming" && <StateMessage id="reserva-titulo" {...stateCopy.upcoming(formatDate(campaign.startsAt))} />}
             {campaign.phase === "closed" && <StateMessage id="reserva-titulo" {...stateCopy.closed} />}
