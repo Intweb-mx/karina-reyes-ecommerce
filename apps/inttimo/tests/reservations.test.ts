@@ -51,6 +51,39 @@ describe("campaña pública", () => {
   });
 });
 
+describe("inventario de la campaña", () => {
+  it("expone el tope y no marca agotada mientras haya unidades", async () => {
+    await seedCampaign(db, { totalUnits: 3 });
+    const result = await getPublicCampaign(deps, "uno-mas-uno");
+    expect(result.ok && result.data).toMatchObject({ totalUnits: 3, soldOut: false });
+  });
+
+  it("rechaza con sold_out lo que excede las unidades restantes y no crea pago", async () => {
+    await seedCampaign(db, { totalUnits: 3 });
+    expect((await create({ quantity: 2 })).status).toBe(201);
+    const result = await create({ quantity: 2 }, { clientIp: "5.6.7.8" });
+    expect(result).toMatchObject({ ok: false, status: 409, body: { error: { code: "sold_out", fieldErrors: { quantity: ["Solo quedan 1 unidades disponibles."] } } } });
+    expect(gateway.created).toHaveLength(1);
+  });
+
+  it("al agotarse marca soldOut y rechaza toda compra nueva", async () => {
+    await seedCampaign(db, { totalUnits: 2 });
+    expect((await create({ quantity: 2 })).status).toBe(201);
+    const campaign = await getPublicCampaign(deps, "uno-mas-uno");
+    expect(campaign.ok && campaign.data.soldOut).toBe(true);
+    const result = await create({ quantity: 1 }, { clientIp: "5.6.7.8" });
+    expect(result).toMatchObject({ ok: false, status: 409, body: { error: { code: "sold_out", message: "Las unidades de preventa se agotaron." } } });
+  });
+
+  it("si Stripe falla el inventario se libera", async () => {
+    await seedCampaign(db, { totalUnits: 1 });
+    gateway.fail = true;
+    expect((await create()).status).toBe(503);
+    gateway.fail = false;
+    expect((await create({}, { clientIp: "5.6.7.8" })).status).toBe(201);
+  });
+});
+
 describe("crear reserva", () => {
   it("crea la reserva con el precio del servidor y la sesión de Stripe", async () => {
     const result = await create({ quantity: 2, unitAmount: 1 });

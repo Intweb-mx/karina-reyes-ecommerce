@@ -9,7 +9,7 @@ El usuario definió la preventa de UNO+UNO como prioridad 1 y urgente: página c
 
 CLAUDE.md bloqueaba todo pago/checkout de inttimo hasta aprobar la web de Karina Reyes y nombraba Mercado Pago como pasarela objetivo. El usuario pidió explícitamente iniciar la preventa ya y usar **Stripe**.
 
-Decisiones del usuario (2026-09-28): producto UNO+UNO; se cobra el **precio completo** al reservar; **sin límite** de lugares.
+Decisiones del usuario (2026-09-28): producto UNO+UNO; se cobra el **precio completo** al reservar; **sin límite** de lugares. *Actualizado 2026-09-30:* la preventa real tiene tope de 500 unidades sin sobreventa (`total_units`; el inventario se aparta al crear la reserva con bloqueo de la fila de la campaña y se libera al expirar, fallar o reembolsar por completo).
 
 ## Decisión
 

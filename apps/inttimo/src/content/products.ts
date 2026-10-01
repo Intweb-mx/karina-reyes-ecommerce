@@ -61,10 +61,9 @@ const PRODUCTS: Record<string, ProductContent> = {
 };
 
 /**
- * Contenido de la campaña. La campaña `demo` (`pnpm presale:upsert` con campaign.dev.json) usa el de UNO+UNO
- * para poder revisar el diseño completo también en Vercel mientras no exista la campaña real.
- * Retirar el alias `demo` cuando se cargue la campaña `uno-mas-uno` con datos aprobados.
+ * Contenido de la campaña por `slug`. La campaña `demo` (`pnpm dev:seed`) reutiliza el de UNO+UNO solo en desarrollo local
+ * para poder pulir el diseño; en producción y Vercel (NODE_ENV=production) solo existen campañas reales.
  */
 export function getProductContent(slug: string): ProductContent | null {
-  return PRODUCTS[slug] ?? (slug === "demo" ? unoMasUno : null);
+  return PRODUCTS[slug] ?? (slug === "demo" && process.env.NODE_ENV !== "production" ? unoMasUno : null);
 }

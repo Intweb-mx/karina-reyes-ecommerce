@@ -19,7 +19,7 @@ import { StateMessage } from "./sections/StateMessage";
 export function PresaleView({ campaign, canceled }: { campaign: PublicCampaign; canceled: boolean }) {
   const product = getProductContent(campaign.slug);
   const open = campaign.phase === "open";
-  const accepting = open && campaign.terms !== null;
+  const accepting = open && campaign.terms !== null && !campaign.soldOut;
 
   const howItWorks = (
     <HowItWorks
@@ -74,7 +74,8 @@ export function PresaleView({ campaign, canceled }: { campaign: PublicCampaign; 
             </div>
           )}
           <section id="reserva" aria-labelledby="reserva-titulo" className="container-page section-y border-t border-border/70">
-            {open && !campaign.terms && <StateMessage id="reserva-titulo" {...stateCopy.notReady} />}
+            {open && campaign.soldOut && <StateMessage id="reserva-titulo" {...stateCopy.soldOut} />}
+            {open && !campaign.terms && !campaign.soldOut && <StateMessage id="reserva-titulo" {...stateCopy.notReady} />}
             {campaign.phase === "upcoming" && <StateMessage id="reserva-titulo" {...stateCopy.upcoming(formatDate(campaign.startsAt))} />}
             {campaign.phase === "closed" && <StateMessage id="reserva-titulo" {...stateCopy.closed} />}
           </section>

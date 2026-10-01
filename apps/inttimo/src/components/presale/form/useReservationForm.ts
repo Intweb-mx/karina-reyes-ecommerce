@@ -125,6 +125,8 @@ export function useReservationForm(campaign: PublicCampaign) {
         router.refresh();
       } else {
         setFormError(data.error.message);
+        // Inventario agotado entre tanto: se recarga la campaña para mostrar el estado real.
+        if (data.error.code === "sold_out") router.refresh();
       }
     } catch {
       setFormError(formCopy.networkError);

@@ -6,7 +6,9 @@ import {
   findReservationBySessionId,
   getCampaignBySlug,
   getCurrentTerms,
+  getRemainingUnits,
   hitRateLimit,
+  InsufficientStockError,
   markCheckoutFailed,
   type Database,
   type PresaleReservation,
@@ -61,7 +63,7 @@ const baseRequestSchema = z.object({
     .transform((value) => value || null),
   quantity: z.number().int().min(1).default(1),
   answers: z.record(z.string(), z.unknown()).default({}),
-  acceptTerms: z.literal(true, { error: "Debes aceptar los términos de la preventa." }),
+  acceptTerms: z.literal(true, { error: "Debes aceptar los Términos y Condiciones y el Aviso de Privacidad para continuar." }),
   termsVersion: z.number({ error: "Falta la versión de los términos." }).int().positive(),
   marketingConsent: z.boolean().default(false),
   website: z.string().max(200).optional(),
@@ -90,7 +92,8 @@ export async function getPublicCampaign(deps: Pick<PresaleDeps, "db" | "now">, s
   const campaign = await getCampaignBySlug(deps.db, slug);
   if (!campaign || !isPublic(campaign)) return fail(404, "not_found", "Preventa no encontrada.");
   const terms = await getCurrentTerms(deps.db, campaign.id);
-  return { ok: true, status: 200, data: toPublicCampaign(campaign, terms, deps.now?.() ?? new Date()) };
+  const now = deps.now?.() ?? new Date();
+  return { ok: true, status: 200, data: toPublicCampaign(campaign, terms, now, await getRemainingUnits(deps.db, campaign, now)) };
 }
 
 // ---------- Crear reserva ----------
@@ -176,21 +179,31 @@ export async function createPresaleReservation(
 
   let reservation: PresaleReservation;
   try {
-    reservation = await createReservation(deps.db, {
-      campaignId: campaign.id,
-      fullName: request.fullName,
-      email,
-      phone: request.phone,
-      quantity: request.quantity,
-      unitAmount: campaign.unitAmount,
-      currency: campaign.currency,
-      answers: answers.data,
-      termsId: terms.id,
-      marketingConsent: request.marketingConsent,
-      idempotencyKey: input.idempotencyKey,
-      attribution: request.attribution,
-    });
+    reservation = await createReservation(
+      deps.db,
+      {
+        campaignId: campaign.id,
+        fullName: request.fullName,
+        email,
+        phone: request.phone,
+        quantity: request.quantity,
+        unitAmount: campaign.unitAmount,
+        currency: campaign.currency,
+        answers: answers.data,
+        termsId: terms.id,
+        marketingConsent: request.marketingConsent,
+        idempotencyKey: input.idempotencyKey,
+        attribution: request.attribution,
+      },
+      now,
+    );
   } catch (error) {
+    if (error instanceof InsufficientStockError) {
+      if (error.remaining === 0) return fail(409, "sold_out", "Las unidades de preventa se agotaron.");
+      return fail(409, "sold_out", `Solo quedan ${error.remaining} unidades disponibles.`, {
+        fieldErrors: { quantity: [`Solo quedan ${error.remaining} unidades disponibles.`] },
+      });
+    }
     if (input.idempotencyKey && isUniqueViolation(error)) {
       // Dos peticiones simultáneas con la misma clave: gana la primera.
       const existing = await findReservationByIdempotencyKey(deps.db, input.idempotencyKey);

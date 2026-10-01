@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { LockIcon } from "@/components/ui/icons";
+import { business, legalDocuments } from "@/content/legal";
 import { Wordmark } from "./Wordmark";
 
 /**
- * Marco de las páginas de preventa. La navegación completa de la tienda (CLAUDE.md §9) llega con la Fase 2;
- * aquí no se enlaza a rutas que aún no existen.
+ * Marco de las páginas de preventa y legales. La navegación completa de la tienda (CLAUDE.md §9) llega con la Fase 2;
+ * aquí no se enlaza a rutas que aún no existen. El bloque "Legal" del pie es obligatorio y permanente.
  */
 export function PresaleShell({ children }: { children: ReactNode }) {
   return (
@@ -28,9 +30,63 @@ export function PresaleShell({ children }: { children: ReactNode }) {
       </div>
 
       <footer className="mt-auto border-t border-border/70 print:hidden">
-        <div className="container-page flex flex-col gap-6 py-10 sm:flex-row sm:items-end sm:justify-between">
-          <Wordmark />
-          <p className="text-xs text-muted">© {new Date().getFullYear()} inttimo. Todos los derechos reservados.</p>
+        <div className="container-page grid gap-10 py-10 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr] lg:gap-14">
+          <div className="space-y-4">
+            <Wordmark />
+            <p className="max-w-xs text-xs leading-relaxed text-muted">
+              {business.legalName}, titular de la marca inttimo.
+              <br />
+              {business.address}.
+            </p>
+          </div>
+
+          <nav aria-labelledby="pie-legal">
+            <h2 id="pie-legal" className="eyebrow text-muted">
+              Legal
+            </h2>
+            <ul className="mt-4 space-y-1 text-sm">
+              {legalDocuments.map((doc) => (
+                <li key={doc.slug}>
+                  <Link href={`/${doc.slug}`} className="inline-block py-1.5 underline-offset-4 transition-colors hover:underline">
+                    {doc.shortTitle}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <section aria-labelledby="pie-ayuda">
+            <h2 id="pie-ayuda" className="eyebrow text-muted">
+              Ayuda y soporte
+            </h2>
+            <ul className="mt-4 space-y-1 text-sm">
+              <li>
+                <a href={`mailto:${business.email}`} className="inline-block py-1.5 break-all underline-offset-4 hover:underline">
+                  {business.email}
+                </a>
+              </li>
+              <li>
+                <a href={business.whatsappUrl} className="inline-block py-1.5 underline-offset-4 hover:underline" rel="noopener">
+                  WhatsApp {business.whatsapp}
+                </a>
+              </li>
+            </ul>
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              Horario: {business.hours}.
+              <br />
+              Respuesta: {business.responseTime}.
+            </p>
+            <p className="mt-3 text-xs leading-relaxed text-muted">
+              Cambios, daños o reembolsos: consulta la{" "}
+              <Link href="/cambios-y-reembolsos" className="underline underline-offset-4 hover:text-fg">
+                Política de Cambios y Reembolsos
+              </Link>
+              .
+            </p>
+          </section>
+        </div>
+        <div className="border-t border-border/70">
+          <p className="container-page py-5 text-xs text-muted">© {new Date().getFullYear()} inttimo. Todos los derechos reservados.</p>
         </div>
       </footer>
     </>

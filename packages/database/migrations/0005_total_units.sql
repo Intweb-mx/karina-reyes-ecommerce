@@ -1,0 +1,2 @@
+ALTER TABLE "presale_campaigns" ADD COLUMN "total_units" integer;--> statement-breakpoint
+ALTER TABLE "presale_campaigns" ADD CONSTRAINT "presale_campaigns_total_units_check" CHECK ("presale_campaigns"."total_units" is null or "presale_campaigns"."total_units" > 0);
