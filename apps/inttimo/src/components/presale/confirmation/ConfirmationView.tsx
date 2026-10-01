@@ -145,9 +145,7 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
               {launch && (
                 <li className="flex gap-4">
                   <CalendarIcon className="mt-0.5 size-5 shrink-0" />
-                  <span>
-                    Tu pedido queda registrado para el lanzamiento oficial del <strong className="font-semibold lining-nums">{launch}</strong>.
-                  </span>
+                  <span>{legalNotice.priority}</span>
                 </li>
               )}
               <li className="flex gap-4">
