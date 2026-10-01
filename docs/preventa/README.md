@@ -190,3 +190,24 @@ pnpm presale:upsert --file=docs/preventa/uno-mas-uno.json --terms-legal
 
 Antes de poner la clave live de Stripe, la campaña `demo` debe estar en `draft` o `closed` (cobraría $1,000 reales).
 Si cambian los Términos y Condiciones, editar `content/legal/terminos.ts` y volver a correr con `--terms-legal`: crea una versión nueva y las compras ya hechas conservan la que aceptaron.
+
+## Entrega, envío y bonus
+
+Campos de la campaña (JSON o panel → Editar):
+
+| Campo | Qué hace |
+|---|---|
+| `pickupEnabled` | Recolección en Chihuahua, sin costo. Stripe no pide dirección. |
+| `shippingEnabled` | Envío a domicilio en México. Stripe pide dirección. |
+| `shippingAmount` | Costo fijo por pedido en centavos (`15000` = $150). `null` = **por cotizar**: no se cobra en línea y se acuerda con el cliente. |
+| `bonus` | `{ "title", "pdfUrl", "videoUrl", "linkDays" }` o `null`. Sin valores por defecto: archivos y vigencia los confirma Karina. |
+
+El cliente elige con `deliveryMethod` (`"shipping"` / `"pickup"`) en `POST /api/preventa/[slug]/reservas`; si no lo manda, es envío.
+
+Operación (panel → pedido → **Entrega**):
+- Recolección: **Marcar LISTO PARA RECOGER** con punto, fecha y horario → correo al cliente.
+- Envío: **Marcar ENVIADO** con paquetería, guía y URL de rastreo → correo al cliente.
+- Al pasar a cualquiera de los dos se manda el **bonus** (una vez, solo a compras pagadas dentro del periodo de la campaña): enlace personal `/bonus/<token>` que vence en `linkDays` días. Si falla el correo, botón **Reintentar bonus**.
+- Después: **Marcar como ENTREGADO**.
+
+Todo queda en el historial del pedido y en la bitácora del panel; el CSV incluye método, envío, guía y fechas.

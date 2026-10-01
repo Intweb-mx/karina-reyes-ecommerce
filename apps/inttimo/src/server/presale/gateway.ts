@@ -21,6 +21,9 @@ export type CreateCheckoutInput = {
   unitAmount: number;
   currency: string;
   quantity: number;
+  deliveryMethod: "shipping" | "pickup";
+  /** Centavos; 0 = sin cargo de envío en línea. */
+  shippingAmount: number;
   email: string;
   successUrl: string;
   cancelUrl: string;
@@ -70,7 +73,7 @@ export function snapshotFromSession(session: Stripe.Checkout.Session): CheckoutS
 export function createStripeGateway(stripe: Stripe): PaymentGateway {
   return {
     async createCheckout(input) {
-      const metadata = { reservationId: input.reservationId, reservationCode: input.reservationCode, campaignSlug: input.campaignSlug };
+      const metadata = { reservationId: input.reservationId, reservationCode: input.reservationCode, campaignSlug: input.campaignSlug, deliveryMethod: input.deliveryMethod };
       const session = await stripe.checkout.sessions.create(
         {
           mode: "payment",
@@ -87,8 +90,29 @@ export function createStripeGateway(stripe: Stripe): PaymentGateway {
           customer_email: input.email,
           client_reference_id: input.reservationId,
           metadata,
-          payment_intent_data: { metadata, description: `Preventa ${input.productName} (${input.reservationCode})` },
-          shipping_address_collection: { allowed_countries: [...SHIPPING_COUNTRIES] },
+          payment_intent_data: {
+            metadata,
+            description: `Preventa ${input.productName} (${input.reservationCode}) · ${input.deliveryMethod === "pickup" ? "Recolección en Chihuahua" : "Envío a domicilio"}`,
+          },
+          // Recolección: no se pide dirección. Envío: dirección en México y, si hay costo fijo, se cobra como envío.
+          ...(input.deliveryMethod === "shipping"
+            ? {
+                shipping_address_collection: { allowed_countries: [...SHIPPING_COUNTRIES] },
+                ...(input.shippingAmount > 0
+                  ? {
+                      shipping_options: [
+                        {
+                          shipping_rate_data: {
+                            type: "fixed_amount" as const,
+                            display_name: "Envío a domicilio",
+                            fixed_amount: { amount: input.shippingAmount, currency: input.currency },
+                          },
+                        },
+                      ],
+                    }
+                  : {}),
+              }
+            : {}),
           locale: "es-419",
           success_url: input.successUrl,
           cancel_url: input.cancelUrl,

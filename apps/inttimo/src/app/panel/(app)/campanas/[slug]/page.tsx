@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { formatMoney } from "@/lib/format";
 import { requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
-import { Card, inputClass, secondaryButtonClass, Stat, STATUS_LABELS } from "../../../ui";
+import { Card, inputClass, secondaryButtonClass, Stat, STATUS_LABELS, DELIVERY_LABELS, FULFILLMENT_LABELS } from "../../../ui";
 
 const PAGE_SIZE = 50;
 const STATUSES = Object.keys(STATUS_LABELS) as ReservationStatus[];
@@ -84,6 +84,7 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
                 <th className="py-2 pr-4 font-normal">Cant.</th>
                 <th className="py-2 pr-4 font-normal">Total</th>
                 <th className="py-2 pr-4 font-normal">Estado</th>
+                <th className="py-2 pr-4 font-normal">Entrega</th>
                 <th className="py-2 font-normal">Creada</th>
               </tr>
             </thead>
@@ -98,12 +99,16 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
                   <td className="py-2 pr-4 tabular-nums">{r.quantity}</td>
                   <td className="py-2 pr-4 tabular-nums">{formatMoney(r.totalAmount, r.currency)}</td>
                   <td className="py-2 pr-4">{STATUS_LABELS[r.status]}</td>
+                  <td className="py-2 pr-4 whitespace-nowrap">
+                    {DELIVERY_LABELS[r.deliveryMethod]}
+                    {(r.status === "paid" || r.status === "partially_refunded") && <span className="block text-xs text-muted">{FULFILLMENT_LABELS[r.fulfillmentStatus]}</span>}
+                  </td>
                   <td className="py-2 whitespace-nowrap text-muted">{r.createdAt.toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-muted">Sin reservas con estos filtros.</td>
+                  <td colSpan={8} className="py-8 text-center text-muted">Sin reservas con estos filtros.</td>
                 </tr>
               )}
             </tbody>

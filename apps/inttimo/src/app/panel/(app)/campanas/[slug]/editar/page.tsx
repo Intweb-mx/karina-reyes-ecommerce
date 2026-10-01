@@ -44,6 +44,9 @@ export default async function EditCampaignPage({ params }: PageProps<"/panel/cam
             price: (campaign.unitAmount / 100).toFixed(2),
             currency: campaign.currency.toUpperCase(),
             maxQuantityPerReservation: campaign.maxQuantityPerReservation,
+            pickupEnabled: campaign.pickupEnabled,
+            shippingEnabled: campaign.shippingEnabled,
+            shippingAmount: campaign.shippingAmount === null ? "" : (campaign.shippingAmount / 100).toFixed(2),
             deliveryNote: campaign.deliveryNote ?? "",
             questions: JSON.stringify(campaign.questions, null, 2),
           }}

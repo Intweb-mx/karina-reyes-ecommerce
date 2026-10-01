@@ -4,6 +4,7 @@ import { sendMail } from "@inttimo/shared-utils/mail";
 import Stripe from "stripe";
 import type { ApiError } from "./contract.ts";
 import { createStripeGateway, type PaymentGateway } from "./gateway.ts";
+import type { FulfillmentDeps } from "./fulfillment.ts";
 import { sendConfirmationIfNeeded } from "./notifications.ts";
 import type { PresaleDeps, ServiceResult } from "./reservations.ts";
 
@@ -48,6 +49,10 @@ export function getPresaleDeps(): PresaleDeps {
     siteUrl: requireEnv("NEXT_PUBLIC_SITE_URL"),
     onPaid: confirmPaid,
   };
+}
+
+export function getFulfillmentDeps(): FulfillmentDeps {
+  return { db: getDb(), send: sendMail, siteUrl: requireEnv("NEXT_PUBLIC_SITE_URL") };
 }
 
 export function clientIp(request: Request): string | null {

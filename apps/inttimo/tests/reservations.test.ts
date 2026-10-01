@@ -51,6 +51,39 @@ describe("campaña pública", () => {
   });
 });
 
+describe("método de entrega", () => {
+  it("la campaña pública expone los métodos y el costo de envío", async () => {
+    await seedCampaign(db, { shippingAmount: 15_000 });
+    const result = await getPublicCampaign(deps, "uno-mas-uno");
+    expect(result.ok && result.data.delivery).toEqual({ pickup: true, shipping: { enabled: true, amount: 15_000 } });
+  });
+
+  it("sin método explícito es envío y cobra el envío fijo en el mismo pago", async () => {
+    await seedCampaign(db, { shippingAmount: 15_000 });
+    expect((await create({ quantity: 2 })).status).toBe(201);
+    expect(gateway.created[0]).toMatchObject({ deliveryMethod: "shipping", shippingAmount: 15_000, quantity: 2 });
+    const reservation = await findReservationBySessionId(db, "cs_test_000000000001");
+    expect(reservation).toMatchObject({ deliveryMethod: "shipping", shippingAmount: 15_000, totalAmount: 99_900 * 2 + 15_000 });
+  });
+
+  it("recolección no cobra envío", async () => {
+    await seedCampaign(db, { shippingAmount: 15_000 });
+    expect((await create({ deliveryMethod: "pickup" })).status).toBe(201);
+    expect(gateway.created[0]).toMatchObject({ deliveryMethod: "pickup", shippingAmount: 0 });
+  });
+
+  it("envío por cotizar (sin costo configurado) no cobra envío en línea", async () => {
+    expect((await create({ deliveryMethod: "shipping" })).status).toBe(201);
+    expect(gateway.created[0]).toMatchObject({ deliveryMethod: "shipping", shippingAmount: 0 });
+  });
+
+  it("rechaza un método deshabilitado o desconocido", async () => {
+    await seedCampaign(db, { pickupEnabled: false });
+    expect(await create({ deliveryMethod: "pickup" })).toMatchObject({ status: 400, body: { error: { fieldErrors: { deliveryMethod: ["La recolección no está disponible en esta preventa."] } } } });
+    expect((await create({ deliveryMethod: "dron" }, { clientIp: "9.9.9.9" })).status).toBe(400);
+  });
+});
+
 describe("inventario de la campaña", () => {
   it("expone el tope y no marca agotada mientras haya unidades", async () => {
     await seedCampaign(db, { totalUnits: 3 });

@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { formatMoney } from "@/lib/format";
 import { audit, requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
-import { Card, STATUS_LABELS } from "../../../ui";
+import { Card, DELIVERY_LABELS, FULFILLMENT_LABELS, STATUS_LABELS } from "../../../ui";
+import { retryBonus, updateDelivery } from "./actions";
+import { DeliveredForm, ReadyForPickupForm, RetryBonusForm, ShippedForm } from "./DeliveryForms";
 
 export const metadata = { title: "Reserva" };
 
@@ -39,12 +41,25 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
   await audit(admin, { action: "reservation.view", targetType: "reservation", targetId: reservation.id });
 
   const address = reservation.shippingAddress;
+  const fulfillable = reservation.status === "paid" || reservation.status === "partially_refunded";
+  const deliver = updateDelivery.bind(null, reservation.id);
+  const deliveryRows: [string, React.ReactNode][] = [
+    ["Método", DELIVERY_LABELS[reservation.deliveryMethod]],
+    ["Estado de entrega", FULFILLMENT_LABELS[reservation.fulfillmentStatus]],
+    ...(reservation.carrier ? ([["Paquetería", reservation.carrier]] as [string, React.ReactNode][]) : []),
+    ...(reservation.trackingNumber ? ([["Guía", reservation.trackingUrl ? <a href={reservation.trackingUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">{reservation.trackingNumber}</a> : reservation.trackingNumber]] as [string, React.ReactNode][]) : []),
+    ["Enviado / listo", when(reservation.fulfilledAt)],
+    ["Entregado", when(reservation.deliveredAt)],
+    ["Bonus enviado", when(reservation.bonusSentAt)],
+  ];
   const rows: [string, React.ReactNode][] = [
     ["Estado", STATUS_LABELS[reservation.status]],
     ["Nombre", reservation.fullName],
     ["Correo", reservation.email],
     ["Teléfono", reservation.phone ?? "—"],
     ["Cantidad", reservation.quantity],
+    ["Entrega", DELIVERY_LABELS[reservation.deliveryMethod]],
+    ["Envío cobrado", reservation.deliveryMethod === "shipping" ? (reservation.shippingAmount ? formatMoney(reservation.shippingAmount, reservation.currency) : "Por cotizar (no cobrado)") : "—"],
     ["Total", formatMoney(reservation.totalAmount, reservation.currency)],
     ["Reembolsado", reservation.amountRefunded ? formatMoney(reservation.amountRefunded, reservation.currency) : "—"],
     ["Creada", when(reservation.createdAt)],
@@ -84,6 +99,33 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
         </Card>
 
         <div className="space-y-6">
+          <Card title="Entrega">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+              {deliveryRows.map(([label, value]) => (
+                <div key={label} className="contents">
+                  <dt className="text-muted">{label}</dt>
+                  <dd className="break-all">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-5 border-t border-border pt-5">
+              {!fulfillable ? (
+                <p className="text-sm text-muted">Solo los pedidos pagados se preparan y entregan.</p>
+              ) : reservation.fulfillmentStatus === "pending" ? (
+                reservation.deliveryMethod === "pickup" ? <ReadyForPickupForm action={deliver} /> : <ShippedForm action={deliver} />
+              ) : reservation.fulfillmentStatus === "delivered" ? (
+                <p className="text-sm text-muted">Pedido entregado.</p>
+              ) : (
+                <DeliveredForm action={deliver} />
+              )}
+              {fulfillable && reservation.fulfillmentStatus !== "pending" && !reservation.bonusSentAt && campaign?.bonus && (
+                <div className="mt-4">
+                  <RetryBonusForm action={retryBonus.bind(null, reservation.id)} />
+                </div>
+              )}
+            </div>
+          </Card>
+
           <Card title="Dirección de envío">
             {address ? (
               <address className="text-sm not-italic">
@@ -93,7 +135,7 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
                 {address.country}
               </address>
             ) : (
-              <p className="text-sm text-muted">Se captura al pagar en Stripe.</p>
+              <p className="text-sm text-muted">{reservation.deliveryMethod === "pickup" ? "Recolección: no aplica." : "Se captura al pagar en Stripe."}</p>
             )}
           </Card>
 

@@ -46,3 +46,15 @@ export const STATUS_LABELS: Record<string, string> = {
   refunded: "Reembolsada",
   canceled: "Cancelada",
 };
+
+export const DELIVERY_LABELS: Record<string, string> = {
+  shipping: "Envío a domicilio",
+  pickup: "Recolección en Chihuahua",
+};
+
+export const FULFILLMENT_LABELS: Record<string, string> = {
+  pending: "En preparación",
+  ready_for_pickup: "Listo para recoger",
+  shipped: "Enviado",
+  delivered: "Entregado",
+};

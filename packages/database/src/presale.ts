@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lt, or, sql, sum
 import type { Database } from "./client.ts";
 import {
   adminAuditLog,
+  presaleBonusLinks,
   presaleCampaigns,
   presaleTerms,
   presaleReservationEvents,
@@ -17,7 +18,9 @@ export type PresaleCampaign = typeof presaleCampaigns.$inferSelect;
 export type NewPresaleCampaign = typeof presaleCampaigns.$inferInsert;
 export type PresaleReservation = typeof presaleReservations.$inferSelect;
 export type ReservationStatus = PresaleReservation["status"];
-export type EventSource = "api" | "stripe" | "cli";
+export type EventSource = "api" | "stripe" | "cli" | "panel";
+export type DeliveryMethod = PresaleReservation["deliveryMethod"];
+export type FulfillmentStatus = PresaleReservation["fulfillmentStatus"];
 
 /** Transacción o conexión: todas las funciones funcionan con ambas. */
 export type Executor = Pick<Database, "select" | "insert" | "update">;
@@ -106,6 +109,9 @@ export type NewReservation = {
   quantity: number;
   unitAmount: number;
   currency: string;
+  /** Por defecto "shipping" con envío 0. */
+  deliveryMethod?: DeliveryMethod;
+  shippingAmount?: number;
   answers: PresaleReservation["answers"];
   termsId: string;
   marketingConsent: boolean;
@@ -176,11 +182,13 @@ export async function createReservation(db: Database, input: NewReservation, now
         ...input,
         email: input.email.trim().toLowerCase(),
         code: generateReservationCode(),
-        totalAmount: input.unitAmount * input.quantity,
+        totalAmount: input.unitAmount * input.quantity + (input.shippingAmount ?? 0),
         termsAcceptedAt: new Date(),
       })
       .returning();
-    await addReservationEvent(tx, row!.id, "RESERVATION_CREATED", "api", { metadata: { quantity: input.quantity, totalAmount: row!.totalAmount } });
+    await addReservationEvent(tx, row!.id, "RESERVATION_CREATED", "api", {
+      metadata: { quantity: input.quantity, deliveryMethod: row!.deliveryMethod, shippingAmount: row!.shippingAmount, totalAmount: row!.totalAmount },
+    });
     return row!;
   });
 }
@@ -302,6 +310,107 @@ export async function applyRefund(db: Executor, reservation: PresaleReservation,
     ctx,
     { amountRefunded: amount },
   );
+}
+
+// ---------- Cumplimiento (entrega) ----------
+
+/** Solo pedidos pagados (o con reembolso parcial) se preparan y entregan. */
+const FULFILLABLE: ReservationStatus[] = ["paid", "partially_refunded"];
+
+type FulfillmentContext = { source: EventSource; actor?: string | null };
+
+async function fulfillmentTransition(
+  db: Executor,
+  reservationId: string,
+  where: { method?: DeliveryMethod; from: FulfillmentStatus[] },
+  set: Partial<typeof presaleReservations.$inferInsert>,
+  event: PresaleEventType,
+  ctx: FulfillmentContext,
+  metadata: Record<string, unknown> = {},
+): Promise<PresaleReservation | null> {
+  const [row] = await db
+    .update(presaleReservations)
+    .set(set)
+    .where(
+      and(
+        eq(presaleReservations.id, reservationId),
+        inArray(presaleReservations.status, FULFILLABLE),
+        inArray(presaleReservations.fulfillmentStatus, where.from),
+        where.method ? eq(presaleReservations.deliveryMethod, where.method) : undefined,
+      ),
+    )
+    .returning();
+  if (row) await addReservationEvent(db, reservationId, event, ctx.source, { metadata: { ...metadata, ...(ctx.actor ? { actor: ctx.actor } : {}) } });
+  return row ?? null;
+}
+
+/** Recolección: el pedido ya se puede recoger. Devuelve null si no aplica (no pagado, no es recolección o ya avanzó). */
+export function markReadyForPickup(db: Executor, reservationId: string, ctx: FulfillmentContext) {
+  return fulfillmentTransition(db, reservationId, { method: "pickup", from: ["pending"] }, { fulfillmentStatus: "ready_for_pickup", fulfilledAt: new Date() }, "READY_FOR_PICKUP", ctx);
+}
+
+export type ShipmentDetails = { carrier: string; trackingNumber: string; trackingUrl: string | null };
+
+/** Envío: entregado a paquetería con su guía. */
+export function markShipped(db: Executor, reservationId: string, shipment: ShipmentDetails, ctx: FulfillmentContext) {
+  return fulfillmentTransition(
+    db,
+    reservationId,
+    { method: "shipping", from: ["pending"] },
+    { fulfillmentStatus: "shipped", fulfilledAt: new Date(), ...shipment },
+    "SHIPPED",
+    ctx,
+    { ...shipment },
+  );
+}
+
+export function markDelivered(db: Executor, reservationId: string, ctx: FulfillmentContext) {
+  return fulfillmentTransition(db, reservationId, { from: ["ready_for_pickup", "shipped"] }, { fulfillmentStatus: "delivered", deliveredAt: new Date() }, "DELIVERED", ctx);
+}
+
+// ---------- Bonus ----------
+
+/** Reserva el envío del bonus; solo una llamada gana. Exige pedido pagado y ya enviado / listo / entregado. */
+export async function claimBonusSend(db: Executor, reservationId: string): Promise<PresaleReservation | null> {
+  const [row] = await db
+    .update(presaleReservations)
+    .set({ bonusSentAt: new Date() })
+    .where(
+      and(
+        eq(presaleReservations.id, reservationId),
+        inArray(presaleReservations.status, FULFILLABLE),
+        inArray(presaleReservations.fulfillmentStatus, ["ready_for_pickup", "shipped", "delivered"]),
+        isNull(presaleReservations.bonusSentAt),
+      ),
+    )
+    .returning();
+  return row ?? null;
+}
+
+export async function releaseBonusSend(db: Executor, reservationId: string): Promise<void> {
+  await db.update(presaleReservations).set({ bonusSentAt: null }).where(eq(presaleReservations.id, reservationId));
+}
+
+export async function createBonusLink(db: Executor, input: { reservationId: string; tokenHash: string; expiresAt: Date }) {
+  const [row] = await db.insert(presaleBonusLinks).values(input).returning();
+  return row!;
+}
+
+export type BonusLink = typeof presaleBonusLinks.$inferSelect;
+
+/** Enlace por hash del token con su reserva. Registra la primera apertura. */
+export async function openBonusLink(db: Executor, tokenHash: string): Promise<{ link: BonusLink; reservation: PresaleReservation } | null> {
+  const [row] = await db
+    .select({ link: presaleBonusLinks, reservation: presaleReservations })
+    .from(presaleBonusLinks)
+    .innerJoin(presaleReservations, eq(presaleReservations.id, presaleBonusLinks.reservationId))
+    .where(eq(presaleBonusLinks.tokenHash, tokenHash))
+    .limit(1);
+  if (!row) return null;
+  if (!row.link.firstOpenedAt) {
+    await db.update(presaleBonusLinks).set({ firstOpenedAt: new Date() }).where(and(eq(presaleBonusLinks.id, row.link.id), isNull(presaleBonusLinks.firstOpenedAt)));
+  }
+  return row;
 }
 
 // ---------- Webhooks ----------

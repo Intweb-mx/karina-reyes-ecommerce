@@ -4,6 +4,12 @@ import type { Database } from "../src/client.ts";
 import {
   applyRefund,
   attachCheckoutSession,
+  claimBonusSend,
+  createBonusLink,
+  markDelivered,
+  markReadyForPickup,
+  markShipped,
+  openBonusLink,
   claimConfirmationEmail,
   claimStripeEvent,
   countHeldUnits,
@@ -299,5 +305,69 @@ describe("inventario sin sobreventa", () => {
     expect(await getRemainingUnits(db, fresh, now)).toBe(0);
     await applyRefund(db, partial, paid.totalAmount, ctx);
     expect(await getRemainingUnits(db, fresh, now)).toBe(2);
+  });
+});
+
+describe("entrega y bonus", () => {
+  const make = (overrides: Partial<Parameters<typeof createReservation>[1]> = {}) =>
+    createReservation(db, {
+      campaignId: campaign.id,
+      fullName: "Cliente",
+      email: "c@e.com",
+      phone: null,
+      quantity: 2,
+      unitAmount: campaign.unitAmount,
+      currency: "mxn",
+      answers: {},
+      termsId,
+      marketingConsent: false,
+      idempotencyKey: null,
+      attribution: null,
+      ...overrides,
+    });
+  const panel = { source: "panel" as const, actor: "admin@inttimo.test" };
+
+  it("el envío se suma al total y la recolección no puede cobrar envío", async () => {
+    const shipped = await make({ deliveryMethod: "shipping", shippingAmount: 15_000 });
+    expect(shipped.totalAmount).toBe(campaign.unitAmount * 2 + 15_000);
+    const pickup = await make({ deliveryMethod: "pickup" });
+    expect(pickup).toMatchObject({ deliveryMethod: "pickup", shippingAmount: 0, totalAmount: campaign.unitAmount * 2 });
+    await expect(make({ deliveryMethod: "pickup", shippingAmount: 100 })).rejects.toThrow();
+  });
+
+  it("solo pedidos pagados avanzan, y cada método por su camino", async () => {
+    const pickup = await make({ deliveryMethod: "pickup" });
+    expect(await markReadyForPickup(db, pickup.id, panel)).toBeNull(); // sin pagar
+    await markPaid(db, pickup.id, {}, ctx);
+    expect(await markShipped(db, pickup.id, { carrier: "X", trackingNumber: "1", trackingUrl: null }, panel)).toBeNull(); // es recolección
+    expect((await markReadyForPickup(db, pickup.id, panel))?.fulfillmentStatus).toBe("ready_for_pickup");
+    expect(await markReadyForPickup(db, pickup.id, panel)).toBeNull(); // una sola vez
+    expect((await markDelivered(db, pickup.id, panel))?.deliveredAt).toBeInstanceOf(Date);
+
+    const shipping = await make();
+    await markPaid(db, shipping.id, {}, ctx);
+    expect(await markReadyForPickup(db, shipping.id, panel)).toBeNull();
+    const sent = await markShipped(db, shipping.id, { carrier: "Estafeta", trackingNumber: "123", trackingUrl: "https://rastreo.test/123" }, panel);
+    expect(sent).toMatchObject({ fulfillmentStatus: "shipped", carrier: "Estafeta", trackingNumber: "123" });
+    const events = await listReservationEvents(db, shipping.id);
+    expect(events.find((e) => e.type === "SHIPPED")?.metadata).toMatchObject({ actor: "admin@inttimo.test", trackingNumber: "123" });
+  });
+
+  it("el bonus se reclama una vez y solo con el pedido enviado o listo", async () => {
+    const reservation = await make({ deliveryMethod: "pickup" });
+    await markPaid(db, reservation.id, {}, ctx);
+    expect(await claimBonusSend(db, reservation.id)).toBeNull(); // aún en preparación
+    await markReadyForPickup(db, reservation.id, panel);
+    expect(await claimBonusSend(db, reservation.id)).not.toBeNull();
+    expect(await claimBonusSend(db, reservation.id)).toBeNull();
+  });
+
+  it("los enlaces se buscan por hash y registran la primera apertura", async () => {
+    const reservation = await make();
+    await createBonusLink(db, { reservationId: reservation.id, tokenHash: "hash-1", expiresAt: new Date("2030-01-01") });
+    const first = await openBonusLink(db, "hash-1");
+    expect(first?.reservation.id).toBe(reservation.id);
+    expect((await openBonusLink(db, "hash-1"))?.link.firstOpenedAt).toBeInstanceOf(Date);
+    expect(await openBonusLink(db, "otro")).toBeNull();
   });
 });

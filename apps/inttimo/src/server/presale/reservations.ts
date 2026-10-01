@@ -14,7 +14,7 @@ import {
   type PresaleReservation,
 } from "@inttimo/database";
 import { z } from "zod";
-import { getPhase, isPublic, toPublicCampaign } from "./campaign.ts";
+import { defaultDeliveryMethod, getPhase, isPublic, shippingCharge, toPublicCampaign } from "./campaign.ts";
 import type { ApiError, ApiErrorCode, CreateReservationResponse, PublicCampaign, PublicReservationStatus, ReservationStatusResponse } from "./contract.ts";
 import type { PaymentGateway } from "./gateway.ts";
 import { buildAnswersSchema } from "./questionnaire.ts";
@@ -62,6 +62,7 @@ const baseRequestSchema = z.object({
     .optional()
     .transform((value) => value || null),
   quantity: z.number().int().min(1).default(1),
+  deliveryMethod: z.enum(["shipping", "pickup"], { error: "Elige recolección o envío a domicilio." }).optional(),
   answers: z.record(z.string(), z.unknown()).default({}),
   acceptTerms: z.literal(true, { error: "Debes aceptar los Términos y Condiciones y el Aviso de Privacidad para continuar." }),
   termsVersion: z.number({ error: "Falta la versión de los términos." }).int().positive(),
@@ -166,6 +167,14 @@ export async function createPresaleReservation(
     });
   }
 
+  const deliveryMethod = request.deliveryMethod ?? defaultDeliveryMethod(campaign);
+  if ((deliveryMethod === "pickup" && !campaign.pickupEnabled) || (deliveryMethod === "shipping" && !campaign.shippingEnabled)) {
+    return fail(400, "validation_error", "Revisa los datos del formulario.", {
+      fieldErrors: { deliveryMethod: [deliveryMethod === "pickup" ? "La recolección no está disponible en esta preventa." : "El envío a domicilio no está disponible en esta preventa."] },
+    });
+  }
+  const shippingAmount = shippingCharge(campaign, deliveryMethod);
+
   if (input.idempotencyKey) {
     const existing = await findReservationByIdempotencyKey(deps.db, input.idempotencyKey);
     if (existing) return replay(existing, campaign.id, now);
@@ -189,6 +198,8 @@ export async function createPresaleReservation(
         quantity: request.quantity,
         unitAmount: campaign.unitAmount,
         currency: campaign.currency,
+        deliveryMethod,
+        shippingAmount,
         answers: answers.data,
         termsId: terms.id,
         marketingConsent: request.marketingConsent,
@@ -223,6 +234,8 @@ export async function createPresaleReservation(
       unitAmount: campaign.unitAmount,
       currency: campaign.currency,
       quantity: reservation.quantity,
+      deliveryMethod: reservation.deliveryMethod,
+      shippingAmount: reservation.shippingAmount,
       email,
       successUrl: `${base}/preventa/${campaign.slug}/confirmacion?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${base}/preventa/${campaign.slug}?cancelado=1`,
@@ -282,8 +295,15 @@ export async function getReservationStatus(
       status: publicStatus(reservation.status),
       productName: campaign.productName,
       quantity: reservation.quantity,
+      deliveryMethod: reservation.deliveryMethod,
+      shippingAmount: reservation.shippingAmount,
       totalAmount: reservation.totalAmount,
       currency: reservation.currency,
+      fulfillmentStatus: reservation.fulfillmentStatus,
+      shipment:
+        reservation.fulfillmentStatus === "shipped" || (reservation.fulfillmentStatus === "delivered" && reservation.trackingNumber)
+          ? { carrier: reservation.carrier, trackingNumber: reservation.trackingNumber, trackingUrl: reservation.trackingUrl }
+          : null,
       email: maskEmail(reservation.email),
       paidAt: reservation.paidAt?.toISOString() ?? null,
     },

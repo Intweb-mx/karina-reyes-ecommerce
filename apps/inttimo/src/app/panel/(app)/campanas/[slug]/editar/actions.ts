@@ -29,6 +29,13 @@ const campaignSchema = z
       .transform((value) => Math.round(Number(value) * 100))
       .refine((cents) => cents > 0, "El precio debe ser mayor a 0."),
     maxQuantityPerReservation: z.coerce.number().int().min(1).max(20),
+    pickupEnabled: z.literal("on").optional().transform(Boolean),
+    shippingEnabled: z.literal("on").optional().transform(Boolean),
+    shippingAmount: z
+      .string()
+      .trim()
+      .regex(/^(\d{1,6}(\.\d{1,2})?)?$/, "Costo de envío no válido (ej. 150.00).")
+      .transform((value) => (value ? Math.round(Number(value) * 100) : null)),
     deliveryNote: z.string().trim().max(1000).transform((value) => value || null),
     questions: z.string().transform((value, ctx) => {
       try {
@@ -40,7 +47,8 @@ const campaignSchema = z
     }).pipe(questionsSchema),
     confirmPriceChange: z.literal("on").optional(),
   })
-  .refine((v) => v.endsAt > v.startsAt, { message: "El cierre debe ser posterior al inicio.", path: ["endsAt"] });
+  .refine((v) => v.endsAt > v.startsAt, { message: "El cierre debe ser posterior al inicio.", path: ["endsAt"] })
+  .refine((v) => v.pickupEnabled || v.shippingEnabled, { message: "Activa al menos un método de entrega." });
 
 async function adminOrError() {
   const state = await getAdminState();
@@ -78,6 +86,9 @@ export async function saveCampaign(slug: string, _state: ActionState, form: Form
     endsAt: input.endsAt,
     unitAmount: input.price,
     maxQuantityPerReservation: input.maxQuantityPerReservation,
+    pickupEnabled: input.pickupEnabled,
+    shippingEnabled: input.shippingEnabled,
+    shippingAmount: input.shippingAmount,
     deliveryNote: input.deliveryNote,
     questions: input.questions,
   };
