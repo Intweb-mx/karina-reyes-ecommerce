@@ -193,6 +193,20 @@ body {
   animation: shake 280ms ease-in-out 1;
 }
 
+/* Acercamiento lento de la foto del hero al cargar (efecto "Ken Burns" sutil). */
+@keyframes hero-settle {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@utility animate-hero-settle {
+  animation: hero-settle 2600ms var(--ease-out-soft) both;
+}
+
 @keyframes tick {
   from {
     opacity: 0.35;

@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormEvent } from "react";
+import { useEffect, type FormEvent } from "react";
 import type { PublicCampaign } from "@/server/presale/contract";
 import type { ProductContent } from "@/content/products";
 import Link from "next/link";
@@ -47,6 +47,18 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
     { id: "paso-confirmacion", label: formCopy.sections.confirm, done: done.confirm },
   ];
   const completed = steps.filter((step) => step.done).length;
+
+  // Al llegar con "Quiero mi UNO+UNO" (#reserva), en escritorio el cursor queda listo en el primer campo.
+  // En táctil no: abrir el teclado sin pedirlo estorba.
+  useEffect(() => {
+    const focusFirst = () => {
+      if (window.location.hash !== "#reserva" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+      window.setTimeout(() => document.getElementById("fullName")?.focus({ preventScroll: true }), 700);
+    };
+    focusFirst();
+    window.addEventListener("hashchange", focusFirst);
+    return () => window.removeEventListener("hashchange", focusFirst);
+  }, []);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

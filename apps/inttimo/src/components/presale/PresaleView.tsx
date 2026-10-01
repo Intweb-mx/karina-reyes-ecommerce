@@ -3,6 +3,7 @@ import { Notice } from "@/components/ui/Notice";
 import { getProductContent } from "@/content/products";
 import { formCopy, stateCopy } from "@/content/presale";
 import { daysBetween, formatCalendarDate, formatDate, formatMoney, formatShortDate } from "@/lib/format";
+import { Reveal } from "@/components/ui/Reveal";
 import { ReservationForm } from "./form/ReservationForm";
 import { StickyBuyBar } from "./StickyBuyBar";
 import { HowItWorks } from "./sections/HowItWorks";
@@ -39,13 +40,30 @@ export function PresaleView({ campaign, canceled }: { campaign: PublicCampaign; 
         <>
           {/* Producto: qué incluye + bonus lado a lado */}
           {product && (product.includes || product.bonus) && (
-            <div className="container-page section-y grid gap-8 lg:grid-cols-2 lg:gap-10">
-              {product.includes && <ProductIncludes includes={product.includes} />}
-              {product.bonus && <PresaleBonus bonus={product.bonus} />}
+            <div className="container-page section-y">
+              <Reveal className="mx-auto mb-10 max-w-2xl text-center sm:mb-14">
+                <p className="eyebrow text-muted">{campaign.productName}</p>
+                <h2 className="mt-3 font-serif text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.03] font-medium text-balance">Lo que recibes con tu preventa</h2>
+                <span aria-hidden="true" className="mx-auto mt-6 block h-px w-16 bg-bronze/60" />
+              </Reveal>
+              <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
+                {product.includes && (
+                  <Reveal className="h-full">
+                    <ProductIncludes includes={product.includes} />
+                  </Reveal>
+                )}
+                {product.bonus && (
+                  <Reveal className="h-full" delay={140}>
+                    <PresaleBonus bonus={product.bonus} />
+                  </Reveal>
+                )}
+              </div>
             </div>
           )}
 
-          <div className="container-page pb-16 sm:pb-20">{howItWorks}</div>
+          <div className="container-page pb-16 sm:pb-24">
+            <Reveal>{howItWorks}</Reveal>
+          </div>
 
           {/* Checkout a todo lo ancho, en su propia banda */}
           <section id="reserva" aria-labelledby="reserva-titulo" className="scroll-mt-20 border-t border-border bg-surface">
@@ -55,13 +73,13 @@ export function PresaleView({ campaign, canceled }: { campaign: PublicCampaign; 
                   {stateCopy.canceled}
                 </Notice>
               )}
-              <header className="mx-auto mb-10 max-w-2xl text-center">
+              <Reveal as="div" className="mx-auto mb-10 max-w-2xl text-center">
                 <p className="eyebrow text-muted">{formCopy.eyebrow}</p>
                 <h2 id="reserva-titulo" className="mt-3 font-serif text-[clamp(2.5rem,5vw,3.5rem)] leading-[1.02] font-medium">
                   {formCopy.title(campaign.productName)}
                 </h2>
                 <p className="mt-4 leading-relaxed text-muted">{formCopy.intro}</p>
-              </header>
+              </Reveal>
               <ReservationForm campaign={campaign} product={product} />
             </div>
           </section>

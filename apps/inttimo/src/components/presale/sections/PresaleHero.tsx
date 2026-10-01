@@ -26,7 +26,7 @@ export function PresaleHero({ campaign, product, accepting }: { campaign: Public
       {/* Fotografía a sangre en escritorio, con degradado hacia el crema para que el texto respire. */}
       {photo && (
         <div aria-hidden="true" className="absolute inset-y-0 right-0 -z-10 hidden w-[46%] lg:block xl:w-[58%]">
-          <Image src={photo.src} alt="" fill priority sizes="58vw" className="object-cover object-[35%_55%]" />
+          <Image src={photo.src} alt="" fill priority sizes="58vw" className="animate-hero-settle object-cover object-[35%_55%]" />
           <div className="absolute inset-y-0 left-0 w-2/5 bg-gradient-to-r from-bg via-bg/70 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-bg/60 to-transparent" />
           {photo.placeholder && <PlaceholderTag className="top-5 right-5" />}
@@ -127,7 +127,7 @@ export function PresaleHero({ campaign, product, accepting }: { campaign: Public
         <div className="relative order-2 lg:order-none lg:col-span-6 lg:col-start-7 lg:row-span-2 lg:row-start-1 lg:self-center xl:col-span-5 xl:col-start-8">
           {photo && (
             <div className="relative -mx-4 aspect-[4/3] overflow-hidden bg-sand sm:mx-0 sm:aspect-[5/4] lg:hidden">
-              <Image src={photo.src} alt={photo.alt} fill priority sizes="100vw" className="object-cover object-[35%_55%]" />
+              <Image src={photo.src} alt={photo.alt} fill priority sizes="100vw" className="animate-hero-settle object-cover object-[35%_55%]" />
               <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-bg to-transparent" />
               {photo.placeholder && <PlaceholderTag />}
             </div>
