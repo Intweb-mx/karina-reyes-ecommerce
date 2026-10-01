@@ -9,6 +9,10 @@
   "currency": "mxn",
   "maxQuantityPerReservation": 2,
   "totalUnits": 500,
+  "pickupEnabled": true,
+  "shippingEnabled": true,
+  "shippingAmount": null,
+  "bonus": null,
   "deliveryNote": null,
   "questions": []
 }

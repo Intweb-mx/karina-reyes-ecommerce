@@ -3,6 +3,16 @@ import { z } from "zod";
 import { DEFAULT_DURATION_DAYS } from "./campaign.ts";
 import { questionsSchema } from "./questionnaire.ts";
 
+/** Bonus digital. Archivos y vigencia los define el negocio: no hay valores por defecto. */
+export const bonusSchema = z
+  .object({
+    title: z.string().trim().min(1).max(120),
+    pdfUrl: z.url({ protocol: /^https$/ }).nullable(),
+    videoUrl: z.url({ protocol: /^https$/ }).nullable(),
+    linkDays: z.number().int().min(1).max(365),
+  })
+  .refine((bonus) => bonus.pdfUrl || bonus.videoUrl, "bonus: indica pdfUrl o videoUrl");
+
 /** Archivo JSON que describe una campaña (ver docs/preventa/campaign.example.json). */
 export const campaignConfigSchema = z
   .object({
@@ -20,6 +30,13 @@ export const campaignConfigSchema = z
     maxQuantityPerReservation: z.number().int().min(1).max(20).default(1),
     /** Unidades totales de la campaña; sin sobreventa. Si falta, no hay tope. */
     totalUnits: z.number().int().positive().nullable().optional(),
+    /** Recolección sin costo en Chihuahua. */
+    pickupEnabled: z.boolean().default(true),
+    /** Envío a domicilio dentro de México. */
+    shippingEnabled: z.boolean().default(true),
+    /** Envío fijo por pedido en centavos (15000 = $150.00). null = por cotizar (no se cobra en línea). */
+    shippingAmount: z.number().int().min(0).nullable().optional(),
+    bonus: bonusSchema.nullable().optional(),
     questions: questionsSchema,
     deliveryNote: z.string().trim().max(1000).nullable().optional(),
   })
@@ -36,8 +53,13 @@ export const campaignConfigSchema = z
       currency: config.currency,
       maxQuantityPerReservation: config.maxQuantityPerReservation,
       totalUnits: config.totalUnits ?? null,
+      pickupEnabled: config.pickupEnabled,
+      shippingEnabled: config.shippingEnabled,
+      shippingAmount: config.shippingAmount ?? null,
+      bonus: config.bonus ?? null,
       questions: config.questions,
       deliveryNote: config.deliveryNote ?? null,
     };
   })
-  .refine((campaign) => campaign.endsAt > campaign.startsAt, "endsAt debe ser posterior a startsAt");
+  .refine((campaign) => campaign.endsAt > campaign.startsAt, "endsAt debe ser posterior a startsAt")
+  .refine((campaign) => campaign.pickupEnabled || campaign.shippingEnabled, "Activa al menos un método de entrega (pickupEnabled o shippingEnabled)");

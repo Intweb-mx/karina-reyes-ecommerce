@@ -20,6 +20,9 @@ type Defaults = {
   price: string;
   currency: string;
   maxQuantityPerReservation: number;
+  pickupEnabled: boolean;
+  shippingEnabled: boolean;
+  shippingAmount: string;
   deliveryNote: string;
   questions: string;
 };
@@ -62,6 +65,22 @@ export function CampaignForm({ action, defaults, hasReservations }: { action: Ac
           Confirmo cambiar el precio aunque ya haya reservas
         </label>
       )}
+      <fieldset className="grid gap-3 border border-border p-4 text-sm sm:col-span-2 sm:grid-cols-3">
+        <legend className="px-1 text-xs text-muted">Entrega</legend>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" name="pickupEnabled" defaultChecked={defaults.pickupEnabled} className="size-4 accent-fg" />
+          Recolección en Chihuahua (sin costo)
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" name="shippingEnabled" defaultChecked={defaults.shippingEnabled} className="size-4 accent-fg" />
+          Envío a domicilio
+        </label>
+        <label>
+          Costo de envío por pedido ({defaults.currency})
+          <input name="shippingAmount" inputMode="decimal" defaultValue={defaults.shippingAmount} placeholder="Vacío = por cotizar" className={inputClass} />
+        </label>
+        <span className="text-xs text-muted sm:col-span-3">Vacío: el envío no se cobra en línea y se cotiza con el cliente. Los pedidos ya pagados conservan lo que pagaron.</span>
+      </fieldset>
       <label className="text-sm sm:col-span-2">
         Nota de entrega (opcional, visible al público)
         <textarea name="deliveryNote" rows={2} defaultValue={defaults.deliveryNote} className={inputClass} />

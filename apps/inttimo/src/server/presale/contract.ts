@@ -6,6 +6,10 @@ import type { AnswerValue, QuestionDefinition } from "@inttimo/database";
 
 export type PresalePhase = "upcoming" | "open" | "closed";
 
+export type DeliveryMethod = "shipping" | "pickup";
+
+export type FulfillmentStatus = "pending" | "ready_for_pickup" | "shipped" | "delivered";
+
 /** GET /api/preventa/[slug] */
 export type PublicCampaign = {
   slug: string;
@@ -24,6 +28,14 @@ export type PublicCampaign = {
   soldOut: boolean;
   questions: QuestionDefinition[];
   deliveryNote: string | null;
+  /**
+   * Métodos de entrega disponibles. `shipping.amount` es el costo fijo por pedido en centavos;
+   * null = envío por cotizar (no se cobra en línea; inttimo contacta al cliente).
+   */
+  delivery: {
+    pickup: boolean;
+    shipping: { enabled: boolean; amount: number | null };
+  };
   /** Términos vigentes. El cliente debe aceptar exactamente esta versión. */
   terms: { version: number; content: string } | null;
 };
@@ -35,6 +47,8 @@ export type CreateReservationRequest = {
   phone?: string;
   /** Por defecto 1. */
   quantity?: number;
+  /** Por defecto "shipping" si está habilitado; si no, "pickup". Recolección no pide dirección en Stripe. */
+  deliveryMethod?: DeliveryMethod;
   answers: Record<string, AnswerValue>;
   /** Debe ser true. */
   acceptTerms: boolean;
@@ -62,8 +76,14 @@ export type ReservationStatusResponse = {
   status: PublicReservationStatus;
   productName: string;
   quantity: number;
+  deliveryMethod: DeliveryMethod;
+  /** Envío cobrado (centavos); 0 en recolección o envío por cotizar. Incluido en totalAmount. */
+  shippingAmount: number;
   totalAmount: number;
   currency: string;
+  fulfillmentStatus: FulfillmentStatus;
+  /** Solo cuando el pedido ya se envió. */
+  shipment: { carrier: string | null; trackingNumber: string | null; trackingUrl: string | null } | null;
   /** Correo enmascarado (p. ej. c***@gmail.com). */
   email: string;
   paidAt: string | null;
