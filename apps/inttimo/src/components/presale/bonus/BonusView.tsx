@@ -66,7 +66,7 @@ export function BonusView({ state }: { state: BonusViewState }) {
 
       <ul className="mt-8 grid gap-4 sm:grid-cols-2">
         {bonus.pdfUrl && (
-          <Resource href={bonus.pdfUrl} icon={<FileIcon className="size-6" />} kind="Guía en PDF" action="Descargar la guía" note="Ábrela en tu teléfono o imprímela." />
+          <Resource href={bonus.pdfUrl} icon={<FileIcon className="size-6" />} kind="Guía en PDF · Después de la pregunta" action="Descargar la guía" note="Ábrela en tu teléfono o imprímela." />
         )}
         {bonus.videoUrl && (
           <Resource href={bonus.videoUrl} icon={<PlayIcon className="size-6" />} kind="Video" action="Ver el video especial" note="Mejor con audífonos o en un momento tranquilo." />

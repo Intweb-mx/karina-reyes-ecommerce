@@ -66,7 +66,7 @@ export const deliveryCopy = {
   sectionIntro: "Elige cómo quieres recibir tu pedido.",
   pickup: {
     title: "Recolección en Chihuahua",
-    price: "Sin costo",
+    price: "$0",
     body: "Para compradores en Chihuahua. Puntos: Librería Sophos · Iglesia Baluarte (domingos de 10:00 a.m. a 2:00 p.m.) o Costco Chihuahua (día y horario previa confirmación). Te avisaremos cuando tu pedido esté LISTO PARA RECOGER; no acudas antes.",
     summary: "Recolección en Chihuahua",
   },
@@ -77,7 +77,7 @@ export const deliveryCopy = {
     bodyPending: "Dentro de la República Mexicana. Stripe te pedirá tu dirección completa al pagar. El envío lo cubre el comprador: te confirmaremos su costo; no se incluye en este pago.",
     summary: "Envío a domicilio",
   },
-  free: "Sin costo",
+  free: "$0",
   pending: "Por cotizar",
   policyLink: "Consulta nuestra Política de Envíos y Recolección",
 };
