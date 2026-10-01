@@ -1,4 +1,5 @@
 import { BoxIcon, LockIcon, MailIcon } from "@/components/ui/icons";
+import { Reveal } from "@/components/ui/Reveal";
 import { steps, trust } from "@/content/presale";
 
 const TRUST_ICONS = { lock: LockIcon, mail: MailIcon, box: BoxIcon };
@@ -15,7 +16,7 @@ export function HowItWorks(props: Props) {
         </h2>
         <ol className="mt-7 grid gap-8 sm:grid-cols-3 sm:gap-0">
           {steps(props).map((step, index) => (
-            <li key={step.title} className={`flex gap-5 sm:block sm:px-6 ${index === 0 ? "sm:pl-0" : "sm:border-l sm:border-border"}`}>
+            <Reveal as="li" key={step.title} delay={index * 120} className={`flex gap-5 sm:block sm:px-6 ${index === 0 ? "sm:pl-0" : "sm:border-l sm:border-border"}`}>
               <span aria-hidden="true" className="font-serif text-4xl leading-none text-fg/55 lining-nums">
                 {String(index + 1).padStart(2, "0")}
               </span>
@@ -23,7 +24,7 @@ export function HowItWorks(props: Props) {
                 <h3 className="font-serif text-2xl leading-tight font-medium">{step.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted lining-nums">{step.body}</p>
               </div>
-            </li>
+            </Reveal>
           ))}
         </ol>
       </div>
@@ -32,7 +33,7 @@ export function HowItWorks(props: Props) {
         {trust.map((item) => {
           const Icon = TRUST_ICONS[item.key];
           return (
-            <li key={item.key} className="flex gap-3.5 bg-surface px-5 py-5">
+            <li key={item.key} className="flex gap-3.5 bg-surface px-5 py-5 transition-colors duration-(--duration-base) hover:bg-[#fffdf9]">
               <Icon className="mt-0.5 size-5 shrink-0 text-fg/70" />
               <div>
                 <p className="text-sm font-semibold">{item.title}</p>

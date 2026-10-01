@@ -57,6 +57,31 @@ export const legalNotice = {
   period: (range: string) => `Preventa: ${range}, o hasta agotar existencias.`,
 };
 
+/**
+ * Opciones de entrega del checkout. Redacción alineada con Términos §9–10 y Envíos §8 (content/legal);
+ * costo y disponibilidad de cada opción vienen de la campaña (campaign.delivery).
+ */
+export const deliveryCopy = {
+  sectionTitle: "Entrega",
+  sectionIntro: "Elige cómo quieres recibir tu pedido.",
+  pickup: {
+    title: "Recolección en Chihuahua",
+    price: "Sin costo",
+    body: "Para compradores en Chihuahua. Te avisaremos el punto (como Costco o, en determinados domingos, Iglesia Baluarte), la fecha y el horario cuando tu pedido esté LISTO PARA RECOGER.",
+    summary: "Recolección en Chihuahua",
+  },
+  shipping: {
+    title: "Envío a domicilio",
+    pricePending: "Costo por cotizar",
+    body: "Dentro de la República Mexicana. Stripe te pedirá tu dirección completa al pagar.",
+    bodyPending: "Dentro de la República Mexicana. Stripe te pedirá tu dirección completa al pagar. El envío lo cubre el comprador: te confirmaremos su costo; no se incluye en este pago.",
+    summary: "Envío a domicilio",
+  },
+  free: "Sin costo",
+  pending: "Por cotizar",
+  policyLink: "Consulta nuestra Política de Envíos y Recolección",
+};
+
 export const stateCopy = {
   notReady: { title: "La preventa estará disponible en breve.", body: "Estamos terminando los últimos detalles. Vuelve a esta página en unos minutos." },
   upcoming: (date: string) => ({ title: "La preventa aún no abre.", body: `Abre el ${date}; si mantienes esta página abierta, se actualizará sola al llegar la hora.` }),
@@ -83,6 +108,13 @@ export const statusCopy: Record<PublicReservationStatus, { eyebrow: string; titl
   canceled: { eyebrow: "Compra cancelada", title: "La compra se canceló.", body: "Puedes intentarlo de nuevo.", tone: "failed" },
   refunded: { eyebrow: "Reembolso", title: "Compra reembolsada.", body: "El reembolso se procesó a tu método de pago.", tone: "neutral" },
 };
+
+/** Encabezado de la confirmación cuando el pedido pagado ya avanzó en la entrega (fulfillmentStatus). */
+export const fulfillmentCopy = {
+  ready_for_pickup: { eyebrow: "Listo para recoger", title: "Tu pedido está listo para recoger.", body: "Te enviamos por correo el punto, la fecha y el horario de recolección." },
+  shipped: { eyebrow: "En camino", title: "Tu pedido va en camino.", body: "Puedes seguir tu envío con la guía de rastreo." },
+  delivered: { eyebrow: "Entregado", title: "Tu pedido fue entregado.", body: "Gracias por ser parte de esta preventa." },
+} as const;
 
 export const slowPaymentCopy = {
   title: "Seguimos confirmando tu pago.",
