@@ -4,10 +4,10 @@ import Link from "next/link";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import type { ReservationStatusResponse } from "@/server/presale/contract";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { AlertIcon, BoxIcon, CalendarIcon, ChatIcon, CheckIcon, ClockIcon, CloseIcon, MailIcon, PrintIcon, ReceiptIcon, RefundIcon } from "@/components/ui/icons";
+import { AlertIcon, ArrowRightIcon, BoxIcon, CalendarIcon, ChatIcon, CheckIcon, TruckIcon, ClockIcon, CloseIcon, MailIcon, PrintIcon, ReceiptIcon, RefundIcon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { business, legalPaths } from "@/content/legal";
-import { legalNotice, slowPaymentCopy, statusCopy, type Tone } from "@/content/presale";
+import { deliveryCopy, fulfillmentCopy, legalNotice, slowPaymentCopy, statusCopy, type Tone } from "@/content/presale";
 import { getProductContent } from "@/content/products";
 import { formatCalendarDate, formatDate, formatMoney } from "@/lib/format";
 import { CopyButton } from "./CopyButton";
@@ -38,7 +38,8 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
 
   const { data, gaveUp } = state;
   const base = statusCopy[data.status];
-  const copy = gaveUp ? { ...base, ...slowPaymentCopy } : base;
+  const advanced = data.status === "paid" && data.fulfillmentStatus !== "pending" ? fulfillmentCopy[data.fulfillmentStatus] : null;
+  const copy = gaveUp ? { ...base, ...slowPaymentCopy } : advanced ? { ...base, ...advanced } : base;
   const tone = TONE[copy.tone];
   const retry = data.status === "payment_failed" || data.status === "expired" || data.status === "canceled";
   const settled = data.status === "paid" || data.status === "processing";
@@ -60,7 +61,7 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
       </Header>
 
       <div className="mt-12 border-y border-border py-8">
-        <StatusTimeline status={data.status} />
+        <StatusTimeline status={data.status} deliveryMethod={data.deliveryMethod} fulfillmentStatus={data.fulfillmentStatus} />
       </div>
 
       <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] lg:gap-12">
@@ -80,11 +81,52 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
             <Row label="Producto">{data.productName}</Row>
             <Row label="Cantidad">{data.quantity}</Row>
             <Row label="Correo">{data.email}</Row>
+            <Row label="Entrega">{data.deliveryMethod === "pickup" ? deliveryCopy.pickup.summary : deliveryCopy.shipping.summary}</Row>
+            <Row label="Envío">
+              {data.deliveryMethod === "pickup" ? (
+                <span className="text-success">{deliveryCopy.free}</span>
+              ) : data.shippingAmount > 0 ? (
+                formatMoney(data.shippingAmount, data.currency)
+              ) : (
+                <span className="text-muted">{deliveryCopy.pending}</span>
+              )}
+            </Row>
             {data.paidAt && <Row label="Pagado">{formatDate(data.paidAt)}</Row>}
             <Row label="Total">
               <span className="font-serif text-2xl font-medium lining-nums tabular-nums">{formatMoney(data.totalAmount, data.currency)}</span>
             </Row>
           </dl>
+
+          {data.shipment && (data.shipment.carrier || data.shipment.trackingNumber) && (
+            <div className="mt-8 border-t border-border pt-6">
+              <h3 className="eyebrow text-muted">Seguimiento del envío</h3>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 bg-bg/70 px-4 py-4">
+                <div className="flex items-start gap-3">
+                  <TruckIcon className="mt-0.5 size-5 shrink-0 text-fg/60" />
+                  <div className="text-sm">
+                    {data.shipment.carrier && <p className="font-semibold">{data.shipment.carrier}</p>}
+                    {data.shipment.trackingNumber && (
+                      <p className="mt-0.5 flex flex-wrap items-center gap-2 text-muted">
+                        Guía <span className="font-mono text-fg">{data.shipment.trackingNumber}</span>
+                        <CopyButton value={data.shipment.trackingNumber} label="Copiar" />
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {data.shipment.trackingUrl && (
+                  <a
+                    href={data.shipment.trackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center gap-2 bg-bronze px-4 text-sm font-semibold text-on-ink transition-colors hover:bg-bronze-strong"
+                  >
+                    Rastrear envío
+                    <ArrowRightIcon className="size-4" />
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {settled && (
@@ -112,16 +154,21 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
                 <CheckIcon className="mt-0.5 size-5 shrink-0" />
                 <span>Guarda tu folio: es el comprobante de tu compra de preventa.</span>
               </li>
-              <li className="flex gap-4">
-                <BoxIcon className="mt-0.5 size-5 shrink-0" />
-                <span>
-                  Si es con envío, te comunicaremos la guía de rastreo. Si es con recolección en Chihuahua, te avisaremos cuando esté LISTO PARA RECOGER. Consulta la{" "}
-                  <Link href={legalPaths.shipping} className="underline underline-offset-4">
-                    Política de Envíos y Recolección
-                  </Link>
-                  .
-                </span>
-              </li>
+              {data.fulfillmentStatus === "pending" && (
+                <li className="flex gap-4">
+                  <BoxIcon className="mt-0.5 size-5 shrink-0" />
+                  <span>
+                    {data.deliveryMethod === "pickup"
+                      ? "Te avisaremos por correo cuando tu pedido esté LISTO PARA RECOGER, con el punto, la fecha y el horario."
+                      : "Te enviaremos por correo la guía de rastreo cuando tu pedido salga."}{" "}
+                    Consulta la{" "}
+                    <Link href={legalPaths.shipping} className="underline underline-offset-4">
+                      Política de Envíos y Recolección
+                    </Link>
+                    .
+                  </span>
+                </li>
+              )}
               <li className="flex gap-4">
                 <ReceiptIcon className="mt-0.5 size-5 shrink-0" />
                 <span>{legalNotice.invoice}</span>

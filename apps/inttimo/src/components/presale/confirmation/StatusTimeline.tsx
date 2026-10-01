@@ -1,22 +1,33 @@
-import type { PublicReservationStatus } from "@/server/presale/contract";
+import type { DeliveryMethod, FulfillmentStatus, PublicReservationStatus } from "@/server/presale/contract";
 import { CheckIcon, CloseIcon } from "@/components/ui/icons";
 
 type StepState = "done" | "current" | "failed" | "todo";
 
-/** Etapas derivadas solo del estado real de la reserva (no se inventa seguimiento). */
-function stepsFor(status: PublicReservationStatus): { label: string; state: StepState; note?: string }[] {
+/** Etapas derivadas solo del estado real del pedido: pago y entrega (no se inventa seguimiento). */
+function stepsFor(status: PublicReservationStatus, deliveryMethod: DeliveryMethod, fulfillment: FulfillmentStatus): { label: string; state: StepState; note?: string }[] {
   const failed = status === "payment_failed" || status === "expired" || status === "canceled";
+  const paid = status === "paid";
+  if (status === "refunded") {
+    return [
+      { label: "Pedido creado", state: "done" },
+      { label: "Pago", state: "done" },
+      { label: "Reembolsada", state: "done" },
+    ];
+  }
+  const handed = fulfillment === "ready_for_pickup" || fulfillment === "shipped" || fulfillment === "delivered";
   return [
     { label: "Pedido creado", state: "done" },
     {
       label: "Pago",
-      state: status === "paid" || status === "refunded" ? "done" : failed ? "failed" : "current",
+      state: paid ? "done" : failed ? "failed" : "current",
       note: status === "processing" ? "En espera de acreditación" : status === "pending_payment" ? "Confirmando" : failed ? "No completado" : undefined,
     },
     {
-      label: status === "refunded" ? "Reembolsada" : "Preventa registrada",
-      state: status === "paid" || status === "refunded" ? "done" : "todo",
+      label: deliveryMethod === "pickup" ? "Listo para recoger" : "Enviado",
+      state: paid && handed ? "done" : paid ? "current" : "todo",
+      note: paid && !handed ? "En preparación" : undefined,
     },
+    { label: "Entregado", state: paid && fulfillment === "delivered" ? "done" : paid && handed ? "current" : "todo" },
   ];
 }
 
@@ -27,10 +38,10 @@ const DOT: Record<StepState, string> = {
   todo: "border-border bg-bg text-muted",
 };
 
-export function StatusTimeline({ status }: { status: PublicReservationStatus }) {
-  const steps = stepsFor(status);
+export function StatusTimeline({ status, deliveryMethod, fulfillmentStatus }: { status: PublicReservationStatus; deliveryMethod: DeliveryMethod; fulfillmentStatus: FulfillmentStatus }) {
+  const steps = stepsFor(status, deliveryMethod, fulfillmentStatus);
   return (
-    <ol aria-label="Estado de tu compra" className="grid grid-cols-3">
+    <ol aria-label="Estado de tu compra" className={`grid ${steps.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
       {steps.map((step, index) => (
         <li key={step.label} className="relative flex flex-col items-center text-center">
           {index > 0 && (

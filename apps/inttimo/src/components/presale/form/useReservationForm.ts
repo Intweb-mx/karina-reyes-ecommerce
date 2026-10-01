@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
-import type { ApiError, CreateReservationResponse, PublicCampaign } from "@/server/presale/contract";
+import type { ApiError, CreateReservationResponse, DeliveryMethod, PublicCampaign } from "@/server/presale/contract";
 import { formCopy } from "@/content/presale";
 import { emptyValues, validateField, validateReservation, type AnswerValue, type FieldErrors, type ReservationValues } from "./validation";
 
@@ -27,6 +27,8 @@ export function useReservationForm(campaign: PublicCampaign) {
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [values, setValues] = useState<ReservationValues>(emptyValues);
   const [quantity, setQuantity] = useState(1);
+  // Mismo criterio que la API: envío si está habilitado; si no, recolección.
+  const [deliveryMethod, setDeliveryMethodState] = useState<DeliveryMethod>(campaign.delivery.shipping.enabled ? "shipping" : "pickup");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
@@ -103,6 +105,7 @@ export function useReservationForm(campaign: PublicCampaign) {
           email: values.email,
           phone: values.phone || undefined,
           quantity,
+          deliveryMethod,
           answers: values.answers,
           acceptTerms: values.acceptTerms,
           termsVersion: campaign.terms?.version,
@@ -135,5 +138,15 @@ export function useReservationForm(campaign: PublicCampaign) {
     focusSummary();
   }
 
-  return { values, quantity, setQuantity, errors, formError, status, setField, setAnswer, blur, isValid, submit, summaryRef };
+  const setDeliveryMethod = (method: DeliveryMethod) => {
+    setDeliveryMethodState(method);
+    setErrors((current) => {
+      if (!current.deliveryMethod) return current;
+      const rest = { ...current };
+      delete rest.deliveryMethod;
+      return rest;
+    });
+  };
+
+  return { values, quantity, setQuantity, deliveryMethod, setDeliveryMethod, errors, formError, status, setField, setAnswer, blur, isValid, submit, summaryRef };
 }

@@ -2,8 +2,9 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import { BoxIcon, CalendarIcon, CheckIcon, ClockIcon, GiftIcon, LockIcon, MinusIcon, PlusIcon, StarIcon } from "@/components/ui/icons";
+import type { DeliveryMethod } from "@/server/presale/contract";
 import type { ProductContent } from "@/content/products";
-import { formCopy, legalNotice } from "@/content/presale";
+import { deliveryCopy, formCopy, legalNotice } from "@/content/presale";
 import { formatCalendarDate, formatDateRange, formatMoney } from "@/lib/format";
 import { FieldError } from "./fields";
 
@@ -25,14 +26,20 @@ type SummaryProps = {
   startsAt: string;
   endsAt: string;
   totalUnits: number | null;
+  deliveryMethod: DeliveryMethod;
+  /** Costo fijo de envío de la campaña (centavos); null = por cotizar. */
+  shippingAmount: number | null;
 };
 
 /**
  * "Tu compra" en formato tabla: producto, cantidad (editable aquí mismo), precio unitario, total,
  * lanzamiento y condición de preventa. Se muestra junto a los términos y el pago (brief §9).
  */
-export function PurchaseSummary({ productName, product, unitAmount, currency, quantity, maxQuantity, onQuantity, quantityErrors, startsAt, endsAt, totalUnits }: SummaryProps) {
+export function PurchaseSummary({ productName, product, unitAmount, currency, quantity, maxQuantity, onQuantity, quantityErrors, startsAt, endsAt, totalUnits, deliveryMethod, shippingAmount }: SummaryProps) {
   const money = (amount: number) => formatMoney(amount, currency);
+  const subtotal = unitAmount * quantity;
+  const shippingCharge = deliveryMethod === "shipping" && shippingAmount !== null ? shippingAmount : 0;
+  const total = subtotal + shippingCharge;
   const stepButton =
     "grid size-11 place-items-center text-fg sm:size-9 transition-colors duration-(--duration-base) hover:bg-sand active:bg-sand/80 disabled:cursor-not-allowed disabled:text-muted/40 disabled:hover:bg-transparent";
 
@@ -99,7 +106,18 @@ export function PurchaseSummary({ productName, product, unitAmount, currency, qu
             </tr>
           )}
           <Row label="Subtotal">
-            {money(unitAmount * quantity)} <Unit>{currency}</Unit>
+            {money(subtotal)} <Unit>{currency}</Unit>
+          </Row>
+          <Row label={deliveryMethod === "pickup" ? deliveryCopy.pickup.summary : deliveryCopy.shipping.summary}>
+            {deliveryMethod === "pickup" ? (
+              <span className="font-medium text-success">{deliveryCopy.free}</span>
+            ) : shippingAmount !== null ? (
+              <>
+                {money(shippingAmount)} <Unit>{currency}</Unit>
+              </>
+            ) : (
+              <span className="text-muted">{deliveryCopy.pending}</span>
+            )}
           </Row>
         </tbody>
         <tfoot>
@@ -108,12 +126,19 @@ export function PurchaseSummary({ productName, product, unitAmount, currency, qu
               Total
             </th>
             <td className="pt-4 text-right">
-              <span key={quantity} className="animate-tick inline-block font-serif text-4xl leading-none font-medium lining-nums tabular-nums" aria-live="polite">
-                {money(unitAmount * quantity)}
+              <span key={total} className="animate-tick inline-block font-serif text-4xl leading-none font-medium lining-nums tabular-nums" aria-live="polite">
+                {money(total)}
               </span>{" "}
               <Unit>{currency}</Unit>
             </td>
           </tr>
+          {deliveryMethod === "shipping" && shippingAmount === null && (
+            <tr>
+              <td colSpan={2} className="pt-2 text-right text-xs text-muted">
+                No incluye envío: te confirmaremos su costo.
+              </td>
+            </tr>
+          )}
         </tfoot>
       </table>
 

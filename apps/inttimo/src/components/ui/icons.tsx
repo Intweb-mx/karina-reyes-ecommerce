@@ -195,3 +195,32 @@ export const ArrowUpIcon = (props: IconProps) => (
     <path d="M12 20V4M6 10l6-6 6 6" />
   </Base>
 );
+
+export const TruckIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3.5v2.5h-7z" />
+    <circle cx="6.5" cy="17.5" r="1.75" />
+    <circle cx="16.5" cy="17.5" r="1.75" />
+  </Base>
+);
+
+export const MapPinIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z" />
+    <circle cx="12" cy="10" r="2.25" />
+  </Base>
+);
+
+export const PlayIcon = (props: IconProps) => (
+  <Base {...props}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M10 8.75v6.5L15.25 12z" />
+  </Base>
+);
+
+export const FileIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M6.5 3.5h7l4 4v13h-11z" />
+    <path d="M13.5 3.5v4h4M9 12.5h6M9 15.5h6" />
+  </Base>
+);

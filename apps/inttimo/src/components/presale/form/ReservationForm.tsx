@@ -4,11 +4,12 @@ import type { FormEvent } from "react";
 import type { PublicCampaign } from "@/server/presale/contract";
 import type { ProductContent } from "@/content/products";
 import Link from "next/link";
-import { formCopy, legalNotice } from "@/content/presale";
+import { deliveryCopy, formCopy, legalNotice } from "@/content/presale";
 import { acceptanceText, legalPaths } from "@/content/legal";
 import { MailIcon, PhoneIcon, UserIcon } from "@/components/ui/icons";
 import { formatMoney } from "@/lib/format";
 import { CheckoutSteps } from "./CheckoutSteps";
+import { DeliverySelector } from "./DeliverySelector";
 import { ErrorSummary } from "./ErrorSummary";
 import { ChoiceTile, FieldError, FormSection, Hint, Optional, TextInput, describedBy, labelClass } from "./fields";
 import { MobileCheckoutBar } from "./MobileCheckoutBar";
@@ -23,10 +24,11 @@ import { answerKey, progress } from "./validation";
  * La lógica de envío (validación, Idempotency-Key, honeypot, errores de la API) vive en useReservationForm.
  */
 export function ReservationForm({ campaign, product }: { campaign: PublicCampaign; product: ProductContent | null }) {
-  const { values, errors, quantity, setQuantity, formError, status, setField, setAnswer, blur, isValid, submit, summaryRef } = useReservationForm(campaign);
+  const { values, errors, quantity, setQuantity, deliveryMethod, setDeliveryMethod, formError, status, setField, setAnswer, blur, isValid, submit, summaryRef } = useReservationForm(campaign);
   const hasQuestions = campaign.questions.length > 0;
   const done = progress(values, campaign.questions);
-  const total = formatMoney(campaign.unitAmount * quantity, campaign.currency);
+  const shippingCharge = deliveryMethod === "shipping" && campaign.delivery.shipping.amount !== null ? campaign.delivery.shipping.amount : 0;
+  const total = formatMoney(campaign.unitAmount * quantity + shippingCharge, campaign.currency);
 
   const labels: Record<string, string> = {
     fullName: "Nombre completo",
@@ -34,12 +36,14 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
     phone: "Teléfono",
     quantity: "Cantidad",
     acceptTerms: "Aceptación",
+    deliveryMethod: "Entrega",
     ...Object.fromEntries(campaign.questions.map((q) => [answerKey(q.id), q.label])),
   };
 
   const steps = [
     { id: "paso-datos", label: formCopy.sections.contact, done: done.contact },
     ...(hasQuestions ? [{ id: "paso-cuestionario", label: formCopy.sections.questions, done: done.questions.done }] : []),
+    { id: "paso-entrega", label: deliveryCopy.sectionTitle, done: true },
     { id: "paso-confirmacion", label: formCopy.sections.confirm, done: done.confirm },
   ];
   const completed = steps.filter((step) => step.done).length;
@@ -155,6 +159,10 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
             </FormSection>
           )}
 
+          <FormSection step={hasQuestions ? "3" : "2"} title={deliveryCopy.sectionTitle} description={deliveryCopy.sectionIntro} id="paso-entrega" complete>
+            <DeliverySelector delivery={campaign.delivery} currency={campaign.currency} value={deliveryMethod} onChange={setDeliveryMethod} errors={errors.deliveryMethod} />
+          </FormSection>
+
           {/* Honeypot: oculto para personas, visible para bots. */}
           <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
             <label htmlFor="website">No llenar</label>
@@ -193,6 +201,8 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
               startsAt={campaign.startsAt}
               endsAt={campaign.endsAt}
               totalUnits={campaign.totalUnits}
+              deliveryMethod={deliveryMethod}
+              shippingAmount={campaign.delivery.shipping.amount}
             />
 
             <div className="space-y-3">
