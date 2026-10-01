@@ -198,6 +198,7 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
             <div className="space-y-3">
               <div>
                 <ChoiceTile
+                  align="start"
                   id="acceptTerms"
                   type="checkbox"
                   checked={values.acceptTerms}
@@ -205,7 +206,7 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
                   aria-describedby={describedBy("acceptTerms", { errors: errors.acceptTerms })}
                   onChange={(e) => setField("acceptTerms", e.target.checked, true)}
                 >
-                  <span className="text-sm leading-relaxed font-medium">
+                  <span className="text-[0.8125rem] leading-relaxed text-fg/90 sm:text-sm">
                     {acceptanceText.beforeTerms}
                     <LegalLink href={legalPaths.terms}>{acceptanceText.terms}</LegalLink>
                     {acceptanceText.between}

@@ -104,11 +104,11 @@ export function TextArea({ value, max, ...props }: { value: string; max: number 
  * Con `marker` (A, B, C…) el control nativo queda oculto a la vista pero accesible, y la insignia muestra el estado;
  * sin `marker` se usa la casilla propia `.choice`.
  */
-export function ChoiceTile({ invalid, marker, description, children, ...input }: { invalid?: boolean; marker?: string; description?: ReactNode; children: ReactNode } & ComponentProps<"input">) {
+export function ChoiceTile({ invalid, marker, description, align = "center", children, ...input }: { invalid?: boolean; marker?: string; description?: ReactNode; align?: "center" | "start"; children: ReactNode } & ComponentProps<"input">) {
   const round = input.type === "radio";
   return (
     <label
-      className={`group/tile relative flex min-h-14 cursor-pointer items-center gap-3 border bg-[#fffdf9] px-3.5 py-3 sm:gap-4 sm:px-4 text-[0.9375rem] leading-snug select-none
+      className={`group/tile relative flex min-h-14 cursor-pointer ${align === "start" ? "items-start py-4" : "items-center"} gap-3 border bg-[#fffdf9] px-3.5 py-3 sm:gap-4 sm:px-4 text-[0.9375rem] leading-snug select-none
         transition-[border-color,background-color,box-shadow,transform] duration-(--duration-base) ease-soft
         hover:-translate-y-px hover:border-fg/35 hover:shadow-[0_10px_24px_-18px_rgb(34_28_23/0.5)]
         active:translate-y-0

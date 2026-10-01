@@ -16,7 +16,7 @@ export function HowItWorks(props: Props) {
         <ol className="mt-7 grid gap-8 sm:grid-cols-3 sm:gap-0">
           {steps(props).map((step, index) => (
             <li key={step.title} className={`flex gap-5 sm:block sm:px-6 ${index === 0 ? "sm:pl-0" : "sm:border-l sm:border-border"}`}>
-              <span aria-hidden="true" className="font-serif text-4xl leading-none text-fg/35 lining-nums">
+              <span aria-hidden="true" className="font-serif text-4xl leading-none text-fg/55 lining-nums">
                 {String(index + 1).padStart(2, "0")}
               </span>
               <div className="sm:mt-4">

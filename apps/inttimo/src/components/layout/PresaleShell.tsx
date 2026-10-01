@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { LockIcon } from "@/components/ui/icons";
+import { ChatIcon, LockIcon, MailIcon } from "@/components/ui/icons";
 import { business, legalDocuments } from "@/content/legal";
 import { Wordmark } from "./Wordmark";
 
@@ -30,8 +30,8 @@ export function PresaleShell({ children }: { children: ReactNode }) {
       </div>
 
       <footer className="mt-auto border-t border-border/70 print:hidden">
-        <div className="container-page grid gap-10 py-10 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr] lg:gap-14">
-          <div className="space-y-4">
+        <div className="container-page grid gap-10 py-12 sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-[1.2fr_1fr_1fr] lg:gap-14">
+          <div className="space-y-4 sm:col-span-2 lg:col-span-1">
             <Wordmark />
             <p className="max-w-xs text-xs leading-relaxed text-muted">
               {business.legalName}, titular de la marca inttimo.
@@ -44,10 +44,10 @@ export function PresaleShell({ children }: { children: ReactNode }) {
             <h2 id="pie-legal" className="eyebrow text-muted">
               Legal
             </h2>
-            <ul className="mt-4 space-y-1 text-sm">
+            <ul className="mt-3 text-sm sm:mt-4 sm:space-y-1">
               {legalDocuments.map((doc) => (
                 <li key={doc.slug}>
-                  <Link href={`/${doc.slug}`} className="inline-block py-1.5 underline-offset-4 transition-colors hover:underline">
+                  <Link href={`/${doc.slug}`} className="inline-flex min-h-11 items-center underline-offset-4 transition-colors hover:underline sm:min-h-0 sm:py-1.5">
                     {doc.shortTitle}
                   </Link>
                 </li>
@@ -61,12 +61,14 @@ export function PresaleShell({ children }: { children: ReactNode }) {
             </h2>
             <ul className="mt-4 space-y-1 text-sm">
               <li>
-                <a href={`mailto:${business.email}`} className="inline-block py-1.5 break-all underline-offset-4 hover:underline">
+                <a href={`mailto:${business.email}`} className="inline-flex min-h-11 items-center gap-2.5 py-1.5 break-all underline-offset-4 hover:underline">
+                  <MailIcon className="size-4 shrink-0 text-muted" />
                   {business.email}
                 </a>
               </li>
               <li>
-                <a href={business.whatsappUrl} className="inline-block py-1.5 underline-offset-4 hover:underline" rel="noopener">
+                <a href={business.whatsappUrl} className="inline-flex min-h-11 items-center gap-2.5 py-1.5 underline-offset-4 hover:underline" rel="noopener">
+                  <ChatIcon className="size-4 shrink-0 text-muted" />
                   WhatsApp {business.whatsapp}
                 </a>
               </li>

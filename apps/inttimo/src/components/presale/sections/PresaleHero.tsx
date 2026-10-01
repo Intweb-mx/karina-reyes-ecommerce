@@ -3,7 +3,7 @@ import type { PublicCampaign } from "@/server/presale/contract";
 import type { ProductContent } from "@/content/products";
 import { AnchorButton } from "@/components/ui/Button";
 import { BoxIcon, CalendarIcon, GemIcon, GiftIcon, HeartIcon, LeafIcon, LockIcon, MailIcon, PeopleIcon } from "@/components/ui/icons";
-import { phaseCopy, trust } from "@/content/presale";
+import { phaseCopy, stateCopy, trust } from "@/content/presale";
 import { formatCalendarDate, formatDate, formatDateRange, formatMoney } from "@/lib/format";
 import { Countdown } from "../Countdown";
 
@@ -18,6 +18,7 @@ const TRUST_ICONS = { lock: LockIcon, mail: MailIcon, box: BoxIcon };
 export function PresaleHero({ campaign, product, accepting }: { campaign: PublicCampaign; product: ProductContent | null; accepting: boolean }) {
   const copy = phaseCopy[campaign.phase];
   const open = campaign.phase === "open";
+  const soldOut = open && campaign.soldOut;
   const photo = product?.hero;
 
   return (
@@ -63,7 +64,9 @@ export function PresaleHero({ campaign, product, accepting }: { campaign: Public
           {product && (
             <ul
               aria-label="Beneficios"
-              className="-mx-4 mt-7 flex snap-x snap-mandatory scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:mt-8 sm:grid sm:grid-cols-4 sm:gap-x-4 sm:gap-y-5 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
+              // Enfocable para poder desplazar la fila con teclado en móvil (axe: scrollable-region-focusable).
+              tabIndex={0}
+              className="-mx-4 mt-7 flex focus-visible:outline-offset-[-2px] snap-x snap-mandatory scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:mt-8 sm:grid sm:grid-cols-4 sm:gap-x-4 sm:gap-y-5 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
             >
               {product.benefits.map((benefit) => {
                 const Icon = BENEFIT_ICONS[benefit.icon];
@@ -94,7 +97,7 @@ export function PresaleHero({ campaign, product, accepting }: { campaign: Public
             ) : (
               <span />
             )}
-            <PhaseBadge phase={campaign.phase} />
+            <PhaseBadge phase={campaign.phase} soldOut={soldOut} />
           </div>
 
           {campaign.deliveryNote && <p className="mt-5 max-w-md border-l border-fg/30 pl-4 text-sm leading-relaxed text-fg/80">{campaign.deliveryNote}</p>}
@@ -136,7 +139,13 @@ export function PresaleHero({ campaign, product, accepting }: { campaign: Public
               photo ? "mx-1 -mt-20 sm:mx-auto sm:-mt-28 sm:max-w-md lg:mx-0 lg:mt-0 lg:ml-auto lg:w-[22rem] xl:w-[23.5rem]" : ""
             }`}
           >
-            {campaign.phase === "closed" ? (
+            {soldOut ? (
+              <div role="status">
+                <p className="eyebrow text-muted">{`Preventa ${campaign.productName}`}</p>
+                <p className="mt-5 font-serif text-[clamp(2.75rem,6vw,3.5rem)] leading-none font-medium">{stateCopy.soldOutCard.title}</p>
+                <p className="mt-3 text-sm leading-relaxed text-muted">{stateCopy.soldOutCard.body}</p>
+              </div>
+            ) : campaign.phase === "closed" ? (
               <div>
                 <p className="eyebrow text-muted">Cerró el</p>
                 <p className="mt-3 font-serif text-3xl leading-tight">{formatDate(campaign.endsAt)}</p>
@@ -158,7 +167,7 @@ export function PresaleHero({ campaign, product, accepting }: { campaign: Public
                 <span className="font-serif text-[clamp(2.75rem,5vw,3.5rem)] leading-none font-medium lining-nums">{formatMoney(campaign.unitAmount, campaign.currency)}</span>
                 <span className="text-xs font-semibold tracking-[0.16em] text-muted uppercase">{campaign.currency}</span>
               </p>
-              {product?.bonus && (
+              {product?.bonus && !soldOut && (
                 <p className="mt-3 flex items-center gap-2 text-sm">
                   <GiftIcon className="size-4 shrink-0 text-bronze" />
                   {product.bonus.short}
@@ -182,12 +191,12 @@ export function PresaleHero({ campaign, product, accepting }: { campaign: Public
   );
 }
 
-function PhaseBadge({ phase }: { phase: PublicCampaign["phase"] }) {
-  const dot = phase === "open" ? "bg-success" : phase === "upcoming" ? "bg-warning" : "bg-muted";
+function PhaseBadge({ phase, soldOut }: { phase: PublicCampaign["phase"]; soldOut?: boolean }) {
+  const dot = soldOut ? "bg-danger" : phase === "open" ? "bg-success" : phase === "upcoming" ? "bg-warning" : "bg-muted";
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs font-medium">
-      <span aria-hidden="true" className={`size-1.5 rounded-full ${dot} ${phase === "open" ? "motion-safe:animate-pulse" : ""}`} />
-      {phaseCopy[phase].badge}
+      <span aria-hidden="true" className={`size-1.5 rounded-full ${dot} ${phase === "open" && !soldOut ? "motion-safe:animate-pulse" : ""}`} />
+      {soldOut ? stateCopy.soldOutCard.badge : phaseCopy[phase].badge}
     </span>
   );
 }
