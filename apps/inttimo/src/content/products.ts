@@ -48,7 +48,7 @@ const unoMasUno: ProductContent = {
     eyebrow: "Solo durante la preventa",
     title: "Tu UNO+UNO incluye un bonus especial.",
     body: "Una guía digital de preguntas complementarias para seguir conversando juntos.",
-    note: "Disponible exclusivamente para las compras realizadas durante la preventa.",
+    note: "Disponible exclusivamente para las compras realizadas durante la preventa. Recibirás tu acceso por correo cuando tu pedido sea enviado o esté listo para recoger.",
     short: "Incluye bonus exclusivo de preventa.",
     image: img("uno-mas-uno-bonus-digital.jpg", 1448, 1086, "Caja de UNO+UNO junto a una tableta con la guía digital exclusiva de preventa"),
   },

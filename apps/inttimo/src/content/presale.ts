@@ -67,7 +67,7 @@ export const deliveryCopy = {
   pickup: {
     title: "Recolección en Chihuahua",
     price: "Sin costo",
-    body: "Para compradores en Chihuahua. Te avisaremos el punto (como Costco o, en determinados domingos, Iglesia Baluarte), la fecha y el horario cuando tu pedido esté LISTO PARA RECOGER.",
+    body: "Para compradores en Chihuahua. Puntos: Librería Sophos · Iglesia Baluarte (domingos de 10:00 a.m. a 2:00 p.m.) o Costco Chihuahua (día y horario previa confirmación). Te avisaremos cuando tu pedido esté LISTO PARA RECOGER; no acudas antes.",
     summary: "Recolección en Chihuahua",
   },
   shipping: {
@@ -111,8 +111,8 @@ export const statusCopy: Record<PublicReservationStatus, { eyebrow: string; titl
 
 /** Encabezado de la confirmación cuando el pedido pagado ya avanzó en la entrega (fulfillmentStatus). */
 export const fulfillmentCopy = {
-  ready_for_pickup: { eyebrow: "Listo para recoger", title: "Tu pedido está listo para recoger.", body: "Te enviamos por correo el punto, la fecha y el horario de recolección." },
-  shipped: { eyebrow: "En camino", title: "Tu pedido va en camino.", body: "Puedes seguir tu envío con la guía de rastreo." },
+  ready_for_pickup: { eyebrow: "Listo para recoger", title: "Tu UNO+UNO está listo para recoger.", body: "Te enviamos por correo el punto de entrega y las instrucciones, junto con el acceso a tu bonus. Presenta tu nombre y número de pedido al recogerlo." },
+  shipped: { eyebrow: "Enviado", title: "Tu pedido va en camino.", body: "Puedes seguir tu envío con la guía de rastreo. Te enviamos por correo el acceso a tu bonus." },
   delivered: { eyebrow: "Entregado", title: "Tu pedido fue entregado.", body: "Gracias por ser parte de esta preventa." },
 } as const;
 

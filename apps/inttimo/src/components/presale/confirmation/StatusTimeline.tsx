@@ -10,7 +10,7 @@ function stepsFor(status: PublicReservationStatus, deliveryMethod: DeliveryMetho
   if (status === "refunded") {
     return [
       { label: "Pedido creado", state: "done" },
-      { label: "Pago", state: "done" },
+      { label: "Pagado", state: "done" },
       { label: "Reembolsada", state: "done" },
     ];
   }
@@ -18,14 +18,14 @@ function stepsFor(status: PublicReservationStatus, deliveryMethod: DeliveryMetho
   return [
     { label: "Pedido creado", state: "done" },
     {
-      label: "Pago",
+      label: "Pagado",
       state: paid ? "done" : failed ? "failed" : "current",
       note: status === "processing" ? "En espera de acreditación" : status === "pending_payment" ? "Confirmando" : failed ? "No completado" : undefined,
     },
     {
       label: deliveryMethod === "pickup" ? "Listo para recoger" : "Enviado",
       state: paid && handed ? "done" : paid ? "current" : "todo",
-      note: paid && !handed ? "En preparación" : undefined,
+      note: paid && !handed ? "Preparando" : undefined,
     },
     { label: "Entregado", state: paid && fulfillment === "delivered" ? "done" : paid && handed ? "current" : "todo" },
   ];
