@@ -1,6 +1,7 @@
-import { findReservationById, getCampaignById, getTermsById, listReservationEvents } from "@inttimo/database";
+import { findReservationById, getCampaignById, getPostPurchaseAnswers, getTermsById, listReservationEvents } from "@inttimo/database";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { postPurchaseCopy } from "@/content/presale";
 import { formatMoney } from "@/lib/format";
 import { audit, requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
@@ -12,7 +13,7 @@ export const metadata = { title: "Reserva" };
 
 const when = (date: Date | null) => (date ? date.toLocaleString("es-MX", { timeZone: "America/Mexico_City" }) : "—");
 
-function answerText(value: unknown, options?: { value: string; label: string }[]): string {
+function answerText(value: unknown, options?: readonly { value: string; label: string }[]): string {
   const label = (v: string) => options?.find((o) => o.value === v)?.label ?? v;
   if (Array.isArray(value)) return value.map(label).join(", ");
   if (typeof value === "boolean") return value ? "Sí" : "No";
@@ -33,10 +34,11 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
   const db = getDb();
   const reservation = await findReservationById(db, id);
   if (!reservation) notFound();
-  const [campaign, terms, events] = await Promise.all([
+  const [campaign, terms, events, postPurchase] = await Promise.all([
     getCampaignById(db, reservation.campaignId),
     getTermsById(db, reservation.termsId),
     listReservationEvents(db, reservation.id),
+    getPostPurchaseAnswers(db, reservation.id),
   ]);
   await audit(admin, { action: "reservation.view", targetType: "reservation", targetId: reservation.id });
 
@@ -171,6 +173,25 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
                 </div>
               ))}
             </dl>
+          </Card>
+
+          <Card title="Cuestionario posterior a la compra">
+            {postPurchase?.submittedAt || (postPurchase && Object.keys(postPurchase.answers).length) ? (
+              <dl className="space-y-3 text-sm">
+                {postPurchaseCopy.questions.map((q) => (
+                  <div key={q.id}>
+                    <dt className="text-muted">{q.label}</dt>
+                    <dd>{answerText(postPurchase?.answers[q.id], "options" in q ? q.options : undefined)}</dd>
+                  </div>
+                ))}
+                <div>
+                  <dt className="text-muted">Enviado</dt>
+                  <dd>{when(postPurchase?.submittedAt ?? null)}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-sm text-muted">El cliente aún no respondió (es opcional).</p>
+            )}
           </Card>
         </div>
       </div>

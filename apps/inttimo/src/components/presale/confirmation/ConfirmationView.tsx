@@ -11,6 +11,7 @@ import { deliveryCopy, fulfillmentCopy, legalNotice, slowPaymentCopy, statusCopy
 import { getProductContent } from "@/content/products";
 import { formatCalendarDate, formatDate, formatMoney } from "@/lib/format";
 import { CopyButton } from "./CopyButton";
+import { PostPurchaseSurvey } from "./PostPurchaseSurvey";
 import { StatusTimeline } from "./StatusTimeline";
 
 export type ConfirmationState = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; data: ReservationStatusResponse; gaveUp: boolean };
@@ -25,7 +26,7 @@ const TONE: Record<Tone, { icon: Icon; className: string }> = {
 };
 
 /** Presentación de cada estado de la reserva; separada de la consulta para poder revisarla sin Stripe. */
-export function ConfirmationView({ slug, state, title }: { slug: string; state: ConfirmationState; title?: string }) {
+export function ConfirmationView({ slug, sessionId, state, title }: { slug: string; sessionId?: string; state: ConfirmationState; title?: string }) {
   if (state.kind === "loading") return <LoadingState />;
 
   if (state.kind === "error") {
@@ -182,6 +183,8 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
           </section>
         )}
       </div>
+
+      {data.status === "paid" && sessionId && <PostPurchaseSurvey slug={slug} sessionId={sessionId} />}
 
       <section aria-labelledby="ayuda" className="mt-12 grid gap-6 border border-border bg-surface px-6 py-6 max-sm:-mx-4 max-sm:border-x-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-8 print:hidden">
         <div>

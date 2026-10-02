@@ -42,5 +42,5 @@ export function ConfirmationStatus({ slug, sessionId }: { slug: string; sessionI
   if (!sessionId) {
     return <ConfirmationView slug={slug} state={{ kind: "error", message: "Revisa el correo de confirmación o vuelve a la preventa." }} title="Enlace incompleto." />;
   }
-  return <ConfirmationView slug={slug} state={state} />;
+  return <ConfirmationView slug={slug} sessionId={sessionId} state={state} />;
 }

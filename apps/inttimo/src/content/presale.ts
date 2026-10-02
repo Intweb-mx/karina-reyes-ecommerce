@@ -129,6 +129,71 @@ export const fulfillmentCopy = {
   delivered: { eyebrow: "Entregado", title: "Tu pedido fue entregado.", body: "Gracias por ser parte de esta preventa." },
 } as const;
 
+/**
+ * Cuestionario posterior a la compra: fijo, no depende de la campaña ("Especificaciones finales
+ * postcompra UNO+UNO", 1 oct 2026, §1). Las 3 preguntas son opcionales; no condicionan el bonus
+ * ni ninguna decisión automática (Términos §23).
+ */
+export const postPurchaseCopy = {
+  title: "Antes de irte, queremos conocerte un poco más.",
+  intro: "Tus respuestas nos ayudan a conocer mejor a quienes están viviendo UNO+UNO y a crear futuras experiencias de inttimo.",
+  skip: "Omitir por ahora",
+  submit: "Enviar respuestas",
+  submitting: "Enviando…",
+  sent: "¡Gracias por tus respuestas!",
+  questions: [
+    {
+      id: "forWhom",
+      label: "¿Para quién compraste UNO+UNO?",
+      options: [
+        { value: "couple", label: "Para mi pareja y para mí" },
+        { value: "gift", label: "Es un regalo" },
+        { value: "other", label: "Otro" },
+      ],
+    },
+    {
+      id: "yearsTogether",
+      label: "¿Cuánto tiempo llevan juntos?",
+      options: [
+        { value: "lt_1", label: "Menos de 1 año" },
+        { value: "1_5", label: "1–5 años" },
+        { value: "6_10", label: "6–10 años" },
+        { value: "11_20", label: "11–20 años" },
+        { value: "gt_20", label: "Más de 20 años" },
+      ],
+    },
+    {
+      id: "growArea",
+      label: "¿Qué te gustaría cultivar más en su relación?",
+      options: [
+        { value: "communication", label: "Comunicación" },
+        { value: "daily_connection", label: "Conexión cotidiana" },
+        { value: "intimacy", label: "Intimidad" },
+        { value: "knowing_each_other", label: "Conocernos más" },
+        { value: "faith_purpose", label: "Fe y propósito" },
+        { value: "time_together", label: "Disfrutar más tiempo juntos" },
+      ],
+    },
+    {
+      id: "howFound",
+      label: "¿Cómo nos conociste?",
+      options: [
+        { value: "instagram", label: "Instagram" },
+        { value: "facebook", label: "Facebook" },
+        { value: "tiktok", label: "TikTok" },
+        { value: "referral", label: "Recomendación de alguien" },
+        { value: "church", label: "Iglesia o grupo" },
+        { value: "other", label: "Otro" },
+      ],
+    },
+    {
+      id: "visitingFrom",
+      label: "¿Desde dónde nos visitas?",
+      placeholder: "Ciudad, estado",
+    },
+  ],
+} as const;
+
 export const slowPaymentCopy = {
   title: "Seguimos confirmando tu pago.",
   body: "Si ya pagaste, recibirás un correo en cuanto se confirme. No es necesario pagar de nuevo.",

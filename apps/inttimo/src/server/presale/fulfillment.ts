@@ -13,7 +13,7 @@ import {
   type PresaleReservation,
   type ShipmentDetails,
 } from "@inttimo/database";
-import { bonusMail, fulfillmentMail, type MailSender } from "./notifications.ts";
+import { bonusMail, fulfillmentMail, type BonusEmailInfo, type MailSender } from "./notifications.ts";
 
 export type FulfillmentDeps = { db: Database; send: MailSender; siteUrl: string; now?: () => Date };
 
@@ -59,23 +59,44 @@ export async function fulfillReservation(deps: FulfillmentDeps, reservationId: s
   if (action.type === "delivered") return { ok: true, reservation: updated, email: "skipped", bonus: "skipped" };
 
   const campaign = await getCampaignById(deps.db, updated.campaignId);
+  const point = campaign?.pickupPoints.find((p) => p.id === updated.pickupPointId);
+
+  // El bonus se reclama antes de enviar, para incluirlo DENTRO del mismo correo (§3): nunca un envío aparte.
+  const eligibility = !campaign?.bonus ? "not_configured" : !updated.paidAt || updated.paidAt > campaign.endsAt ? "not_eligible" : "ok";
+  let bonusInfo: BonusEmailInfo | null = null;
+  if (eligibility === "ok") {
+    const claimed = await claimBonusSend(deps.db, updated.id);
+    if (claimed) {
+      const now = deps.now?.() ?? new Date();
+      const expiresAt = new Date(now.getTime() + campaign!.bonus!.linkDays * 86_400_000);
+      const token = randomBytes(32).toString("base64url");
+      await createBonusLink(deps.db, { reservationId: updated.id, tokenHash: hashBonusToken(token), expiresAt });
+      bonusInfo = { title: campaign!.bonus!.title, url: `${deps.siteUrl.replace(/\/$/, "")}/bonus/${token}`, expiresAt };
+    }
+  }
+
   let email: Outcome = "sent";
+  let bonus: BonusOutcome = bonusInfo ? "sent" : eligibility === "ok" ? "skipped" : eligibility;
   try {
-    const point = campaign?.pickupPoints.find((p) => p.id === updated.pickupPointId);
-    await deps.send(fulfillmentMail(updated, campaign?.productName ?? "inttimo", action.note?.trim() || null, point));
-    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", "panel", { metadata: { status: updated.fulfillmentStatus } });
+    await deps.send(fulfillmentMail(updated, campaign?.productName ?? "inttimo", action.note?.trim() || null, point, bonusInfo));
+    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", "panel", { metadata: { status: updated.fulfillmentStatus, bonusIncluded: !!bonusInfo } });
+    if (bonusInfo) await addReservationEvent(deps.db, updated.id, "BONUS_SENT", "api", { metadata: { expiresAt: bonusInfo.expiresAt.toISOString() } });
   } catch (error) {
     email = "failed";
     await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_FAILED", "panel", { metadata: { error: String(error).slice(0, 300) } });
+    if (bonusInfo) {
+      bonus = "failed";
+      await releaseBonusSend(deps.db, updated.id);
+      await addReservationEvent(deps.db, updated.id, "BONUS_FAILED", "api", { metadata: { error: String(error).slice(0, 300) } });
+    }
   }
 
-  const bonus = await sendBonusIfEligible(deps, updated.id);
   return { ok: true, reservation: updated, email, bonus };
 }
 
 /**
- * Envía el enlace del bonus si la campaña lo tiene, la compra se pagó dentro del periodo de preventa
- * y el pedido ya está enviado / listo / entregado. Idempotente: solo un envío exitoso por pedido.
+ * Reintento manual desde el panel ("Reintentar bonus"): solo aplica si el envío anterior falló o nunca se
+ * reclamó (bonusSentAt sigue null). Manda un correo de bonus aparte: el correo de ENVIADO/LISTO ya se mandó.
  */
 export async function sendBonusIfEligible(deps: FulfillmentDeps, reservationId: string): Promise<BonusOutcome> {
   const reservation = await findReservationById(deps.db, reservationId);
