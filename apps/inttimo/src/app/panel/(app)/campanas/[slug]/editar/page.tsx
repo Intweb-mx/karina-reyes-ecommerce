@@ -46,7 +46,8 @@ export default async function EditCampaignPage({ params }: PageProps<"/panel/cam
             maxQuantityPerReservation: campaign.maxQuantityPerReservation,
             pickupEnabled: campaign.pickupEnabled,
             shippingEnabled: campaign.shippingEnabled,
-            shippingAmount: campaign.shippingAmount === null ? "" : (campaign.shippingAmount / 100).toFixed(2),
+            pickupPoints: JSON.stringify(campaign.pickupPoints, null, 2),
+            shippingConfigured: campaign.shippingProfile !== null,
             deliveryNote: campaign.deliveryNote ?? "",
             questions: JSON.stringify(campaign.questions, null, 2),
           }}

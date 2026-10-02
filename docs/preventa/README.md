@@ -193,21 +193,20 @@ Si cambian los Términos y Condiciones, editar `content/legal/terminos.ts` y vol
 
 ## Entrega, envío y bonus
 
-Campos de la campaña (JSON o panel → Editar):
+Antes de Stripe el cliente elige **cómo recibe su pedido**. Nunca queda un envío "por confirmar".
 
-| Campo | Qué hace |
+**Recolección en Chihuahua** — sin costo, sin dirección, sin SkyDropX. El cliente elige un punto de `pickupPoints`; se guarda en el pedido. Karina marca **LISTO PARA RECOGER** en el panel y el cliente recibe el aviso.
+
+**Envío a domicilio** — el cliente captura su dirección → `POST /api/preventa/[slug]/envio` cotiza con SkyDropX → ve UNO+UNO + envío + total → elige económico o express → Stripe cobra **todo en una sola transacción**. El precio cobrado sale de la cotización guardada (`presale_shipping_quotes`, vence en 2 h), nunca del navegador. Tras el pago, en el panel: **Generar guía con SkyDropX** (compra la guía con la tarifa pagada, descuenta saldo) → ENVIADO con guía y aviso al cliente. Si pasaron más de 23 h se vuelve a cotizar con la misma paquetería.
+
+El envío solo se ofrece si están las tres cosas: `shippingEnabled`, `shippingProfile` en la campaña y `SKYDROPX_CLIENT_ID`/`SKYDROPX_CLIENT_SECRET` (+ `SKYDROPX_ENV=production`) en Vercel. Si falta algo, la web ofrece solo recolección.
+
+| Campo de campaña | Qué es |
 |---|---|
-| `pickupEnabled` | Recolección en Chihuahua, sin costo. Stripe no pide dirección. |
-| `shippingEnabled` | Envío a domicilio en México. Stripe pide dirección. |
-| `shippingAmount` | Costo fijo por pedido en centavos (`15000` = $150). `null` = **por cotizar**: no se cobra en línea y se acuerda con el cliente. |
-| `bonus` | `{ "title", "pdfUrl", "videoUrl", "linkDays" }` o `null`. Sin valores por defecto: archivos y vigencia los confirma Karina. |
+| `pickupPoints` | `[{ "id", "name", "schedule" }]`. No cambiar el `id` de un punto con pedidos. Editable en el panel. |
+| `shippingProfile` | `{ origin: { name, company, street, neighborhood, city, state, postalCode, phone, email, reference }, parcel: { weightKg, lengthCm, widthCm, heightCm }, carriers: [], consignmentNote, packageType }`. `parcel` es el paquete de **1 unidad** (2 unidades: doble peso y altura). `consignmentNote` = clave SAT del contenido (carta porte) y `packageType` = tipo de empaque que pide SkyDropX. |
+| `bonus` | `{ "title", "pdfUrl", "videoUrl", "linkDays" }` o `null`. |
 
-El cliente elige con `deliveryMethod` (`"shipping"` / `"pickup"`) en `POST /api/preventa/[slug]/reservas`; si no lo manda, es envío.
+El cliente SkyDropX (`apps/inttimo/src/server/shipping/skydropx.ts`) sigue la documentación pública de SkyDropX Pro; el formato exacto del cuerpo se valida contra **sandbox** antes de pasar a producción.
 
-Operación (panel → pedido → **Entrega**):
-- Recolección: **Marcar LISTO PARA RECOGER** con punto, fecha y horario → correo al cliente.
-- Envío: **Marcar ENVIADO** con paquetería, guía y URL de rastreo → correo al cliente.
-- Al pasar a cualquiera de los dos se manda el **bonus** (una vez, solo a compras pagadas dentro del periodo de la campaña): enlace personal `/bonus/<token>` que vence en `linkDays` días. Si falla el correo, botón **Reintentar bonus**.
-- Después: **Marcar como ENTREGADO**.
-
-Todo queda en el historial del pedido y en la bitácora del panel; el CSV incluye método, envío, guía y fechas.
+Bonus: al pasar a ENVIADO o LISTO PARA RECOGER se manda un enlace personal `/bonus/<token>` que vence en `linkDays` días (solo compras pagadas dentro del periodo). Botón **Reintentar bonus** si falla el correo.

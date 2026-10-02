@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { campaignConfigSchema } from "../src/server/presale/campaign-config.ts";
 import { reconcilePresale } from "../src/server/presale/reconcile.ts";
 import { createPresaleReservation } from "../src/server/presale/reservations.ts";
-import { FakeGateway, NOW, QUESTIONS, seedCampaign, VALID_ANSWERS } from "./helpers.ts";
+import { FakeGateway, NOW, QUESTIONS, seedCampaign, VALID_ANSWERS, PICKUP } from "./helpers.ts";
 
 describe("configuración de campaña", () => {
   const base = { slug: "uno-mas-uno", productName: "UNO+UNO", status: "active", startsAt: "2026-10-01T10:00:00-06:00", unitAmount: 99_900, questions: QUESTIONS };
@@ -45,7 +45,7 @@ describe("reconciliación", () => {
     const gateway = new FakeGateway();
     const created = await createPresaleReservation(
       { db, gateway, siteUrl: "https://inttimo.test", now: () => NOW },
-      { slug: "uno-mas-uno", body: { fullName: "Ana", email: "ana@ejemplo.com", answers: VALID_ANSWERS, acceptTerms: true, termsVersion: 1 }, idempotencyKey: null, clientIp: null },
+      { slug: "uno-mas-uno", body: { fullName: "Ana", email: "ana@ejemplo.com", answers: VALID_ANSWERS, acceptTerms: true, termsVersion: 1, ...PICKUP }, idempotencyKey: null, clientIp: null },
     );
     expect(created.ok).toBe(true);
     gateway.snapshots.set("cs_test_000000000001", { status: "complete", paymentStatus: "paid", paymentIntentId: "pi_9" });

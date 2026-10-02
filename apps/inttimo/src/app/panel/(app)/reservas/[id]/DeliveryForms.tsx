@@ -76,3 +76,16 @@ export function RetryBonusForm({ action }: { action: () => Promise<DeliveryState
     </form>
   );
 }
+
+export function LabelForm({ action, pending: inProgress }: { action: () => Promise<DeliveryState>; pending: boolean }) {
+  const [state, formAction, pending] = useActionState(action, undefined);
+  return (
+    <form action={formAction} className="space-y-3">
+      <p className="text-xs text-muted">Compra la guía con la tarifa que pagó el cliente (se descuenta del saldo de SkyDropX) y avisa al cliente con el número de guía.</p>
+      <Feedback state={state} />
+      <button type="submit" disabled={pending} className={buttonClass}>
+        {pending ? "Generando…" : inProgress ? "Traer número de guía" : "Generar guía con SkyDropX"}
+      </button>
+    </form>
+  );
+}

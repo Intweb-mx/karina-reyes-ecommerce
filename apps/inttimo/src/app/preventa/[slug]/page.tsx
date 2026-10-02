@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { PresaleView } from "@/components/presale/PresaleView";
 import { getPublicCampaign } from "@/server/presale/reservations";
-import { getDb } from "@/server/presale/runtime";
+import { getDb, getShippingProvider } from "@/server/presale/runtime";
 
 async function loadCampaign(slug: string) {
   await connection();
-  const result = await getPublicCampaign({ db: getDb() }, slug);
+  const result = await getPublicCampaign({ db: getDb(), shipping: getShippingProvider() }, slug);
   if (!result.ok) notFound();
   return result.data;
 }

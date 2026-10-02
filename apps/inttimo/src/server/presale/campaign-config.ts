@@ -13,6 +13,32 @@ export const bonusSchema = z
   })
   .refine((bonus) => bonus.pdfUrl || bonus.videoUrl, "bonus: indica pdfUrl o videoUrl");
 
+const required = (max: number) => z.string().trim().min(1).max(max);
+
+export const shippingProfileSchema = z.object({
+  origin: z.object({
+    name: required(80),
+    company: z.string().trim().max(80).nullable(),
+    street: required(120),
+    neighborhood: required(100),
+    city: required(80),
+    state: required(60),
+    postalCode: z.string().regex(/^\d{5}$/, "origin.postalCode: 5 dígitos"),
+    phone: z.string().regex(/^[\d\s+()-]{10,20}$/, "origin.phone: teléfono a 10 dígitos"),
+    email: z.email(),
+    reference: z.string().trim().max(200).nullable(),
+  }),
+  parcel: z.object({
+    weightKg: z.number().positive().max(70),
+    lengthCm: z.number().positive().max(200),
+    widthCm: z.number().positive().max(200),
+    heightCm: z.number().positive().max(200),
+  }),
+  carriers: z.array(z.string().trim().toLowerCase()).default([]),
+  consignmentNote: required(20),
+  packageType: required(20),
+});
+
 /** Archivo JSON que describe una campaña (ver docs/preventa/campaign.example.json). */
 export const campaignConfigSchema = z
   .object({
@@ -34,8 +60,12 @@ export const campaignConfigSchema = z
     pickupEnabled: z.boolean().default(true),
     /** Envío a domicilio dentro de México. */
     shippingEnabled: z.boolean().default(true),
-    /** Envío fijo por pedido en centavos (15000 = $150.00). null = por cotizar (no se cobra en línea). */
-    shippingAmount: z.number().int().min(0).nullable().optional(),
+    /** Puntos de recolección (datos aprobados por el negocio). */
+    pickupPoints: z
+      .array(z.object({ id: z.string().regex(/^[a-z0-9-]{2,40}$/, "pickupPoints.id: minúsculas, números y guiones"), name: z.string().trim().min(1).max(120), schedule: z.string().trim().min(1).max(200) }))
+      .default([]),
+    /** Origen y paquete para cotizar con SkyDropX. Sin esto no se ofrece envío a domicilio. */
+    shippingProfile: shippingProfileSchema.nullable().optional(),
     bonus: bonusSchema.nullable().optional(),
     questions: questionsSchema,
     deliveryNote: z.string().trim().max(1000).nullable().optional(),
@@ -55,11 +85,12 @@ export const campaignConfigSchema = z
       totalUnits: config.totalUnits ?? null,
       pickupEnabled: config.pickupEnabled,
       shippingEnabled: config.shippingEnabled,
-      shippingAmount: config.shippingAmount ?? null,
+      pickupPoints: config.pickupPoints,
+      shippingProfile: config.shippingProfile ?? null,
       bonus: config.bonus ?? null,
       questions: config.questions,
       deliveryNote: config.deliveryNote ?? null,
     };
   })
   .refine((campaign) => campaign.endsAt > campaign.startsAt, "endsAt debe ser posterior a startsAt")
-  .refine((campaign) => campaign.pickupEnabled || campaign.shippingEnabled, "Activa al menos un método de entrega (pickupEnabled o shippingEnabled)");
+  .refine((campaign) => campaign.pickupEnabled || campaign.shippingEnabled, "Activa al menos un método de entrega (pickupEnabled o shippingEnabled)")

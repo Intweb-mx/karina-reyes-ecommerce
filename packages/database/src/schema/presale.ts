@@ -36,6 +36,62 @@ export type BonusConfig = {
   linkDays: number;
 };
 
+/** Punto de recolección configurado en la campaña (datos del negocio). */
+export type PickupPoint = {
+  /** Clave estable (a-z, 0-9, guion). No cambiarla con pedidos existentes. */
+  id: string;
+  name: string;
+  /** Día y horario o condiciones, visible al cliente. */
+  schedule: string;
+};
+
+/** Origen de los envíos y paquete por unidad, para cotizar con la paquetería. */
+export type ShippingProfile = {
+  origin: {
+    name: string;
+    company: string | null;
+    street: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    phone: string;
+    email: string;
+    reference: string | null;
+  };
+  /** Paquete de 1 unidad. Para N unidades se suma el peso y se apila la altura. */
+  parcel: { weightKg: number; lengthCm: number; widthCm: number; heightCm: number };
+  /** Paqueterías permitidas (nombres de SkyDropX en minúsculas). Vacío = todas. */
+  carriers: string[];
+  /** Clave SAT del contenido (carta porte) y tipo de empaque que pide SkyDropX al generar la guía. */
+  consignmentNote: string;
+  packageType: string;
+};
+
+/** Dirección capturada en el checkout para envío a domicilio. */
+export type DeliveryAddress = {
+  name: string;
+  phone: string;
+  street: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  reference: string | null;
+};
+
+/** Opción de envío elegida por el cliente (copia de la cotización). */
+export type ShippingSelection = {
+  provider: "skydropx";
+  quotationId: string;
+  rateId: string;
+  carrier: string;
+  service: string;
+  days: number | null;
+  /** ISO: cuándo se cotizó (SkyDropX respeta el rate 24 h). */
+  quotedAt: string;
+};
+
 export type AnswerValue = string | string[] | boolean;
 export type Answers = Record<string, AnswerValue>;
 
@@ -62,8 +118,12 @@ export const presaleCampaigns = pgTable(
     pickupEnabled: boolean().notNull().default(true),
     /** Envío a domicilio dentro de México. */
     shippingEnabled: boolean().notNull().default(true),
-    /** Costo fijo del envío por pedido, en centavos. Nulo = por cotizar: no se cobra en línea y se acuerda con el cliente. */
+    /** @deprecated Ya no se usa: el envío se cotiza con SkyDropX antes del pago. Se conserva por compatibilidad. */
     shippingAmount: integer(),
+    /** Puntos de recolección disponibles. */
+    pickupPoints: jsonb().$type<PickupPoint[]>().notNull().default([]),
+    /** Origen y paquete para cotizar envíos. Nulo = el envío a domicilio no está disponible. */
+    shippingProfile: jsonb().$type<ShippingProfile>(),
     /** Bonus digital que se libera al enviar o tener listo el pedido. Nulo = la campaña no tiene bonus configurado. */
     bonus: jsonb().$type<BonusConfig>(),
     questions: jsonb().$type<QuestionDefinition[]>().notNull().default([]),
@@ -152,8 +212,14 @@ export const presaleReservations = pgTable(
     /** Copia del precio al momento de reservar. */
     unitAmount: integer().notNull(),
     deliveryMethod: presaleDeliveryMethod().notNull().default("shipping"),
-    /** Envío cobrado en línea (centavos); 0 en recolección o si el envío quedó por cotizar. */
+    /** Envío cobrado en el mismo pago (centavos); 0 en recolección. */
     shippingAmount: integer().notNull().default(0),
+    /** Recolección: id del punto elegido (ver campaña.pickupPoints). */
+    pickupPointId: text(),
+    /** Envío: dirección capturada en el checkout, antes de Stripe. */
+    deliveryAddress: jsonb().$type<DeliveryAddress>(),
+    /** Envío: tarifa elegida. */
+    shippingSelection: jsonb().$type<ShippingSelection>(),
     /** unitAmount * quantity + shippingAmount. */
     totalAmount: integer().notNull(),
     currency: text().notNull(),
@@ -178,6 +244,9 @@ export const presaleReservations = pgTable(
     carrier: text(),
     trackingNumber: text(),
     trackingUrl: text(),
+    /** Guía generada en SkyDropX. */
+    shipmentId: text(),
+    labelUrl: text(),
     /** Cuándo pasó a enviado o listo para recoger. */
     fulfilledAt: timestamp({ withTimezone: true }),
     deliveredAt: timestamp({ withTimezone: true }),
@@ -215,6 +284,8 @@ export type PresaleEventType =
   | "DELIVERED"
   | "FULFILLMENT_EMAIL_SENT"
   | "FULFILLMENT_EMAIL_FAILED"
+  | "LABEL_CREATED"
+  | "LABEL_FAILED"
   | "BONUS_SENT"
   | "BONUS_FAILED"
   | "RECONCILED";
@@ -254,6 +325,29 @@ export const presaleBonusLinks = pgTable(
     createdAt: createdAt(),
   },
   (table) => [index("presale_bonus_links_reservation_idx").on(table.reservationId)],
+);
+
+/**
+ * Cotizaciones de envío mostradas al cliente. El precio cobrado sale de aquí, nunca del navegador.
+ */
+export const presaleShippingQuotes = pgTable(
+  "presale_shipping_quotes",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    campaignId: uuid()
+      .notNull()
+      .references(() => presaleCampaigns.id, { onDelete: "restrict" }),
+    quantity: integer().notNull(),
+    postalCode: text().notNull(),
+    quotationId: text().notNull(),
+    /** Opciones ofrecidas, con su precio en centavos. */
+    options: jsonb()
+      .$type<{ id: string; rateId: string; carrier: string; service: string; days: number | null; amount: number }[]>()
+      .notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [index("presale_shipping_quotes_created_idx").on(table.createdAt)],
 );
 
 /** Eventos de Stripe ya procesados: evita aplicar dos veces el mismo webhook. */

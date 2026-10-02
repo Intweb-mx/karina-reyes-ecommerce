@@ -8,10 +8,13 @@ import {
   presaleTerms,
   presaleReservationEvents,
   presaleReservations,
+  presaleShippingQuotes,
   rateLimits,
   stripeWebhookEvents,
+  type DeliveryAddress,
   type PresaleEventType,
   type ShippingAddress,
+  type ShippingSelection,
 } from "./schema/presale.ts";
 
 export type PresaleCampaign = typeof presaleCampaigns.$inferSelect;
@@ -112,6 +115,9 @@ export type NewReservation = {
   /** Por defecto "shipping" con envío 0. */
   deliveryMethod?: DeliveryMethod;
   shippingAmount?: number;
+  pickupPointId?: string | null;
+  deliveryAddress?: DeliveryAddress | null;
+  shippingSelection?: ShippingSelection | null;
   answers: PresaleReservation["answers"];
   termsId: string;
   marketingConsent: boolean;
@@ -349,7 +355,7 @@ export function markReadyForPickup(db: Executor, reservationId: string, ctx: Ful
   return fulfillmentTransition(db, reservationId, { method: "pickup", from: ["pending"] }, { fulfillmentStatus: "ready_for_pickup", fulfilledAt: new Date() }, "READY_FOR_PICKUP", ctx);
 }
 
-export type ShipmentDetails = { carrier: string; trackingNumber: string; trackingUrl: string | null };
+export type ShipmentDetails = { carrier: string; trackingNumber: string; trackingUrl: string | null; shipmentId?: string | null; labelUrl?: string | null };
 
 /** Envío: entregado a paquetería con su guía. */
 export function markShipped(db: Executor, reservationId: string, shipment: ShipmentDetails, ctx: FulfillmentContext) {
@@ -366,6 +372,25 @@ export function markShipped(db: Executor, reservationId: string, shipment: Shipm
 
 export function markDelivered(db: Executor, reservationId: string, ctx: FulfillmentContext) {
   return fulfillmentTransition(db, reservationId, { from: ["ready_for_pickup", "shipped"] }, { fulfillmentStatus: "delivered", deliveredAt: new Date() }, "DELIVERED", ctx);
+}
+
+// ---------- Cotizaciones de envío ----------
+
+export type ShippingQuote = typeof presaleShippingQuotes.$inferSelect;
+
+export async function saveShippingQuote(db: Executor, input: typeof presaleShippingQuotes.$inferInsert): Promise<ShippingQuote> {
+  const [row] = await db.insert(presaleShippingQuotes).values(input).returning();
+  return row!;
+}
+
+export async function getShippingQuote(db: Executor, id: string): Promise<ShippingQuote | null> {
+  const [row] = await db.select().from(presaleShippingQuotes).where(eq(presaleShippingQuotes.id, id)).limit(1);
+  return row ?? null;
+}
+
+/** Guía comprada pero el pedido aún no se marca como enviado (p. ej. falló el paso siguiente). */
+export async function saveLabel(db: Executor, reservationId: string, label: { shipmentId: string; labelUrl: string | null }): Promise<void> {
+  await db.update(presaleReservations).set(label).where(eq(presaleReservations.id, reservationId));
 }
 
 // ---------- Bonus ----------

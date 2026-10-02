@@ -22,7 +22,8 @@ type Defaults = {
   maxQuantityPerReservation: number;
   pickupEnabled: boolean;
   shippingEnabled: boolean;
-  shippingAmount: string;
+  pickupPoints: string;
+  shippingConfigured: boolean;
   deliveryNote: string;
   questions: string;
 };
@@ -75,11 +76,15 @@ export function CampaignForm({ action, defaults, hasReservations }: { action: Ac
           <input type="checkbox" name="shippingEnabled" defaultChecked={defaults.shippingEnabled} className="size-4 accent-fg" />
           Envío a domicilio
         </label>
-        <label>
-          Costo de envío por pedido ({defaults.currency})
-          <input name="shippingAmount" inputMode="decimal" defaultValue={defaults.shippingAmount} placeholder="Vacío = por cotizar" className={inputClass} />
+        <p className="text-xs text-muted">
+          Envío: costo cotizado con SkyDropX antes del pago.{" "}
+          {defaults.shippingConfigured ? "Origen y paquete configurados." : "Falta configurar origen y paquete (shippingProfile, vía pnpm presale:upsert): sin eso no se ofrece envío."}
+        </p>
+        <label className="sm:col-span-3">
+          Puntos de recolección (JSON)
+          <textarea name="pickupPoints" rows={6} defaultValue={defaults.pickupPoints} spellCheck={false} className={`${inputClass} font-mono text-xs`} />
+          <span className="mt-1 block text-xs text-muted">{'[{ "id": "costco", "name": "Costco Chihuahua", "schedule": "…" }]'} · no cambies el id de un punto que ya tenga pedidos.</span>
         </label>
-        <span className="text-xs text-muted sm:col-span-3">Vacío: el envío no se cobra en línea y se cotiza con el cliente. Los pedidos ya pagados conservan lo que pagaron.</span>
       </fieldset>
       <label className="text-sm sm:col-span-2">
         Nota de entrega (opcional, visible al público)
