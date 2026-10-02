@@ -288,6 +288,7 @@ export type PresaleEventType =
   | "LABEL_FAILED"
   | "BONUS_SENT"
   | "BONUS_FAILED"
+  | "POST_PURCHASE_ANSWERS_SUBMITTED"
   | "RECONCILED";
 
 /** Timeline append-only de cada reserva. Nunca se borra ni se edita. */
@@ -349,6 +350,23 @@ export const presaleShippingQuotes = pgTable(
   },
   (table) => [index("presale_shipping_quotes_created_idx").on(table.createdAt)],
 );
+
+/**
+ * Respuestas del cuestionario posterior a la compra (3 preguntas fijas, todas opcionales, ver
+ * `postPurchaseCopy` en content/presale.ts). Se va guardando aunque el cliente no presione "enviar";
+ * `submittedAt` solo se marca cuando sí lo hace. No condiciona el bonus ni ninguna decisión automática.
+ */
+export const presalePostPurchaseAnswers = pgTable("presale_post_purchase_answers", {
+  id: uuid().primaryKey().defaultRandom(),
+  reservationId: uuid()
+    .notNull()
+    .unique()
+    .references(() => presaleReservations.id, { onDelete: "cascade" }),
+  answers: jsonb().$type<Answers>().notNull().default({}),
+  submittedAt: timestamp({ withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 /** Eventos de Stripe ya procesados: evita aplicar dos veces el mismo webhook. */
 export const stripeWebhookEvents = pgTable("stripe_webhook_events", {

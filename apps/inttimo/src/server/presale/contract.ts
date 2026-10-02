@@ -121,6 +121,21 @@ export type ReservationStatusResponse = {
   paidAt: string | null;
 };
 
+/**
+ * POST /api/preventa/[slug]/postcompra. Cuestionario fijo de 3 preguntas, todas opcionales
+ * ("Especificaciones finales postcompra UNO+UNO", 1 oct 2026, §1). No depende de la campaña.
+ * `sessionId` identifica el pedido igual que /confirmacion (el id de la sesión de Stripe).
+ */
+export type SavePostPurchaseAnswersRequest = {
+  sessionId: string;
+  /** Claves: "forWhom" | "yearsTogether" | "growArea". Se puede enviar cualquier subconjunto. */
+  answers: Record<string, string>;
+  /** true cuando el cliente presiona "Enviar respuestas"; false al autoguardar antes de enviar. */
+  submit: boolean;
+};
+
+export type SavePostPurchaseAnswersResponse = { saved: true };
+
 export type ApiErrorCode =
   | "not_found"
   | "presale_not_open"

@@ -15,12 +15,6 @@ export type MailSender = (mail: Mail) => Promise<void>;
 
 type Point = PickupPoint | undefined;
 
-export function deliveryLabel(reservation: Pick<PresaleReservation, "deliveryMethod" | "shippingSelection">, point?: Point): string {
-  if (reservation.deliveryMethod === "pickup") return `Recolección en Chihuahua (sin costo)${point ? ` · ${point.name}` : ""}`;
-  const selection = reservation.shippingSelection;
-  return selection ? `Envío a domicilio · ${selection.carrier} ${selection.service}`.trim() : "Envío a domicilio";
-}
-
 export function formatAddress(reservation: Pick<PresaleReservation, "deliveryAddress" | "shippingAddress">): string | null {
   const a = reservation.deliveryAddress;
   if (a) return [a.name, a.street, a.neighborhood, `${a.postalCode} ${a.city}`, a.state, a.reference ? `Ref.: ${a.reference}` : null].filter(Boolean).join(", ");
@@ -30,40 +24,33 @@ export function formatAddress(reservation: Pick<PresaleReservation, "deliveryAdd
   return parts.length ? parts.join(", ") : null;
 }
 
-/** Contenido mínimo exigido tras el pago: folio, producto, cantidad, importe, entrega y contacto ("Implementación legal en web", §8). */
-function customerMail(reservation: PresaleReservation, productName: string, deliveryNote: string | null, point: Point): Mail {
+/**
+ * Correo PAGO CONFIRMADO: texto exacto de "Especificaciones finales postcompra UNO+UNO" (1 oct 2026, §4).
+ * No afirma que esté enviado ni "guía generada": eso lo dice solo el correo de ENVIADO/LISTO PARA RECOGER.
+ */
+function customerMail(reservation: PresaleReservation, productName: string, point: Point): Mail {
   const total = formatMoney(reservation.totalAmount, reservation.currency);
   const address = formatAddress(reservation);
   const lines = [
-    `Hola ${reservation.fullName}:`,
+    `Hola ${reservation.fullName}: Recibimos correctamente tu compra de ${productName}. Tu pedido ya está confirmado.`,
     "",
-    `Recibimos tu pedido de preventa de ${productName}. Gracias por tu compra.`,
-    "",
-    `Número de pedido: ${reservation.code}`,
-    `Producto: ${productName}`,
+    `Folio: ${reservation.code}`,
     `Cantidad: ${reservation.quantity}`,
-    ...(reservation.shippingAmount > 0 ? [`Envío: ${formatMoney(reservation.shippingAmount, reservation.currency)}`] : []),
-    `Importe pagado: ${total}`,
-    `Método de entrega: ${deliveryLabel(reservation, point)}`,
-    ...(point ? [`Punto de recolección: ${point.name} · ${point.schedule}`] : []),
-    ...(address && reservation.deliveryMethod === "shipping" ? [`Dirección de envío: ${address}`] : []),
-    `Correo de contacto del pedido: ${reservation.email}`,
-    ...(deliveryNote ? ["", deliveryNote] : []),
+    `Producto: ${productName}`,
+    `Total pagado: ${total}`,
+    `Método de entrega: ${reservation.deliveryMethod === "pickup" ? "RECOLECCIÓN" : "ENVÍO A DOMICILIO"}`,
+    ...(point ? [`Punto seleccionado: ${point.name}`] : []),
+    ...(address && reservation.deliveryMethod === "shipping" ? [`Dirección de entrega: ${address}`] : []),
     "",
-    reservation.deliveryMethod === "pickup"
-      ? "Te avisaremos cuando tu pedido esté LISTO PARA RECOGER. Espera ese aviso antes de acudir."
-      : "Te enviaremos la guía de rastreo cuando tu pedido salga a paquetería.",
+    "Te avisaremos por correo cuando tu pedido avance al siguiente paso.",
+    "Guarda este correo y tu folio como comprobante de compra.",
     "",
-    "¿Requieres factura? Solicítala después de realizar tu compra.",
+    `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · Horario: ${business.hours} · Respuesta: ${business.responseTime}.`,
     "",
-    `Guarda este correo: tu número de pedido es tu comprobante de compra.`,
-    "",
-    `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · ${business.hours} · respuesta ${business.responseTime}.`,
-    "",
-    "— inttimo",
+    "— inttimo —",
   ];
   const html = lines.map((line) => (line ? `<p>${escapeHtml(line)}</p>` : "")).join("");
-  return { to: reservation.email, subject: `Recibimos tu pedido de preventa de ${productName} (${reservation.code})`, text: lines.join("\n"), html };
+  return { to: reservation.email, subject: `Tu pedido de ${productName} está confirmado · ${reservation.code}`, text: lines.join("\n"), html };
 }
 
 function internalMail(to: string, reservation: PresaleReservation, productName: string, point: Point): Mail {
@@ -71,7 +58,7 @@ function internalMail(to: string, reservation: PresaleReservation, productName: 
     `Nueva reserva pagada de ${productName}.`,
     `Folio: ${reservation.code}`,
     `Cantidad: ${reservation.quantity}`,
-    `Entrega: ${deliveryLabel(reservation, point)}`,
+    `Entrega: ${reservation.deliveryMethod === "pickup" ? `Recolección${point ? ` · ${point.name}` : ""}` : "Envío a domicilio"}`,
     `Total: ${formatMoney(reservation.totalAmount, reservation.currency)}`,
   ].join("\n");
   return { to, subject: `Preventa: reserva pagada ${reservation.code}`, text, html: `<pre>${escapeHtml(text)}</pre>` };
@@ -93,7 +80,7 @@ export async function sendConfirmationIfNeeded(
   const point = campaign?.pickupPoints.find((p) => p.id === reservation.pickupPointId);
 
   try {
-    await deps.send(customerMail(reservation, productName, campaign?.deliveryNote ?? null, point));
+    await deps.send(customerMail(reservation, productName, point));
     await addReservationEvent(db, reservation.id, "CONFIRMATION_EMAIL_SENT", "api");
   } catch (error) {
     await releaseConfirmationEmail(db, reservation.id);
@@ -111,62 +98,85 @@ export async function sendConfirmationIfNeeded(
 
 // ---------- Entrega ----------
 
-const signature = () => [
-  "",
-  `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · ${business.hours}.`,
-  "",
-  "— inttimo",
-];
-
 const toHtml = (lines: string[]) => lines.map((line) => (line ? `<p>${escapeHtml(line)}</p>` : "")).join("");
 
-/** Aviso al cliente: pedido listo para recoger o enviado con su guía. */
-export function fulfillmentMail(reservation: PresaleReservation, productName: string, note: string | null, point?: Point): Mail {
-  const pickup = reservation.fulfillmentStatus === "ready_for_pickup";
-  const lines = pickup
-    ? [
-        `Hola ${reservation.fullName}:`,
-        "",
-        `Tu pedido de ${productName} está LISTO PARA RECOGER.`,
-        "",
-        `Número de pedido: ${reservation.code}`,
-        `Cantidad: ${reservation.quantity}`,
-        ...(point ? [`Punto de recolección: ${point.name} · ${point.schedule}`] : []),
-        ...(note ? ["", note] : []),
-        "",
-        "Al recoger, menciona tu nombre y número de pedido (o muestra este correo). Si otra persona recogerá por ti, avísanos antes.",
-        ...signature(),
-      ]
-    : [
-        `Hola ${reservation.fullName}:`,
-        "",
-        `Tu pedido de ${productName} ya va en camino.`,
-        "",
-        `Número de pedido: ${reservation.code}`,
-        `Paquetería: ${reservation.carrier ?? "—"}`,
-        `Número de guía: ${reservation.trackingNumber ?? "—"}`,
-        ...(reservation.trackingUrl ? [`Rastreo: ${reservation.trackingUrl}`] : []),
-        ...(note ? ["", note] : []),
-        "",
-        "Los tiempos de entrega dependen de la paquetería. Si notas algún problema con tu envío, escríbenos.",
-        ...signature(),
-      ];
-  const subject = pickup ? `Tu pedido ${reservation.code} está listo para recoger` : `Tu pedido ${reservation.code} va en camino`;
-  return { to: reservation.email, subject, text: lines.join("\n"), html: toHtml(lines) };
+export type BonusEmailInfo = { title: string; url: string; expiresAt: Date };
+
+/**
+ * Bloque de bonus dentro del correo de ENVIADO / LISTO PARA RECOGER (nunca un correo aparte, §3).
+ * Vacío si la campaña no tiene bonus configurado o el pedido no es elegible: no se menciona el bonus en absoluto.
+ */
+function bonusBlock(productName: string, statusLead: string, bonus: BonusEmailInfo | null): string[] {
+  if (!bonus) return [];
+  const until = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" }).format(bonus.expiresAt);
+  return [
+    "",
+    `Y ahora que tu ${productName} ${statusLead}, también queremos entregarte algo más por haber sido parte de la preventa.`,
+    "",
+    "BONUS DE PREVENTA",
+    bonus.title,
+    `Accede aquí: ${bonus.url}`,
+    `Disponible hasta el ${until}.`,
+  ];
 }
 
-/** Enlace personal y temporal al bonus digital. */
+/**
+ * Correo LISTO PARA RECOGER / ENVIADO: textos exactos de "Especificaciones finales postcompra UNO+UNO"
+ * (1 oct 2026, §5–6). El bonus, si aplica, va dentro de este mismo correo, nunca aparte.
+ * Las instrucciones de recolección distinguen Sophos·Baluarte de Costco Chihuahua: son los dos únicos puntos de la campaña.
+ */
+export function fulfillmentMail(reservation: PresaleReservation, productName: string, note: string | null, point: Point, bonus: BonusEmailInfo | null): Mail {
+  const pickup = reservation.fulfillmentStatus === "ready_for_pickup";
+  const closing = [...(note ? ["", note] : []), ...bonusBlock(productName, pickup ? "está listo" : "va en camino", bonus), "", `Gracias por ser parte de esta primera etapa de ${productName}.`, "", "— inttimo —"];
+
+  if (pickup) {
+    const costco = point?.id === "costco";
+    const lines = [
+      `Hola ${reservation.fullName}: Tu ${productName} ya está listo para recoger.`,
+      "",
+      `Folio: ${reservation.code}`,
+      `Cantidad: ${reservation.quantity}`,
+      costco ? `Punto seleccionado: ${point?.name ?? ""}` : `Punto de recolección: ${point?.name ?? ""}`,
+      costco
+        ? "La entrega se realiza previa confirmación de día y horario. Nos pondremos en contacto contigo para acordarlo."
+        : `Horario: ${point?.schedule ?? ""}`,
+      ...(costco
+        ? ["IMPORTANTE: No acudas al punto hasta recibir la confirmación del día y horario de entrega."]
+        : ["Al recogerlo, presenta tu nombre y número de pedido."]),
+      ...closing,
+    ];
+    return { to: reservation.email, subject: `Tu ${productName} está listo para recoger · ${reservation.code}`, text: lines.join("\n"), html: toHtml(lines) };
+  }
+
+  const lines = [
+    `Hola ${reservation.fullName}: Tu ${productName} ya va en camino.`,
+    "",
+    `Folio: ${reservation.code}`,
+    `Cantidad: ${reservation.quantity}`,
+    `Paquetería: ${reservation.carrier ?? "—"}`,
+    `Número de guía: ${reservation.trackingNumber ?? "—"}`,
+    ...(reservation.trackingUrl ? [`Puedes seguir tu envío aquí: ${reservation.trackingUrl}`] : []),
+    "La actualización de movimientos puede tardar un poco en aparecer después de que la paquetería recibe el paquete.",
+    ...closing,
+  ];
+  return { to: reservation.email, subject: `Tu ${productName} ya va en camino · ${reservation.code}`, text: lines.join("\n"), html: toHtml(lines) };
+}
+
+/** Reenvío manual del bonus (p. ej. el cliente reporta que no le llegó el correo de ENVIADO/LISTO), sin tocar el estado del pedido. */
 export function bonusMail(reservation: PresaleReservation, productName: string, bonusTitle: string, url: string, expiresAt: Date): Mail {
   const until = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" }).format(expiresAt);
   const lines = [
     `Hola ${reservation.fullName}:`,
     "",
-    `Gracias por comprar ${productName} en preventa. Aquí está tu bonus exclusivo: ${bonusTitle}.`,
+    `Aquí está de nuevo tu bonus de preventa de ${productName}: ${bonusTitle}.`,
     "",
     `Accede aquí: ${url}`,
     "",
     `Este enlace es personal y estará disponible hasta el ${until}. El contenido es para tu uso personal; no lo compartas ni lo publiques.`,
-    ...signature(),
+    "",
+    `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · ${business.hours}.`,
+    "",
+    "— inttimo —",
   ];
   return { to: reservation.email, subject: `Tu bonus de preventa de ${productName}`, text: lines.join("\n"), html: toHtml(lines) };
 }

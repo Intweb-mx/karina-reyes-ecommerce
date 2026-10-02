@@ -6,11 +6,13 @@ import {
   presaleBonusLinks,
   presaleCampaigns,
   presaleTerms,
+  presalePostPurchaseAnswers,
   presaleReservationEvents,
   presaleReservations,
   presaleShippingQuotes,
   rateLimits,
   stripeWebhookEvents,
+  type Answers,
   type DeliveryAddress,
   type PresaleEventType,
   type ShippingAddress,
@@ -436,6 +438,28 @@ export async function openBonusLink(db: Executor, tokenHash: string): Promise<{ 
     await db.update(presaleBonusLinks).set({ firstOpenedAt: new Date() }).where(and(eq(presaleBonusLinks.id, row.link.id), isNull(presaleBonusLinks.firstOpenedAt)));
   }
   return row;
+}
+
+// ---------- Cuestionario posterior a la compra ----------
+
+export type PostPurchaseAnswers = typeof presalePostPurchaseAnswers.$inferSelect;
+
+/** Upsert idempotente: se puede llamar en cada cambio sin enviar ("autoguardado") y una vez más al enviar. */
+export async function savePostPurchaseAnswers(db: Executor, reservationId: string, answers: Answers, submit: boolean): Promise<PostPurchaseAnswers> {
+  const [row] = await db
+    .insert(presalePostPurchaseAnswers)
+    .values({ reservationId, answers, submittedAt: submit ? new Date() : null })
+    .onConflictDoUpdate({
+      target: presalePostPurchaseAnswers.reservationId,
+      set: { answers, updatedAt: new Date(), ...(submit ? { submittedAt: new Date() } : {}) },
+    })
+    .returning();
+  return row!;
+}
+
+export async function getPostPurchaseAnswers(db: Executor, reservationId: string): Promise<PostPurchaseAnswers | null> {
+  const [row] = await db.select().from(presalePostPurchaseAnswers).where(eq(presalePostPurchaseAnswers.reservationId, reservationId)).limit(1);
+  return row ?? null;
 }
 
 // ---------- Webhooks ----------

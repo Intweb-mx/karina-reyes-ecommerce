@@ -66,14 +66,17 @@ describe("entrega de pedidos", () => {
     const id = await paidReservation("pickup");
     const result = await fulfillReservation(deps, id, { type: "ready_for_pickup", note: "Costco Juventud, sábado 10:00–13:00" }, "admin@inttimo.test");
     expect(result).toMatchObject({ ok: true, email: "sent", bonus: "sent" });
-    expect(sent.map((m) => m.subject)).toEqual([expect.stringContaining("listo para recoger"), expect.stringContaining("bonus")]);
+    // El bonus va DENTRO del mismo correo de LISTO PARA RECOGER, nunca aparte (§3 "Especificaciones finales postcompra UNO+UNO").
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.subject).toContain("listo para recoger");
     expect(sent[0]!.text).toContain("Costco Juventud");
-    expect(sent[0]!.text).toContain("Punto de recolección: Costco Chihuahua");
+    expect(sent[0]!.text).toContain("Punto seleccionado: Costco Chihuahua");
+    expect(sent[0]!.text).toContain("BONUS DE PREVENTA");
     expect(await sendBonusIfEligible(deps, id)).toBe("skipped");
 
-    const access = await resolveBonusAccess(db, tokenFrom(sent[1]!), NOW);
+    const access = await resolveBonusAccess(db, tokenFrom(sent[0]!), NOW);
     expect(access).toMatchObject({ status: "ok", bonus: BONUS });
-    expect(await resolveBonusAccess(db, tokenFrom(sent[1]!), new Date(NOW.getTime() + 31 * 86_400_000))).toMatchObject({ status: "expired" });
+    expect(await resolveBonusAccess(db, tokenFrom(sent[0]!), new Date(NOW.getTime() + 31 * 86_400_000))).toMatchObject({ status: "expired" });
     expect(await resolveBonusAccess(db, "x".repeat(43), NOW)).toEqual({ status: "invalid" });
   });
 
@@ -111,7 +114,7 @@ describe("entrega de pedidos", () => {
     const id = await paidReservation("pickup");
     await fulfillReservation(deps, id, { type: "ready_for_pickup" }, "admin");
     await db.execute(`update presale_reservations set status = 'refunded', amount_refunded = total_amount where id = '${id}'`);
-    expect(await resolveBonusAccess(db, tokenFrom(sent[1]!), NOW)).toEqual({ status: "invalid" });
+    expect(await resolveBonusAccess(db, tokenFrom(sent[0]!), NOW)).toEqual({ status: "invalid" });
   });
 });
 

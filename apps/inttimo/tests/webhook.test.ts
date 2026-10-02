@@ -113,7 +113,6 @@ describe("correo de confirmación", () => {
 
     expect(sent.map((m) => m.to)).toEqual(["ana@ejemplo.com", "equipo@inttimo.test"]);
     expect(sent[0]!.text).toContain(reservation.code);
-    expect(sent[0]!.text).toContain("Nota de entrega aprobada.");
     expect(sent[0]!.text).toMatch(/\$999\.00/);
   });
 });
