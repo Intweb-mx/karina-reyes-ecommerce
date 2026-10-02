@@ -57,6 +57,7 @@ const saved = await db.transaction(async (tx) => {
   return row;
 });
 console.log(`${existing ? "Actualizada" : "Creada"}:\n  ${summary}`);
+console.log(`  Entrega: recolección ${saved.pickupEnabled && saved.pickupPoints.length ? `${saved.pickupPoints.length} puntos` : "no disponible"} · envío ${saved.shippingEnabled && saved.shippingProfile ? "con SkyDropX (requiere SKYDROPX_CLIENT_ID/SECRET)" : "no disponible (falta shippingProfile)"}`);
 
 if (termsContent && termsContent !== currentTerms?.content) {
   const terms = await publishTerms(db, saved.id, termsContent, "cli");

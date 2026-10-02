@@ -8,6 +8,31 @@ export type PresalePhase = "upcoming" | "open" | "closed";
 
 export type DeliveryMethod = "shipping" | "pickup";
 
+export type PickupPointInfo = { id: string; name: string; schedule: string };
+
+/** Dirección de envío capturada en el checkout (nombre y teléfono salen de los datos del cliente). */
+export type DeliveryAddressInput = {
+  street: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  /** 5 dígitos; debe coincidir con el de la cotización. */
+  postalCode: string;
+  reference?: string;
+};
+
+/** POST /api/preventa/[slug]/envio */
+export type ShippingQuoteRequest = Omit<DeliveryAddressInput, "street" | "reference"> & { quantity: number };
+
+/** Opciones de envío. Montos en centavos. La cotización vence en `expiresAt`; después hay que pedir otra. */
+export type ShippingQuoteResponse = {
+  quoteId: string;
+  expiresAt: string;
+  currency: string;
+  /** "economico" siempre; "express" solo si hay una opción más rápida. */
+  options: { id: "economico" | "express"; carrier: string; service: string; days: number | null; amount: number }[];
+};
+
 export type FulfillmentStatus = "pending" | "ready_for_pickup" | "shipped" | "delivered";
 
 /** GET /api/preventa/[slug] */
@@ -29,12 +54,12 @@ export type PublicCampaign = {
   questions: QuestionDefinition[];
   deliveryNote: string | null;
   /**
-   * Métodos de entrega disponibles. `shipping.amount` es el costo fijo por pedido en centavos;
-   * null = envío por cotizar (no se cobra en línea; inttimo contacta al cliente).
+   * Métodos de entrega. Recolección: el cliente elige un punto. Envío: se cotiza con
+   * POST /api/preventa/[slug]/envio antes de pagar; el costo se cobra en el mismo pago.
    */
   delivery: {
-    pickup: boolean;
-    shipping: { enabled: boolean; amount: number | null };
+    pickup: { enabled: boolean; points: PickupPointInfo[] };
+    shipping: { enabled: boolean };
   };
   /** Términos vigentes. El cliente debe aceptar exactamente esta versión. */
   terms: { version: number; content: string } | null;
@@ -47,8 +72,11 @@ export type CreateReservationRequest = {
   phone?: string;
   /** Por defecto 1. */
   quantity?: number;
-  /** Por defecto "shipping" si está habilitado; si no, "pickup". Recolección no pide dirección en Stripe. */
-  deliveryMethod?: DeliveryMethod;
+  deliveryMethod: DeliveryMethod;
+  /** Obligatorio con "pickup": id de `delivery.pickup.points`. */
+  pickupPointId?: string;
+  /** Obligatorio con "shipping". El teléfono del cliente también se vuelve obligatorio. */
+  shipping?: { quoteId: string; optionId: string; address: DeliveryAddressInput };
   answers: Record<string, AnswerValue>;
   /** Debe ser true. */
   acceptTerms: boolean;
@@ -77,8 +105,12 @@ export type ReservationStatusResponse = {
   productName: string;
   quantity: number;
   deliveryMethod: DeliveryMethod;
-  /** Envío cobrado (centavos); 0 en recolección o envío por cotizar. Incluido en totalAmount. */
+  /** Envío cobrado (centavos); 0 en recolección. Incluido en totalAmount. */
   shippingAmount: number;
+  /** Recolección: punto elegido. */
+  pickupPoint: { name: string; schedule: string } | null;
+  /** Envío: paquetería y servicio elegidos al pagar. */
+  shippingService: { carrier: string; service: string; days: number | null } | null;
   totalAmount: number;
   currency: string;
   fulfillmentStatus: FulfillmentStatus;
@@ -99,6 +131,8 @@ export type ApiErrorCode =
   | "rate_limited"
   | "idempotency_conflict"
   | "payment_unavailable"
+  | "shipping_unavailable"
+  | "shipping_no_rates"
   | "service_unavailable"
   | "invalid_signature";
 

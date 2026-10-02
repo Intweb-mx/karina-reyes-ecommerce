@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sendConfirmationIfNeeded } from "../src/server/presale/notifications.ts";
 import { createPresaleReservation } from "../src/server/presale/reservations.ts";
 import { handleStripeEvent } from "../src/server/presale/webhook.ts";
-import { FakeGateway, NOW, refundEvent, seedCampaign, sessionEvent, VALID_ANSWERS } from "./helpers.ts";
+import { FakeGateway, NOW, refundEvent, seedCampaign, sessionEvent, VALID_ANSWERS, PICKUP } from "./helpers.ts";
 
 let db: Database;
 let close: () => Promise<void>;
@@ -19,7 +19,7 @@ beforeEach(async () => {
   const deps = { db, gateway: new FakeGateway(), siteUrl: "https://inttimo.test", now: () => NOW };
   await createPresaleReservation(deps, {
     slug: "uno-mas-uno",
-    body: { fullName: "Ana Pérez", email: "ana@ejemplo.com", answers: VALID_ANSWERS, acceptTerms: true, termsVersion: 1 },
+    body: { fullName: "Ana Pérez", email: "ana@ejemplo.com", answers: VALID_ANSWERS, acceptTerms: true, termsVersion: 1, ...PICKUP },
     idempotencyKey: null,
     clientIp: null,
   });

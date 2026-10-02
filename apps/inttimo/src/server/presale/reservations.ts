@@ -11,10 +11,13 @@ import {
   InsufficientStockError,
   markCheckoutFailed,
   type Database,
+  type NewReservation,
   type PresaleReservation,
 } from "@inttimo/database";
 import { z } from "zod";
-import { defaultDeliveryMethod, getPhase, isPublic, shippingCharge, toPublicCampaign } from "./campaign.ts";
+import type { ShippingProvider } from "../shipping/provider.ts";
+import { getPhase, isPublic, toPublicCampaign } from "./campaign.ts";
+import { addressSchema, resolveShippingChoice, shippingAvailable } from "./shipping.ts";
 import type { ApiError, ApiErrorCode, CreateReservationResponse, PublicCampaign, PublicReservationStatus, ReservationStatusResponse } from "./contract.ts";
 import type { PaymentGateway } from "./gateway.ts";
 import { buildAnswersSchema } from "./questionnaire.ts";
@@ -23,6 +26,8 @@ import { applySnapshot } from "./settlement.ts";
 export type PresaleDeps = {
   db: Database;
   gateway: PaymentGateway;
+  /** SkyDropX; null = sin credenciales (el envío a domicilio no se ofrece). */
+  shipping?: ShippingProvider | null;
   siteUrl: string;
   now?: () => Date;
   /** Se llama cuando una reserva queda pagada (envío idempotente de la confirmación). */
@@ -62,7 +67,15 @@ const baseRequestSchema = z.object({
     .optional()
     .transform((value) => value || null),
   quantity: z.number().int().min(1).default(1),
-  deliveryMethod: z.enum(["shipping", "pickup"], { error: "Elige recolección o envío a domicilio." }).optional(),
+  deliveryMethod: z.enum(["shipping", "pickup"], { error: "Elige cómo quieres recibir tu pedido." }),
+  pickupPointId: z.string().max(60).optional(),
+  shipping: z
+    .object({
+      quoteId: z.string().max(60),
+      optionId: z.string().max(30),
+      address: addressSchema,
+    })
+    .optional(),
   answers: z.record(z.string(), z.unknown()).default({}),
   acceptTerms: z.literal(true, { error: "Debes aceptar los Términos y Condiciones y el Aviso de Privacidad para continuar." }),
   termsVersion: z.number({ error: "Falta la versión de los términos." }).int().positive(),
@@ -89,12 +102,12 @@ function fieldErrors(error: z.ZodError, prefix = ""): Record<string, string[]> {
 
 // ---------- Campaña pública ----------
 
-export async function getPublicCampaign(deps: Pick<PresaleDeps, "db" | "now">, slug: string): Promise<ServiceResult<PublicCampaign>> {
+export async function getPublicCampaign(deps: Pick<PresaleDeps, "db" | "now" | "shipping">, slug: string): Promise<ServiceResult<PublicCampaign>> {
   const campaign = await getCampaignBySlug(deps.db, slug);
   if (!campaign || !isPublic(campaign)) return fail(404, "not_found", "Preventa no encontrada.");
   const terms = await getCurrentTerms(deps.db, campaign.id);
   const now = deps.now?.() ?? new Date();
-  return { ok: true, status: 200, data: toPublicCampaign(campaign, terms, now, await getRemainingUnits(deps.db, campaign, now)) };
+  return { ok: true, status: 200, data: toPublicCampaign(campaign, terms, now, await getRemainingUnits(deps.db, campaign, now), shippingAvailable(campaign, deps.shipping ?? null)) };
 }
 
 // ---------- Crear reserva ----------
@@ -167,13 +180,28 @@ export async function createPresaleReservation(
     });
   }
 
-  const deliveryMethod = request.deliveryMethod ?? defaultDeliveryMethod(campaign);
-  if ((deliveryMethod === "pickup" && !campaign.pickupEnabled) || (deliveryMethod === "shipping" && !campaign.shippingEnabled)) {
-    return fail(400, "validation_error", "Revisa los datos del formulario.", {
-      fieldErrors: { deliveryMethod: [deliveryMethod === "pickup" ? "La recolección no está disponible en esta preventa." : "El envío a domicilio no está disponible en esta preventa."] },
-    });
+  // Entrega: se decide antes de Stripe. Recolección exige punto; envío exige dirección y una opción cotizada (precio del servidor).
+  const deliveryError = (field: string, message: string) => fail(400, "validation_error", "Revisa los datos de entrega.", { fieldErrors: { [field]: [message] } });
+  const deliveryMethod = request.deliveryMethod;
+  let shippingAmount = 0;
+  let pickupPointId: string | null = null;
+  let deliveryAddress: NewReservation["deliveryAddress"] = null;
+  let shippingSelection: NewReservation["shippingSelection"] = null;
+  if (deliveryMethod === "pickup") {
+    if (!campaign.pickupEnabled || !campaign.pickupPoints.length) return deliveryError("deliveryMethod", "La recolección no está disponible en esta preventa.");
+    const point = campaign.pickupPoints.find((p) => p.id === request.pickupPointId);
+    if (!point) return deliveryError("pickupPointId", "Elige el punto de recolección.");
+    pickupPointId = point.id;
+  } else {
+    if (!shippingAvailable(campaign, deps.shipping ?? null)) return deliveryError("deliveryMethod", "El envío a domicilio no está disponible. Puedes elegir recolección en Chihuahua.");
+    if (!request.phone) return deliveryError("phone", "El teléfono es obligatorio para el envío: la paquetería lo necesita.");
+    if (!request.shipping) return deliveryError("shipping", "Calcula el envío y elige una opción.");
+    const choice = await resolveShippingChoice(deps.db, campaign, { ...request.shipping, postalCode: request.shipping.address.postalCode, quantity: request.quantity }, now);
+    if (!choice.ok) return deliveryError(choice.field, choice.message);
+    shippingAmount = choice.amount;
+    shippingSelection = choice.selection;
+    deliveryAddress = { name: request.fullName, phone: request.phone, ...request.shipping.address };
   }
-  const shippingAmount = shippingCharge(campaign, deliveryMethod);
 
   if (input.idempotencyKey) {
     const existing = await findReservationByIdempotencyKey(deps.db, input.idempotencyKey);
@@ -200,6 +228,9 @@ export async function createPresaleReservation(
         currency: campaign.currency,
         deliveryMethod,
         shippingAmount,
+        pickupPointId,
+        deliveryAddress,
+        shippingSelection,
         answers: answers.data,
         termsId: terms.id,
         marketingConsent: request.marketingConsent,
@@ -236,6 +267,7 @@ export async function createPresaleReservation(
       quantity: reservation.quantity,
       deliveryMethod: reservation.deliveryMethod,
       shippingAmount: reservation.shippingAmount,
+      shippingLabel: reservation.shippingSelection ? `Envío · ${reservation.shippingSelection.carrier} ${reservation.shippingSelection.service}`.trim() : null,
       email,
       successUrl: `${base}/preventa/${campaign.slug}/confirmacion?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${base}/preventa/${campaign.slug}?cancelado=1`,
@@ -297,6 +329,13 @@ export async function getReservationStatus(
       quantity: reservation.quantity,
       deliveryMethod: reservation.deliveryMethod,
       shippingAmount: reservation.shippingAmount,
+      pickupPoint: (() => {
+        const point = campaign.pickupPoints.find((p) => p.id === reservation.pickupPointId);
+        return point ? { name: point.name, schedule: point.schedule } : null;
+      })(),
+      shippingService: reservation.shippingSelection
+        ? { carrier: reservation.shippingSelection.carrier, service: reservation.shippingSelection.service, days: reservation.shippingSelection.days }
+        : null,
       totalAmount: reservation.totalAmount,
       currency: reservation.currency,
       fulfillmentStatus: reservation.fulfillmentStatus,

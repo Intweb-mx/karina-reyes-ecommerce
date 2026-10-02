@@ -82,13 +82,20 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
             <Row label="Cantidad">{data.quantity}</Row>
             <Row label="Correo">{data.email}</Row>
             <Row label="Entrega">{data.deliveryMethod === "pickup" ? deliveryCopy.pickup.summary : deliveryCopy.shipping.summary}</Row>
+            {data.pickupPoint && (
+              <Row label="Punto">
+                <span className="block">{data.pickupPoint.name}</span>
+                <span className="block text-xs text-muted">{data.pickupPoint.schedule}</span>
+              </Row>
+            )}
+            {data.shippingService && <Row label="Paquetería">{`${data.shippingService.carrier} ${data.shippingService.service}`.trim()}</Row>}
             <Row label="Envío">
               {data.deliveryMethod === "pickup" ? (
                 <span className="text-success">{deliveryCopy.free}</span>
               ) : data.shippingAmount > 0 ? (
                 formatMoney(data.shippingAmount, data.currency)
               ) : (
-                <span className="text-muted">{deliveryCopy.pending}</span>
+                "—"
               )}
             </Row>
             {data.paidAt && <Row label="Pagado">{formatDate(data.paidAt)}</Row>}

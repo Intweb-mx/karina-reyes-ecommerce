@@ -2,9 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
-import type { ApiError, CreateReservationResponse, DeliveryMethod, PublicCampaign } from "@/server/presale/contract";
-import { formCopy } from "@/content/presale";
-import { emptyValues, validateField, validateReservation, type AnswerValue, type FieldErrors, type ReservationValues } from "./validation";
+import type { ApiError, CreateReservationResponse, DeliveryMethod, PublicCampaign, ShippingQuoteResponse } from "@/server/presale/contract";
+import { deliveryCopy, formCopy } from "@/content/presale";
+import {
+  emptyAddress,
+  emptyValues,
+  validateAddress,
+  validateField,
+  validateReservation,
+  type AddressValues,
+  type AnswerValue,
+  type FieldErrors,
+  type ReservationValues,
+} from "./validation";
 
 type Status = "idle" | "submitting" | "redirecting";
 
@@ -27,8 +37,15 @@ export function useReservationForm(campaign: PublicCampaign) {
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [values, setValues] = useState<ReservationValues>(emptyValues);
   const [quantity, setQuantity] = useState(1);
-  // Mismo criterio que la API: envío si está habilitado; si no, recolección.
-  const [deliveryMethod, setDeliveryMethodState] = useState<DeliveryMethod>(campaign.delivery.shipping.enabled ? "shipping" : "pickup");
+  // La entrega se elige antes de pagar. Con un solo método disponible, queda elegido.
+  const onlyMethod = campaign.delivery.shipping.enabled !== campaign.delivery.pickup.enabled ? (campaign.delivery.shipping.enabled ? "shipping" : "pickup") : null;
+  const [deliveryMethod, setDeliveryMethodState] = useState<DeliveryMethod | null>(onlyMethod);
+  const [pickupPointId, setPickupPointIdState] = useState(campaign.delivery.pickup.points.length === 1 ? campaign.delivery.pickup.points[0]!.id : "");
+  const [address, setAddress] = useState<AddressValues>(emptyAddress);
+  const [quote, setQuote] = useState<ShippingQuoteResponse | null>(null);
+  const [optionId, setOptionId] = useState<string | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
@@ -87,7 +104,7 @@ export function useReservationForm(campaign: PublicCampaign) {
     setSubmitCount((n) => n + 1);
     setFormError(null);
 
-    const local = validateReservation(values, campaign.questions);
+    const local = { ...validateReservation(values, campaign.questions), ...validateDelivery() };
     if (Object.keys(local).length) {
       setErrors(local);
       focusSummary();
@@ -106,6 +123,10 @@ export function useReservationForm(campaign: PublicCampaign) {
           phone: values.phone || undefined,
           quantity,
           deliveryMethod,
+          ...(deliveryMethod === "pickup" ? { pickupPointId } : {}),
+          ...(deliveryMethod === "shipping" && quote && optionId
+            ? { shipping: { quoteId: quote.quoteId, optionId, address: { ...address, reference: address.reference || undefined } } }
+            : {}),
           answers: values.answers,
           acceptTerms: values.acceptTerms,
           termsVersion: campaign.terms?.version,
@@ -130,6 +151,8 @@ export function useReservationForm(campaign: PublicCampaign) {
         setFormError(data.error.message);
         // Inventario agotado entre tanto: se recarga la campaña para mostrar el estado real.
         if (data.error.code === "sold_out") router.refresh();
+        // Cotización vencida o inválida: hay que volver a calcular.
+        if (data.error.fieldErrors?.shipping) resetQuote();
       }
     } catch {
       setFormError(formCopy.networkError);
@@ -138,15 +161,116 @@ export function useReservationForm(campaign: PublicCampaign) {
     focusSummary();
   }
 
-  const setDeliveryMethod = (method: DeliveryMethod) => {
-    setDeliveryMethodState(method);
+  const clearErrors = (...keys: string[]) =>
     setErrors((current) => {
-      if (!current.deliveryMethod) return current;
+      if (!keys.some((key) => current[key])) return current;
       const rest = { ...current };
-      delete rest.deliveryMethod;
+      for (const key of keys) delete rest[key];
       return rest;
     });
+
+  function resetQuote() {
+    setQuote(null);
+    setOptionId(null);
+  }
+
+  /** Errores de entrega con las mismas claves que la API. */
+  function validateDelivery(): FieldErrors {
+    if (!deliveryMethod) return { deliveryMethod: [deliveryCopy.required] };
+    if (deliveryMethod === "pickup") return pickupPointId ? {} : { pickupPointId: [deliveryCopy.pickup.pointRequired] };
+    const errors = validateAddress(address);
+    if (!values.phone.trim()) errors.phone = [deliveryCopy.shipping.phoneRequired];
+    if (!quote || !optionId) errors.shipping = [deliveryCopy.shipping.quoteRequired];
+    return errors;
+  }
+
+  const setDeliveryMethod = (method: DeliveryMethod) => {
+    setDeliveryMethodState(method);
+    clearErrors("deliveryMethod");
   };
 
-  return { values, quantity, setQuantity, deliveryMethod, setDeliveryMethod, errors, formError, status, setField, setAnswer, blur, isValid, submit, summaryRef };
+  const setPickupPointId = (id: string) => {
+    setPickupPointIdState(id);
+    clearErrors("pickupPointId");
+  };
+
+  const setAddressField = (key: keyof AddressValues, value: string) => {
+    setAddress((current) => ({ ...current, [key]: value }));
+    clearErrors(`address.${key}`);
+    // La tarifa depende del destino: cambiar CP, estado, ciudad o colonia invalida la cotización.
+    if (quote && key !== "street" && key !== "reference") {
+      resetQuote();
+      setQuoteError(deliveryCopy.shipping.requote);
+    }
+  };
+
+  const changeQuantity = (next: number) => {
+    setQuantity(next);
+    if (quote) {
+      resetQuote();
+      setQuoteError(deliveryCopy.shipping.requote);
+    }
+  };
+
+  async function requestQuote() {
+    const addressErrors = validateAddress({ ...address, street: address.street || "-" });
+    setQuoteError(null);
+    if (Object.keys(addressErrors).length) {
+      setErrors((current) => ({ ...current, ...addressErrors }));
+      return;
+    }
+    setQuoting(true);
+    try {
+      const response = await fetch(`/api/preventa/${campaign.slug}/envio`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ postalCode: address.postalCode, state: address.state, city: address.city, neighborhood: address.neighborhood, quantity }),
+      });
+      const data = (await response.json()) as ShippingQuoteResponse | ApiError;
+      if ("quoteId" in data) {
+        setQuote(data);
+        setOptionId(data.options[0]?.id ?? null);
+        clearErrors("shipping");
+      } else {
+        setErrors((current) => ({ ...current, ...(data.error.fieldErrors ?? {}) }));
+        setQuoteError(data.error.message);
+      }
+    } catch {
+      setQuoteError(formCopy.networkError);
+    }
+    setQuoting(false);
+  }
+
+  const shippingAmount = deliveryMethod === "shipping" ? (quote?.options.find((o) => o.id === optionId)?.amount ?? null) : 0;
+
+  return {
+    values,
+    quantity,
+    setQuantity: changeQuantity,
+    deliveryMethod,
+    setDeliveryMethod,
+    pickupPointId,
+    setPickupPointId,
+    address,
+    setAddressField,
+    quote,
+    optionId,
+    setOptionId: (id: string) => {
+      setOptionId(id);
+      clearErrors("shipping");
+    },
+    requestQuote,
+    quoting,
+    quoteError,
+    shippingAmount,
+    errors,
+    formError,
+    status,
+    setField,
+    setAnswer,
+    blur,
+    isValid,
+    submit,
+    summaryRef,
+  };
 }

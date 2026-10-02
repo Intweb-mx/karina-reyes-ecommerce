@@ -19,6 +19,28 @@ export type ReservationValues = {
   answers: Record<string, AnswerValue>;
 };
 
+export type AddressValues = { postalCode: string; state: string; city: string; neighborhood: string; street: string; reference: string };
+
+export const emptyAddress: AddressValues = { postalCode: "", state: "", city: "", neighborhood: "", street: "", reference: "" };
+
+const ADDRESS_MESSAGES: Record<Exclude<keyof AddressValues, "reference">, string> = {
+  postalCode: "Código postal de 5 dígitos.",
+  state: "Indica el estado.",
+  city: "Indica la ciudad o municipio.",
+  neighborhood: "Indica la colonia.",
+  street: "Indica calle y número.",
+};
+
+/** Errores de dirección con claves "address.campo" (mismas que devuelve la API). */
+export function validateAddress(address: AddressValues): FieldErrors {
+  const errors: FieldErrors = {};
+  for (const [key, message] of Object.entries(ADDRESS_MESSAGES) as [keyof typeof ADDRESS_MESSAGES, string][]) {
+    const value = address[key].trim();
+    if (key === "postalCode" ? !/^\d{5}$/.test(value) : !value) errors[`address.${key}`] = [message];
+  }
+  return errors;
+}
+
 export const emptyValues: ReservationValues = { fullName: "", email: "", phone: "", acceptTerms: false, marketingConsent: false, answers: {} };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

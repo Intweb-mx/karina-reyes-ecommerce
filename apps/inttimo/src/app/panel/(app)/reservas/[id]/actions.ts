@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { audit, getAdminState } from "@/server/auth/admin";
 import { fulfillReservation, sendBonusIfEligible, type BonusOutcome, type FulfillmentAction, type Outcome } from "@/server/presale/fulfillment";
-import { getFulfillmentDeps } from "@/server/presale/runtime";
+import { getFulfillmentDeps, getShippingDeps } from "@/server/presale/runtime";
+import { generateLabel } from "@/server/presale/shipping";
 
 export type DeliveryState = { error?: string; ok?: string } | undefined;
 
@@ -72,4 +73,14 @@ export async function retryBonus(reservationId: string): Promise<DeliveryState> 
   if (outcome === "sent") return { ok: BONUS.sent };
   if (outcome === "skipped") return { error: "No aplica: el bonus ya se envió o el pedido aún no está enviado / listo para recoger." };
   return { error: BONUS[outcome] };
+}
+
+/** Compra la guía en SkyDropX (descuenta saldo de la cuenta) y, con número de guía, marca el pedido como ENVIADO. */
+export async function createLabel(reservationId: string): Promise<DeliveryState> {
+  const state = await getAdminState();
+  if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
+  const result = await generateLabel({ ...getShippingDeps(), fulfillment: getFulfillmentDeps() }, reservationId, state.admin.email);
+  await audit(state.admin, { action: "reservation.label", targetType: "reservation", targetId: reservationId, metadata: result.ok ? { status: result.status } : { error: result.error } });
+  revalidatePath(`/panel/reservas/${reservationId}`);
+  return result.ok ? { ok: result.message } : { error: result.error };
 }

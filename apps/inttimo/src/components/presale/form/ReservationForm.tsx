@@ -9,6 +9,7 @@ import { acceptanceText, legalPaths } from "@/content/legal";
 import { MailIcon, PhoneIcon, UserIcon } from "@/components/ui/icons";
 import { formatMoney } from "@/lib/format";
 import { CheckoutSteps } from "./CheckoutSteps";
+import { PickupPoints, ShippingDetails } from "./DeliveryDetails";
 import { DeliverySelector } from "./DeliverySelector";
 import { ErrorSummary } from "./ErrorSummary";
 import { ChoiceTile, FieldError, FormSection, Hint, Optional, TextInput, describedBy, labelClass } from "./fields";
@@ -24,10 +25,11 @@ import { answerKey, progress } from "./validation";
  * La lógica de envío (validación, Idempotency-Key, honeypot, errores de la API) vive en useReservationForm.
  */
 export function ReservationForm({ campaign, product }: { campaign: PublicCampaign; product: ProductContent | null }) {
-  const { values, errors, quantity, setQuantity, deliveryMethod, setDeliveryMethod, formError, status, setField, setAnswer, blur, isValid, submit, summaryRef } = useReservationForm(campaign);
+  const form = useReservationForm(campaign);
+  const { values, errors, quantity, setQuantity, deliveryMethod, setDeliveryMethod, shippingAmount, formError, status, setField, setAnswer, blur, isValid, submit, summaryRef } = form;
   const hasQuestions = campaign.questions.length > 0;
   const done = progress(values, campaign.questions);
-  const shippingCharge = deliveryMethod === "shipping" && campaign.delivery.shipping.amount !== null ? campaign.delivery.shipping.amount : 0;
+  const shippingCharge = shippingAmount ?? 0;
   const total = formatMoney(campaign.unitAmount * quantity + shippingCharge, campaign.currency);
 
   const labels: Record<string, string> = {
@@ -37,6 +39,13 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
     quantity: "Cantidad",
     acceptTerms: "Aceptación",
     deliveryMethod: "Entrega",
+    pickupPointId: "Punto de recolección",
+    shipping: "Envío",
+    "address.postalCode": "Código postal",
+    "address.state": "Estado",
+    "address.city": "Ciudad o municipio",
+    "address.neighborhood": "Colonia",
+    "address.street": "Calle y número",
     ...Object.fromEntries(campaign.questions.map((q) => [answerKey(q.id), q.label])),
   };
 
@@ -172,7 +181,30 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
           )}
 
           <FormSection step={hasQuestions ? "3" : "2"} title={deliveryCopy.sectionTitle} description={deliveryCopy.sectionIntro} id="paso-entrega" complete>
-            <DeliverySelector delivery={campaign.delivery} currency={campaign.currency} value={deliveryMethod} onChange={setDeliveryMethod} errors={errors.deliveryMethod} />
+            <DeliverySelector
+              delivery={campaign.delivery}
+              currency={campaign.currency}
+              value={deliveryMethod}
+              onChange={setDeliveryMethod}
+              errors={errors.deliveryMethod}
+              shippingAmount={deliveryMethod === "shipping" ? shippingAmount : null}
+            />
+            {deliveryMethod === "pickup" && (
+              <PickupPoints points={campaign.delivery.pickup.points} value={form.pickupPointId} onChange={form.setPickupPointId} errors={errors.pickupPointId} />
+            )}
+            {deliveryMethod === "shipping" && (
+              <ShippingDetails
+                address={form.address}
+                onAddress={form.setAddressField}
+                errors={errors}
+                quote={form.quote}
+                optionId={form.optionId}
+                onOption={form.setOptionId}
+                onQuote={form.requestQuote}
+                quoting={form.quoting}
+                quoteError={form.quoteError}
+              />
+            )}
           </FormSection>
 
           {/* Honeypot: oculto para personas, visible para bots. */}
@@ -214,7 +246,7 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
               endsAt={campaign.endsAt}
               totalUnits={campaign.totalUnits}
               deliveryMethod={deliveryMethod}
-              shippingAmount={campaign.delivery.shipping.amount}
+              shippingAmount={shippingAmount}
             />
 
             <div className="space-y-3">

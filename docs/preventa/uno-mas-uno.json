@@ -11,7 +11,19 @@
   "totalUnits": 500,
   "pickupEnabled": true,
   "shippingEnabled": true,
-  "shippingAmount": null,
+  "pickupPoints": [
+    {
+      "id": "sophos-baluarte",
+      "name": "Librería Sophos · Iglesia Baluarte",
+      "schedule": "Domingos de 10:00 a.m. a 2:00 p.m."
+    },
+    {
+      "id": "costco",
+      "name": "Costco Chihuahua",
+      "schedule": "Entrega previa confirmación de día y horario."
+    }
+  ],
+  "shippingProfile": null,
   "bonus": null,
   "deliveryNote": null,
   "questions": []

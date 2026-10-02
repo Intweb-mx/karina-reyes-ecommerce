@@ -3,11 +3,13 @@ import { createTestDatabase } from "@inttimo/database/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CreateReservationResponse } from "../src/server/presale/contract.ts";
 import { createPresaleReservation, getPublicCampaign, getReservationStatus, maskEmail, type PresaleDeps } from "../src/server/presale/reservations.ts";
-import { FakeGateway, NOW, seedCampaign, VALID_ANSWERS } from "./helpers.ts";
+import { ADDRESS, FakeGateway, FakeShipping, NOW, PICKUP, PICKUP_POINTS, seedCampaign, VALID_ANSWERS } from "./helpers.ts";
+import { quoteShipping } from "../src/server/presale/shipping.ts";
 
 let db: Database;
 let close: () => Promise<void>;
 let gateway: FakeGateway;
+let shipping: FakeShipping;
 let deps: PresaleDeps;
 const onPaid = vi.fn(async () => {});
 
@@ -17,6 +19,7 @@ const body = (overrides: Record<string, unknown> = {}) => ({
   answers: VALID_ANSWERS,
   acceptTerms: true,
   termsVersion: 1,
+  ...PICKUP,
   ...overrides,
 });
 
@@ -26,8 +29,9 @@ const create = (overrides: Record<string, unknown> = {}, extra: { idempotencyKey
 beforeEach(async () => {
   ({ db, close } = await createTestDatabase());
   gateway = new FakeGateway();
+  shipping = new FakeShipping();
   onPaid.mockClear();
-  deps = { db, gateway, siteUrl: "https://inttimo.test/", now: () => NOW, onPaid };
+  deps = { db, gateway, shipping, siteUrl: "https://inttimo.test/", now: () => NOW, onPaid };
   await seedCampaign(db);
 });
 
@@ -52,35 +56,82 @@ describe("campaña pública", () => {
 });
 
 describe("método de entrega", () => {
-  it("la campaña pública expone los métodos y el costo de envío", async () => {
-    await seedCampaign(db, { shippingAmount: 15_000 });
+  const quote = async (overrides: Record<string, unknown> = {}) =>
+    quoteShipping({ db, provider: shipping, now: () => NOW }, { slug: "uno-mas-uno", body: { postalCode: ADDRESS.postalCode, state: ADDRESS.state, city: ADDRESS.city, neighborhood: ADDRESS.neighborhood, quantity: 2, ...overrides }, clientIp: "7.7.7.7" });
+  const shipTo = async (quantity = 2, optionId = "economico") => {
+    const quoted = await quote({ quantity });
+    if (!quoted.ok) throw new Error(JSON.stringify(quoted.body));
+    return { deliveryMethod: "shipping", phone: "6141234567", quantity, shipping: { quoteId: quoted.data.quoteId, optionId, address: ADDRESS } };
+  };
+
+  it("la campaña pública expone los puntos de recolección y si hay envío", async () => {
     const result = await getPublicCampaign(deps, "uno-mas-uno");
-    expect(result.ok && result.data.delivery).toEqual({ pickup: true, shipping: { enabled: true, amount: 15_000 } });
+    expect(result.ok && result.data.delivery).toEqual({ pickup: { enabled: true, points: PICKUP_POINTS }, shipping: { enabled: true } });
+    const withoutCredentials = await getPublicCampaign({ ...deps, shipping: null }, "uno-mas-uno");
+    expect(withoutCredentials.ok && withoutCredentials.data.delivery.shipping.enabled).toBe(false);
   });
 
-  it("sin método explícito es envío y cobra el envío fijo en el mismo pago", async () => {
-    await seedCampaign(db, { shippingAmount: 15_000 });
-    expect((await create({ quantity: 2 })).status).toBe(201);
-    expect(gateway.created[0]).toMatchObject({ deliveryMethod: "shipping", shippingAmount: 15_000, quantity: 2 });
-    const reservation = await findReservationBySessionId(db, "cs_test_000000000001");
-    expect(reservation).toMatchObject({ deliveryMethod: "shipping", shippingAmount: 15_000, totalAmount: 99_900 * 2 + 15_000 });
-  });
-
-  it("recolección no cobra envío", async () => {
-    await seedCampaign(db, { shippingAmount: 15_000 });
-    expect((await create({ deliveryMethod: "pickup" })).status).toBe(201);
+  it("recolección: exige punto, no cobra envío y guarda el punto elegido", async () => {
+    expect(await create({ pickupPointId: undefined })).toMatchObject({ status: 400, body: { error: { fieldErrors: { pickupPointId: ["Elige el punto de recolección."] } } } });
+    expect((await create({ pickupPointId: "sophos-baluarte" }, { clientIp: "8.8.8.8" })).status).toBe(201);
     expect(gateway.created[0]).toMatchObject({ deliveryMethod: "pickup", shippingAmount: 0 });
+    const reservation = await findReservationBySessionId(db, "cs_test_000000000001");
+    expect(reservation).toMatchObject({ deliveryMethod: "pickup", pickupPointId: "sophos-baluarte", shippingAmount: 0, deliveryAddress: null });
   });
 
-  it("envío por cotizar (sin costo configurado) no cobra envío en línea", async () => {
-    expect((await create({ deliveryMethod: "shipping" })).status).toBe(201);
-    expect(gateway.created[0]).toMatchObject({ deliveryMethod: "shipping", shippingAmount: 0 });
+  it("cotiza con SkyDropX y ofrece la opción económica y la express", async () => {
+    const result = await quote();
+    expect(result.ok && result.data.options).toEqual([
+      { id: "economico", carrier: "Estafeta", service: "Terrestre", days: 5, amount: 18_000 },
+      { id: "express", carrier: "DHL", service: "Express", days: 1, amount: 32_050 },
+    ]);
+    // 2 unidades: el doble de peso y de altura que el paquete de una.
+    expect(shipping.quotes[0]).toMatchObject({ parcel: { weightKg: 1.6, heightCm: 16 }, to: { postalCode: ADDRESS.postalCode } });
   });
 
-  it("rechaza un método deshabilitado o desconocido", async () => {
-    await seedCampaign(db, { pickupEnabled: false });
-    expect(await create({ deliveryMethod: "pickup" })).toMatchObject({ status: 400, body: { error: { fieldErrors: { deliveryMethod: ["La recolección no está disponible en esta preventa."] } } } });
-    expect((await create({ deliveryMethod: "dron" }, { clientIp: "9.9.9.9" })).status).toBe(400);
+  it("envío: Stripe cobra producto + envío cotizado en un solo pago y se guarda dirección y tarifa", async () => {
+    expect((await create(await shipTo(2, "express"))).status).toBe(201);
+    expect(gateway.created[0]).toMatchObject({ deliveryMethod: "shipping", shippingAmount: 32_050, shippingLabel: "Envío · DHL Express" });
+    const reservation = await findReservationBySessionId(db, "cs_test_000000000001");
+    expect(reservation).toMatchObject({
+      totalAmount: 99_900 * 2 + 32_050,
+      deliveryAddress: { ...ADDRESS, name: "Ana Pérez", phone: "6141234567" },
+      shippingSelection: { provider: "skydropx", quotationId: "quo_1", rateId: "rate_exp", carrier: "DHL", service: "Express" },
+    });
+  });
+
+  it("envío: el precio sale de la cotización guardada, no del navegador", async () => {
+    const body = await shipTo();
+    expect((await create({ ...body, shippingAmount: 1 })).status).toBe(201);
+    expect(gateway.created[0]!.shippingAmount).toBe(18_000);
+  });
+
+  it("envío: sin cotización, sin teléfono, con otro CP, otra cantidad o cotización vencida se rechaza", async () => {
+    const body = await shipTo();
+    const errorsOf = async (override: Record<string, unknown>, ip: string) => {
+      const result = await create({ ...body, ...override }, { clientIp: ip });
+      return result.ok ? null : result.body.error.fieldErrors;
+    };
+    expect(await errorsOf({ shipping: undefined }, "1.1.1.1")).toEqual({ shipping: ["Calcula el envío y elige una opción."] });
+    expect(await errorsOf({ phone: undefined }, "1.1.1.2")).toEqual({ phone: ["El teléfono es obligatorio para el envío: la paquetería lo necesita."] });
+    expect(await errorsOf({ shipping: { ...body.shipping, address: { ...ADDRESS, postalCode: "64000" } } }, "1.1.1.3")).toHaveProperty("address.postalCode");
+    expect(await errorsOf({ quantity: 1 }, "1.1.1.4")).toEqual({ shipping: ["Cambiaste la cantidad: vuelve a calcular el envío."] });
+    deps.now = () => new Date(NOW.getTime() + 3 * 3_600_000);
+    expect(await errorsOf({}, "1.1.1.5")).toEqual({ shipping: ["La cotización de envío expiró. Vuelve a calcularla."] });
+    expect(gateway.created).toHaveLength(0);
+  });
+
+  it("si SkyDropX falla o no hay tarifas, no se cotiza (y no hay envío 'por confirmar')", async () => {
+    shipping.fail = true;
+    expect(await quote()).toMatchObject({ status: 503, body: { error: { code: "shipping_unavailable" } } });
+    shipping.fail = false;
+    shipping.rates = [];
+    expect(await quote()).toMatchObject({ status: 422, body: { error: { code: "shipping_no_rates" } } });
+  });
+
+  it("sin credenciales de SkyDropX no se acepta envío a domicilio", async () => {
+    const result = await createPresaleReservation({ ...deps, shipping: null }, { slug: "uno-mas-uno", body: body({ deliveryMethod: "shipping", phone: "6141234567" }), idempotencyKey: null, clientIp: "2.2.2.2" });
+    expect(result).toMatchObject({ status: 400, body: { error: { fieldErrors: { deliveryMethod: [expect.stringContaining("no está disponible")] } } } });
   });
 });
 
