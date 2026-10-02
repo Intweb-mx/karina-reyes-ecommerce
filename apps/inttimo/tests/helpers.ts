@@ -1,6 +1,7 @@
 import { getCurrentTerms, publishTerms, upsertCampaign, type Database, type QuestionDefinition } from "@inttimo/database";
 import type Stripe from "stripe";
 import type { CheckoutSnapshot, CreateCheckoutInput, PaymentGateway } from "../src/server/presale/gateway.ts";
+import type { Rate, Shipment, ShippingProvider } from "../src/server/shipping/provider.ts";
 
 export const QUESTIONS: QuestionDefinition[] = [
   { id: "como_nos_conociste", label: "¿Cómo nos conociste?", type: "select", required: true, options: [{ value: "redes", label: "Redes" }, { value: "amigos", label: "Amigos" }] },
@@ -11,6 +12,52 @@ export const QUESTIONS: QuestionDefinition[] = [
 export const VALID_ANSWERS = { como_nos_conociste: "redes", acepta_contacto: true };
 
 export const NOW = new Date("2026-10-05T12:00:00Z");
+
+export const PICKUP_POINTS = [
+  { id: "sophos-baluarte", name: "Librería Sophos · Iglesia Baluarte", schedule: "Domingos de 10:00 a.m. a 2:00 p.m." },
+  { id: "costco", name: "Costco Chihuahua", schedule: "Entrega previa confirmación de día y horario." },
+];
+
+/** Datos de prueba (no son los reales de inttimo). */
+export const SHIPPING_PROFILE = {
+  origin: { name: "Origen Prueba", company: null, street: "Calle 1", neighborhood: "Centro", city: "Chihuahua", state: "Chihuahua", postalCode: "31000", phone: "6140000000", email: "origen@prueba.test", reference: null },
+  parcel: { weightKg: 0.8, lengthCm: 20, widthCm: 15, heightCm: 8 },
+  carriers: [],
+  consignmentNote: "00000000",
+  packageType: "4G",
+};
+
+export const PICKUP = { deliveryMethod: "pickup", pickupPointId: "costco" };
+
+export const ADDRESS = { street: "Av. Reforma 100", neighborhood: "Juárez", city: "Cuauhtémoc", state: "Ciudad de México", postalCode: "06600", reference: "Portón negro" };
+
+/** SkyDropX simulado: dos tarifas (económica y express) y guías inmediatas. */
+export class FakeShipping implements ShippingProvider {
+  quotes: Parameters<ShippingProvider["quote"]>[0][] = [];
+  shipments: Parameters<ShippingProvider["createShipment"]>[0][] = [];
+  fail = false;
+  rates: Rate[] = [
+    { rateId: "rate_eco", carrier: "Estafeta", service: "Terrestre", days: 5, amount: 18_000, currency: "mxn" },
+    { rateId: "rate_exp", carrier: "DHL", service: "Express", days: 1, amount: 32_050, currency: "mxn" },
+  ];
+  tracking: string | null = "GUIA123";
+
+  async quote(input: Parameters<ShippingProvider["quote"]>[0]) {
+    if (this.fail) throw new Error("skydropx caído");
+    this.quotes.push(input);
+    return { quotationId: `quo_${this.quotes.length}`, rates: this.rates };
+  }
+
+  async createShipment(input: Parameters<ShippingProvider["createShipment"]>[0]): Promise<Shipment> {
+    if (this.fail) throw new Error("skydropx caído");
+    this.shipments.push(input);
+    return { shipmentId: `shp_${this.shipments.length}`, trackingNumber: this.tracking, labelUrl: "https://etiquetas.test/1.pdf", carrier: "Estafeta" };
+  }
+
+  async getShipment(shipmentId: string): Promise<Shipment> {
+    return { shipmentId, trackingNumber: "GUIA123", labelUrl: "https://etiquetas.test/1.pdf", carrier: "Estafeta" };
+  }
+}
 
 export async function seedCampaign(db: Database, overrides: Partial<Parameters<typeof upsertCampaign>[1]> = {}) {
   const campaign = await upsertCampaign(db, {
@@ -23,6 +70,8 @@ export async function seedCampaign(db: Database, overrides: Partial<Parameters<t
     currency: "mxn",
     maxQuantityPerReservation: 3,
     questions: QUESTIONS,
+    pickupPoints: PICKUP_POINTS,
+    shippingProfile: SHIPPING_PROFILE,
     ...overrides,
   });
   if (!(await getCurrentTerms(db, campaign.id))) await publishTerms(db, campaign.id, "Términos de prueba v1", "test");

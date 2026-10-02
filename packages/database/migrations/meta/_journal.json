@@ -50,6 +50,13 @@
       "when": 1790833699624,
       "tag": "0006_delivery_fulfillment",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790900656178,
+      "tag": "0007_skydropx_shipping",
+      "breakpoints": true
     }
   ]
 }

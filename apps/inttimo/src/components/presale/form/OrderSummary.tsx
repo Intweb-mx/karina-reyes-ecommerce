@@ -26,8 +26,8 @@ type SummaryProps = {
   startsAt: string;
   endsAt: string;
   totalUnits: number | null;
-  deliveryMethod: DeliveryMethod;
-  /** Costo fijo de envío de la campaña (centavos); null = por cotizar. */
+  deliveryMethod: DeliveryMethod | null;
+  /** Envío elegido (centavos); 0 en recolección; null si aún no se calcula. */
   shippingAmount: number | null;
 };
 
@@ -38,7 +38,7 @@ type SummaryProps = {
 export function PurchaseSummary({ productName, product, unitAmount, currency, quantity, maxQuantity, onQuantity, quantityErrors, startsAt, endsAt, totalUnits, deliveryMethod, shippingAmount }: SummaryProps) {
   const money = (amount: number) => formatMoney(amount, currency);
   const subtotal = unitAmount * quantity;
-  const shippingCharge = deliveryMethod === "shipping" && shippingAmount !== null ? shippingAmount : 0;
+  const shippingCharge = shippingAmount ?? 0;
   const total = subtotal + shippingCharge;
   const stepButton =
     "grid size-11 place-items-center text-fg sm:size-9 transition-colors duration-(--duration-base) hover:bg-sand active:bg-sand/80 disabled:cursor-not-allowed disabled:text-muted/40 disabled:hover:bg-transparent";
@@ -108,17 +108,19 @@ export function PurchaseSummary({ productName, product, unitAmount, currency, qu
           <Row label="Subtotal">
             {money(subtotal)} <Unit>{currency}</Unit>
           </Row>
-          <Row label={deliveryMethod === "pickup" ? deliveryCopy.pickup.summary : deliveryCopy.shipping.summary}>
-            {deliveryMethod === "pickup" ? (
-              <span className="font-medium text-success">{deliveryCopy.free}</span>
-            ) : shippingAmount !== null ? (
-              <>
-                {money(shippingAmount)} <Unit>{currency}</Unit>
-              </>
-            ) : (
-              <span className="text-muted">{deliveryCopy.pending}</span>
-            )}
-          </Row>
+          {deliveryMethod && (
+            <Row label={deliveryMethod === "pickup" ? deliveryCopy.pickup.summary : deliveryCopy.shipping.summary}>
+              {deliveryMethod === "pickup" ? (
+                <span className="font-medium text-success">{deliveryCopy.free}</span>
+              ) : shippingAmount !== null ? (
+                <>
+                  {money(shippingAmount)} <Unit>{currency}</Unit>
+                </>
+              ) : (
+                <span className="text-muted">{deliveryCopy.shipping.toQuote}</span>
+              )}
+            </Row>
+          )}
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-fg">
@@ -135,7 +137,7 @@ export function PurchaseSummary({ productName, product, unitAmount, currency, qu
           {deliveryMethod === "shipping" && shippingAmount === null && (
             <tr>
               <td colSpan={2} className="pt-2 text-right text-xs text-muted">
-                No incluye envío: te confirmaremos su costo.
+                {deliveryCopy.shipping.quoteRequired}
               </td>
             </tr>
           )}

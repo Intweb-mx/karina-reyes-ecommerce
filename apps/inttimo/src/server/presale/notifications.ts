@@ -4,6 +4,7 @@ import {
   getCampaignById,
   releaseConfirmationEmail,
   type Database,
+  type PickupPoint,
   type PresaleReservation,
 } from "@inttimo/database";
 import { escapeHtml, type Mail } from "@inttimo/shared-utils/mail";
@@ -12,21 +13,27 @@ import { formatMoney } from "../../lib/format.ts";
 
 export type MailSender = (mail: Mail) => Promise<void>;
 
-export function deliveryLabel(reservation: Pick<PresaleReservation, "deliveryMethod" | "shippingAmount">): string {
-  if (reservation.deliveryMethod === "pickup") return "Recolección en Chihuahua (sin costo)";
-  return reservation.shippingAmount > 0 ? "Envío a domicilio" : "Envío a domicilio (costo por confirmar con inttimo)";
+type Point = PickupPoint | undefined;
+
+export function deliveryLabel(reservation: Pick<PresaleReservation, "deliveryMethod" | "shippingSelection">, point?: Point): string {
+  if (reservation.deliveryMethod === "pickup") return `Recolección en Chihuahua (sin costo)${point ? ` · ${point.name}` : ""}`;
+  const selection = reservation.shippingSelection;
+  return selection ? `Envío a domicilio · ${selection.carrier} ${selection.service}`.trim() : "Envío a domicilio";
 }
 
-function formatAddress(address: PresaleReservation["shippingAddress"]): string | null {
-  if (!address) return null;
-  const parts = [address.name, address.line1, address.line2, [address.postalCode, address.city].filter(Boolean).join(" "), address.state].filter(Boolean);
+export function formatAddress(reservation: Pick<PresaleReservation, "deliveryAddress" | "shippingAddress">): string | null {
+  const a = reservation.deliveryAddress;
+  if (a) return [a.name, a.street, a.neighborhood, `${a.postalCode} ${a.city}`, a.state, a.reference ? `Ref.: ${a.reference}` : null].filter(Boolean).join(", ");
+  const s = reservation.shippingAddress;
+  if (!s) return null;
+  const parts = [s.name, s.line1, s.line2, [s.postalCode, s.city].filter(Boolean).join(" "), s.state].filter(Boolean);
   return parts.length ? parts.join(", ") : null;
 }
 
 /** Contenido mínimo exigido tras el pago: folio, producto, cantidad, importe, entrega y contacto ("Implementación legal en web", §8). */
-function customerMail(reservation: PresaleReservation, productName: string, deliveryNote: string | null): Mail {
+function customerMail(reservation: PresaleReservation, productName: string, deliveryNote: string | null, point: Point): Mail {
   const total = formatMoney(reservation.totalAmount, reservation.currency);
-  const address = formatAddress(reservation.shippingAddress);
+  const address = formatAddress(reservation);
   const lines = [
     `Hola ${reservation.fullName}:`,
     "",
@@ -37,13 +44,14 @@ function customerMail(reservation: PresaleReservation, productName: string, deli
     `Cantidad: ${reservation.quantity}`,
     ...(reservation.shippingAmount > 0 ? [`Envío: ${formatMoney(reservation.shippingAmount, reservation.currency)}`] : []),
     `Importe pagado: ${total}`,
-    `Método de entrega: ${deliveryLabel(reservation)}`,
+    `Método de entrega: ${deliveryLabel(reservation, point)}`,
+    ...(point ? [`Punto de recolección: ${point.name} · ${point.schedule}`] : []),
     ...(address && reservation.deliveryMethod === "shipping" ? [`Dirección de envío: ${address}`] : []),
     `Correo de contacto del pedido: ${reservation.email}`,
     ...(deliveryNote ? ["", deliveryNote] : []),
     "",
     reservation.deliveryMethod === "pickup"
-      ? "Te avisaremos cuando tu pedido esté LISTO PARA RECOGER, con el punto, fecha y horario. Espera ese aviso antes de acudir."
+      ? "Te avisaremos cuando tu pedido esté LISTO PARA RECOGER. Espera ese aviso antes de acudir."
       : "Te enviaremos la guía de rastreo cuando tu pedido salga a paquetería.",
     "",
     "¿Requieres factura? Solicítala después de realizar tu compra.",
@@ -58,12 +66,12 @@ function customerMail(reservation: PresaleReservation, productName: string, deli
   return { to: reservation.email, subject: `Recibimos tu pedido de preventa de ${productName} (${reservation.code})`, text: lines.join("\n"), html };
 }
 
-function internalMail(to: string, reservation: PresaleReservation, productName: string): Mail {
+function internalMail(to: string, reservation: PresaleReservation, productName: string, point: Point): Mail {
   const text = [
     `Nueva reserva pagada de ${productName}.`,
     `Folio: ${reservation.code}`,
     `Cantidad: ${reservation.quantity}`,
-    `Entrega: ${deliveryLabel(reservation)}`,
+    `Entrega: ${deliveryLabel(reservation, point)}`,
     `Total: ${formatMoney(reservation.totalAmount, reservation.currency)}`,
   ].join("\n");
   return { to, subject: `Preventa: reserva pagada ${reservation.code}`, text, html: `<pre>${escapeHtml(text)}</pre>` };
@@ -82,9 +90,10 @@ export async function sendConfirmationIfNeeded(
   if (!reservation) return "skipped";
   const campaign = await getCampaignById(db, reservation.campaignId);
   const productName = campaign?.productName ?? "inttimo";
+  const point = campaign?.pickupPoints.find((p) => p.id === reservation.pickupPointId);
 
   try {
-    await deps.send(customerMail(reservation, productName, campaign?.deliveryNote ?? null));
+    await deps.send(customerMail(reservation, productName, campaign?.deliveryNote ?? null, point));
     await addReservationEvent(db, reservation.id, "CONFIRMATION_EMAIL_SENT", "api");
   } catch (error) {
     await releaseConfirmationEmail(db, reservation.id);
@@ -93,7 +102,7 @@ export async function sendConfirmationIfNeeded(
   }
 
   if (deps.notifyEmail) {
-    await deps.send(internalMail(deps.notifyEmail, reservation, productName)).catch((error: unknown) => {
+    await deps.send(internalMail(deps.notifyEmail, reservation, productName, point)).catch((error: unknown) => {
       console.error(JSON.stringify({ level: "warn", msg: "presale_internal_notify_failed", reservationId, error: String(error) }));
     });
   }
@@ -112,7 +121,7 @@ const signature = () => [
 const toHtml = (lines: string[]) => lines.map((line) => (line ? `<p>${escapeHtml(line)}</p>` : "")).join("");
 
 /** Aviso al cliente: pedido listo para recoger o enviado con su guía. */
-export function fulfillmentMail(reservation: PresaleReservation, productName: string, note: string | null): Mail {
+export function fulfillmentMail(reservation: PresaleReservation, productName: string, note: string | null, point?: Point): Mail {
   const pickup = reservation.fulfillmentStatus === "ready_for_pickup";
   const lines = pickup
     ? [
@@ -122,6 +131,7 @@ export function fulfillmentMail(reservation: PresaleReservation, productName: st
         "",
         `Número de pedido: ${reservation.code}`,
         `Cantidad: ${reservation.quantity}`,
+        ...(point ? [`Punto de recolección: ${point.name} · ${point.schedule}`] : []),
         ...(note ? ["", note] : []),
         "",
         "Al recoger, menciona tu nombre y número de pedido (o muestra este correo). Si otra persona recogerá por ti, avísanos antes.",

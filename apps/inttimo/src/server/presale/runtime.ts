@@ -4,6 +4,8 @@ import { sendMail } from "@inttimo/shared-utils/mail";
 import Stripe from "stripe";
 import type { ApiError } from "./contract.ts";
 import { createStripeGateway, type PaymentGateway } from "./gateway.ts";
+import type { ShippingProvider } from "../shipping/provider.ts";
+import { createSkydropx, skydropxBaseUrl } from "../shipping/skydropx.ts";
 import type { FulfillmentDeps } from "./fulfillment.ts";
 import { sendConfirmationIfNeeded } from "./notifications.ts";
 import type { PresaleDeps, ServiceResult } from "./reservations.ts";
@@ -42,10 +44,26 @@ const lazyGateway: PaymentGateway = {
   retrieveCheckout: (sessionId) => createStripeGateway(getStripe()).retrieveCheckout(sessionId),
 };
 
+let skydropx: ShippingProvider | null | undefined;
+
+/** SkyDropX si hay credenciales (SKYDROPX_CLIENT_ID/SECRET; SKYDROPX_ENV=production|sandbox). Sin ellas no se ofrece envío. */
+export function getShippingProvider(): ShippingProvider | null {
+  if (skydropx !== undefined) return skydropx;
+  const clientId = process.env.SKYDROPX_CLIENT_ID;
+  const clientSecret = process.env.SKYDROPX_CLIENT_SECRET;
+  skydropx = clientId && clientSecret ? createSkydropx({ clientId, clientSecret, baseUrl: skydropxBaseUrl(process.env.SKYDROPX_ENV) }) : null;
+  return skydropx;
+}
+
+export function getShippingDeps() {
+  return { db: getDb(), provider: getShippingProvider() };
+}
+
 export function getPresaleDeps(): PresaleDeps {
   return {
     db: getDb(),
     gateway: lazyGateway,
+    shipping: getShippingProvider(),
     siteUrl: requireEnv("NEXT_PUBLIC_SITE_URL"),
     onPaid: confirmPaid,
   };

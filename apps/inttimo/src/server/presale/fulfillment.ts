@@ -61,7 +61,8 @@ export async function fulfillReservation(deps: FulfillmentDeps, reservationId: s
   const campaign = await getCampaignById(deps.db, updated.campaignId);
   let email: Outcome = "sent";
   try {
-    await deps.send(fulfillmentMail(updated, campaign?.productName ?? "inttimo", action.note?.trim() || null));
+    const point = campaign?.pickupPoints.find((p) => p.id === updated.pickupPointId);
+    await deps.send(fulfillmentMail(updated, campaign?.productName ?? "inttimo", action.note?.trim() || null, point));
     await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", "panel", { metadata: { status: updated.fulfillmentStatus } });
   } catch (error) {
     email = "failed";

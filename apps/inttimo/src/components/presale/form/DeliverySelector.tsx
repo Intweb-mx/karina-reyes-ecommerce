@@ -9,25 +9,27 @@ import { FieldError } from "./fields";
 type Props = {
   delivery: PublicCampaign["delivery"];
   currency: string;
-  value: DeliveryMethod;
+  value: DeliveryMethod | null;
   onChange: (method: DeliveryMethod) => void;
   errors?: string[];
+  /** Envío ya cotizado y elegido (centavos), para mostrarlo en la tarjeta. */
+  shippingAmount?: number | null;
 };
 
 /**
  * Selector de entrega: tarjetas grandes con icono, precio a la derecha y explicación.
  * Solo muestra los métodos habilitados en la campaña; con uno solo, se presenta como información (sin elegir).
  */
-export function DeliverySelector({ delivery, currency, value, onChange, errors }: Props) {
+export function DeliverySelector({ delivery, currency, value, onChange, errors, shippingAmount = null }: Props) {
   const options = [
     delivery.shipping.enabled && {
       method: "shipping" as const,
       icon: TruckIcon,
       title: deliveryCopy.shipping.title,
-      price: delivery.shipping.amount !== null ? formatMoney(delivery.shipping.amount, currency) : deliveryCopy.shipping.pricePending,
-      body: delivery.shipping.amount !== null ? deliveryCopy.shipping.body : deliveryCopy.shipping.bodyPending,
+      price: shippingAmount !== null && shippingAmount > 0 ? formatMoney(shippingAmount, currency) : deliveryCopy.shipping.price,
+      body: deliveryCopy.shipping.body,
     },
-    delivery.pickup && {
+    delivery.pickup.enabled && {
       method: "pickup" as const,
       icon: MapPinIcon,
       title: deliveryCopy.pickup.title,

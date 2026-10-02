@@ -31,11 +31,17 @@ const campaignSchema = z
     maxQuantityPerReservation: z.coerce.number().int().min(1).max(20),
     pickupEnabled: z.literal("on").optional().transform(Boolean),
     shippingEnabled: z.literal("on").optional().transform(Boolean),
-    shippingAmount: z
+    pickupPoints: z
       .string()
-      .trim()
-      .regex(/^(\d{1,6}(\.\d{1,2})?)?$/, "Costo de envío no válido (ej. 150.00).")
-      .transform((value) => (value ? Math.round(Number(value) * 100) : null)),
+      .transform((value, ctx) => {
+        try {
+          return JSON.parse(value || "[]") as unknown;
+        } catch {
+          ctx.addIssue({ code: "custom", message: "Puntos de recolección: JSON no válido." });
+          return z.NEVER;
+        }
+      })
+      .pipe(z.array(z.object({ id: z.string().regex(/^[a-z0-9-]{2,40}$/, "Id de punto: minúsculas, números y guiones."), name: z.string().trim().min(1).max(120), schedule: z.string().trim().min(1).max(200) }))),
     deliveryNote: z.string().trim().max(1000).transform((value) => value || null),
     questions: z.string().transform((value, ctx) => {
       try {
@@ -48,7 +54,8 @@ const campaignSchema = z
     confirmPriceChange: z.literal("on").optional(),
   })
   .refine((v) => v.endsAt > v.startsAt, { message: "El cierre debe ser posterior al inicio.", path: ["endsAt"] })
-  .refine((v) => v.pickupEnabled || v.shippingEnabled, { message: "Activa al menos un método de entrega." });
+  .refine((v) => v.pickupEnabled || v.shippingEnabled, { message: "Activa al menos un método de entrega." })
+  .refine((v) => !v.pickupEnabled || v.pickupPoints.length > 0, { message: "Con recolección activa, agrega al menos un punto." });
 
 async function adminOrError() {
   const state = await getAdminState();
@@ -74,6 +81,9 @@ export async function saveCampaign(slug: string, _state: ActionState, form: Form
   if (reservations.length) {
     const removed = campaign.questions.map((q) => q.id).filter((id) => !input.questions.some((q) => q.id === id));
     if (removed.length) return { error: `Con reservas existentes no se pueden quitar preguntas (${removed.join(", ")}): se perderían respuestas. Puedes cambiar su texto u opciones.` };
+    const usedPoints = new Set(reservations.flatMap((r) => (r.pickupPointId ? [r.pickupPointId] : [])));
+    const missing = [...usedPoints].filter((id) => !input.pickupPoints.some((p) => p.id === id));
+    if (missing.length) return { error: `Hay pedidos con los puntos ${missing.join(", ")}: no se pueden quitar. Puedes cambiar su nombre u horario.` };
   }
   if (input.status === "active" && !(await getCurrentTerms(db, campaign.id))) {
     return { error: "Publica los términos antes de activar la campaña." };
@@ -88,7 +98,7 @@ export async function saveCampaign(slug: string, _state: ActionState, form: Form
     maxQuantityPerReservation: input.maxQuantityPerReservation,
     pickupEnabled: input.pickupEnabled,
     shippingEnabled: input.shippingEnabled,
-    shippingAmount: input.shippingAmount,
+    pickupPoints: input.pickupPoints,
     deliveryNote: input.deliveryNote,
     questions: input.questions,
   };

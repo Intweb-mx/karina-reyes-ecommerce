@@ -34,8 +34,9 @@ Se puede dejar preparada la arquitectura de este repo (scaffold, tipos, tokens v
 
 > **Decisión del usuario (2026-09-28):** construir ya la preventa de UNO+UNO — contador de 14 días, cuestionario y pago del precio completo con **Stripe**. **Actualización 2026-09-30:** la preventa real es del 1 al 15 de octubre de 2026, $500 MXN, hasta 500 unidades **sin sobreventa** (`presale_campaigns.total_units`), con las 4 páginas legales aprobadas (`/terminos-y-condiciones`, `/aviso-de-privacidad`, `/envios-y-recoleccion`, `/cambios-y-reembolsos`, texto en `apps/inttimo/src/content/legal/`). Ver `docs/decisions/ADR-002-preventa-stripe.md` y `docs/preventa/README.md`.
 
+- **Actualización 2026-10-01:** la preventa cotiza el envío con **SkyDropX** antes de Stripe (producto + envío en un solo pago) y genera guías desde el panel; recolección con punto elegido (Sophos/Baluarte, Costco). Solo `server/shipping/skydropx.ts` habla con SkyDropX. Ver `docs/preventa/README.md`.
 - La excepción cubre **solo la preventa**: `packages/database` (tablas `presale_*`), `apps/inttimo/src/server/presale/`, rutas `/api/preventa/*` y `/api/webhooks/stripe`, y las páginas `/preventa/[slug]` y `/preventa/[slug]/confirmacion`.
-- Catálogo, carrito, checkout general, inventario, SkyDropX, cuentas y panel operativo siguen bloqueados por el gate de arriba.
+- Catálogo, carrito, checkout general, inventario, cuentas y panel operativo de la tienda completa siguen bloqueados por el gate de arriba.
 - El frontend de la preventa lo construye un colaborador. El backend es el contrato de `apps/inttimo/src/server/presale/contract.ts`; no romperlo sin avisar.
 - Solo `gateway.ts` importa el SDK de Stripe. El precio vive en la base; nunca se acepta del cliente.
 - Nunca apuntar migraciones al puerto 54322: lo usa el Supabase local de otro proyecto (AJL-Group).
