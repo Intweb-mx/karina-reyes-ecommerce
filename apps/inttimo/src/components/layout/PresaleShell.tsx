@@ -35,8 +35,6 @@ export function PresaleShell({ children }: { children: ReactNode }) {
             <Wordmark />
             <p className="max-w-xs text-xs leading-relaxed text-muted">
               {business.legalName}, titular de la marca inttimo.
-              <br />
-              {business.address}.
             </p>
           </div>
 

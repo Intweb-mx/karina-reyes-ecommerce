@@ -67,8 +67,8 @@ export const deliveryCopy = {
   required: "Elige cómo quieres recibir tu pedido.",
   pickup: {
     title: "Recolección en Chihuahua",
-    price: "Sin costo",
-    body: "Elige el punto donde recogerás tu pedido. No se cobra envío.",
+    price: "$0",
+    body: "Para compradores en Chihuahua. Elige el punto donde recogerás tu pedido; no se cobra envío. Te avisaremos cuando esté LISTO PARA RECOGER: no acudas antes.",
     summary: "Recolección en Chihuahua",
     pointsTitle: "Punto de recolección",
     pointRequired: "Elige el punto de recolección.",
@@ -91,7 +91,7 @@ export const deliveryCopy = {
     phoneRequired: "El teléfono es obligatorio para el envío: la paquetería lo necesita.",
     requote: "Cambiaste la dirección o la cantidad: vuelve a calcular el envío.",
   },
-  free: "Sin costo",
+  free: "$0",
   policyLink: "Consulta nuestra Política de Envíos y Recolección",
 };
 
@@ -124,8 +124,8 @@ export const statusCopy: Record<PublicReservationStatus, { eyebrow: string; titl
 
 /** Encabezado de la confirmación cuando el pedido pagado ya avanzó en la entrega (fulfillmentStatus). */
 export const fulfillmentCopy = {
-  ready_for_pickup: { eyebrow: "Listo para recoger", title: "Tu pedido está listo para recoger.", body: "Te enviamos por correo el punto, la fecha y el horario de recolección." },
-  shipped: { eyebrow: "En camino", title: "Tu pedido va en camino.", body: "Puedes seguir tu envío con la guía de rastreo." },
+  ready_for_pickup: { eyebrow: "Listo para recoger", title: "Tu UNO+UNO está listo para recoger.", body: "Te enviamos por correo el punto de entrega y las instrucciones, junto con el acceso a tu bonus. Presenta tu nombre y número de pedido al recogerlo." },
+  shipped: { eyebrow: "Enviado", title: "Tu pedido va en camino.", body: "Puedes seguir tu envío con la guía de rastreo. Te enviamos por correo el acceso a tu bonus." },
   delivered: { eyebrow: "Entregado", title: "Tu pedido fue entregado.", body: "Gracias por ser parte de esta preventa." },
 } as const;
 

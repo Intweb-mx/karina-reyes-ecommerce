@@ -152,9 +152,7 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
               {launch && (
                 <li className="flex gap-4">
                   <CalendarIcon className="mt-0.5 size-5 shrink-0" />
-                  <span>
-                    Tu pedido queda registrado para el lanzamiento oficial del <strong className="font-semibold lining-nums">{launch}</strong>.
-                  </span>
+                  <span>{legalNotice.priority}</span>
                 </li>
               )}
               <li className="flex gap-4">
@@ -166,8 +164,8 @@ export function ConfirmationView({ slug, state, title }: { slug: string; state: 
                   <BoxIcon className="mt-0.5 size-5 shrink-0" />
                   <span>
                     {data.deliveryMethod === "pickup"
-                      ? "Te avisaremos por correo cuando tu pedido esté LISTO PARA RECOGER."
-                      : "Te enviaremos por correo la guía de rastreo cuando tu pedido salga."}{" "}
+                      ? "Tu pedido está en preparación. Te avisaremos por correo cuando esté LISTO PARA RECOGER, con el punto de entrega y las instrucciones. No acudas al punto antes de recibir la confirmación."
+                      : "Tu pedido está en preparación. Te enviaremos por correo la guía de rastreo cuando salga."}{" "}
                     Consulta la{" "}
                     <Link href={legalPaths.shipping} className="underline underline-offset-4">
                       Política de Envíos y Recolección
