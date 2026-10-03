@@ -23,7 +23,24 @@
       "schedule": "Entrega previa confirmación de día y horario."
     }
   ],
-  "shippingProfile": null,
+  "shippingProfile": {
+    "origin": {
+      "name": "Karina Reyes Carnero",
+      "company": "INTTIMO",
+      "street": "Paseo de Valdivia 702, 159",
+      "neighborhood": "Torralba Residencial",
+      "city": "Chihuahua",
+      "state": "Chihuahua",
+      "postalCode": "31160",
+      "phone": "6391315972",
+      "email": "inttimojuegosdemesa@gmail.com",
+      "reference": "Casa en esquina con palmera."
+    },
+    "parcel": { "weightKg": 1, "lengthCm": 16, "widthCm": 11, "heightCm": 11 },
+    "carriers": [],
+    "consignmentNote": "Juegos de mesa",
+    "packageType": "box"
+  },
   "bonus": null,
   "deliveryNote": null,
   "questions": []
