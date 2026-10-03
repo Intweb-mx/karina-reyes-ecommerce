@@ -10,7 +10,7 @@ const PAGE_SIZE = 50;
 const STATUSES = Object.keys(STATUS_LABELS) as ReservationStatus[];
 
 export async function generateMetadata({ params }: PageProps<"/panel/campanas/[slug]">) {
-  return { title: (await params).slug };
+  return { title: `Pedidos · ${(await params).slug}` };
 }
 
 export default async function CampaignPage({ params, searchParams }: PageProps<"/panel/campanas/[slug]">) {
@@ -40,30 +40,30 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Link href="/panel" className="text-sm text-muted">← Campañas</Link>
+          <Link href="/panel" className="text-sm text-muted">← Inicio</Link>
           <h1 className="mt-1 font-serif text-3xl">{campaign.productName}</h1>
         </div>
         <div className="flex gap-2">
-          <Link href={`/panel/campanas/${slug}/editar`} className={secondaryButtonClass}>Editar campaña y términos</Link>
-          <a href={exportHref} className={secondaryButtonClass}>Exportar CSV</a>
+          <Link href={`/panel/campanas/${slug}/editar`} className={secondaryButtonClass}>Editar preventa</Link>
+          <a href={exportHref} className={secondaryButtonClass}>Descargar lista (Excel)</a>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
-        <Stat label="Reservas pagadas" value={stats.paidReservations} />
+        <Stat label="Pedidos pagados" value={stats.paidReservations} />
         <Stat label="Piezas pagadas" value={stats.paidUnits} />
-        <Stat label="Ingreso neto" value={formatMoney(stats.netRevenue, campaign.currency)} />
+        <Stat label="Ventas (sin reembolsos)" value={formatMoney(stats.netRevenue, campaign.currency)} />
         <Stat label="Procesando (OXXO)" value={stats.byStatus.processing ?? 0} />
       </div>
 
       <Card>
         <form className="mb-4 flex flex-wrap items-end gap-3" action={`/panel/campanas/${slug}`}>
           <label className="min-w-60 flex-1 text-sm">
-            Buscar (folio, correo o nombre)
+            Buscar por nombre, correo o folio
             <input name="q" defaultValue={q} className={inputClass} />
           </label>
           <label className="text-sm">
-            Estado
+            Estado del pago
             <select name="estado" defaultValue={status} className={inputClass}>
               <option value="">Todos</option>
               {STATUSES.map((s) => (
@@ -81,11 +81,11 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
                 <th className="py-2 pr-4 font-normal">Folio</th>
                 <th className="py-2 pr-4 font-normal">Nombre</th>
                 <th className="py-2 pr-4 font-normal">Correo</th>
-                <th className="py-2 pr-4 font-normal">Cant.</th>
+                <th className="py-2 pr-4 font-normal">Piezas</th>
                 <th className="py-2 pr-4 font-normal">Total</th>
-                <th className="py-2 pr-4 font-normal">Estado</th>
+                <th className="py-2 pr-4 font-normal">Pago</th>
                 <th className="py-2 pr-4 font-normal">Entrega</th>
-                <th className="py-2 font-normal">Creada</th>
+                <th className="py-2 font-normal">Fecha</th>
               </tr>
             </thead>
             <tbody>
@@ -108,7 +108,7 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-muted">Sin reservas con estos filtros.</td>
+                  <td colSpan={8} className="py-8 text-center text-muted">No hay pedidos con esta búsqueda.</td>
                 </tr>
               )}
             </tbody>
@@ -116,7 +116,7 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
         </div>
 
         <div className="mt-4 flex items-center justify-between text-sm text-muted">
-          <span>{total} reservas</span>
+          <span>{total} pedidos</span>
           <span className="flex gap-3">
             {page > 1 && <Link href={link({ pagina: page - 1 })} className="underline underline-offset-4">← Anterior</Link>}
             <span>Página {page} de {pages}</span>

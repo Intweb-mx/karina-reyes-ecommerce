@@ -41,7 +41,7 @@ export function ShippedForm({ action }: { action: Action }) {
         <input name="trackingNumber" required maxLength={80} className={inputClass} />
       </label>
       <label className="text-sm sm:col-span-2">
-        URL de rastreo (opcional)
+        Liga para rastrear (opcional)
         <input name="trackingUrl" type="url" maxLength={500} className={inputClass} />
       </label>
       <label className="text-sm sm:col-span-2">
@@ -81,10 +81,10 @@ export function LabelForm({ action, pending: inProgress }: { action: () => Promi
   const [state, formAction, pending] = useActionState(action, undefined);
   return (
     <form action={formAction} className="space-y-3">
-      <p className="text-xs text-muted">Compra la guía con la tarifa que pagó el cliente (se descuenta del saldo de SkyDropX) y avisa al cliente con el número de guía.</p>
+      <p className="text-xs text-muted">Se compra con la paquetería que pagó el cliente (se descuenta del saldo de SkyDropX) y al cliente le llega su número de guía por correo.</p>
       <Feedback state={state} />
       <button type="submit" disabled={pending} className={buttonClass}>
-        {pending ? "Generando…" : inProgress ? "Traer número de guía" : "Generar guía con SkyDropX"}
+        {pending ? "Generando… (puede tardar unos segundos)" : inProgress ? "Revisar si la guía ya está lista" : "Generar guía"}
       </button>
     </form>
   );

@@ -41,7 +41,7 @@ const campaignSchema = z
           return z.NEVER;
         }
       })
-      .pipe(z.array(z.object({ id: z.string().regex(/^[a-z0-9-]{2,40}$/, "Id de punto: minúsculas, números y guiones."), name: z.string().trim().min(1).max(120), schedule: z.string().trim().min(1).max(200) }))),
+      .pipe(z.array(z.object({ id: z.string().regex(/^[a-z0-9-]{2,40}$/, "Id de punto: minúsculas, números y guiones."), name: z.string().trim().min(1, "Cada punto necesita lugar.").max(120), schedule: z.string().trim().min(1, "Cada punto necesita horario.").max(200) }))),
     deliveryNote: z.string().trim().max(1000).transform((value) => value || null),
     questions: z.string().transform((value, ctx) => {
       try {
@@ -83,7 +83,10 @@ export async function saveCampaign(slug: string, _state: ActionState, form: Form
     if (removed.length) return { error: `Con reservas existentes no se pueden quitar preguntas (${removed.join(", ")}): se perderían respuestas. Puedes cambiar su texto u opciones.` };
     const usedPoints = new Set(reservations.flatMap((r) => (r.pickupPointId ? [r.pickupPointId] : [])));
     const missing = [...usedPoints].filter((id) => !input.pickupPoints.some((p) => p.id === id));
-    if (missing.length) return { error: `Hay pedidos con los puntos ${missing.join(", ")}: no se pueden quitar. Puedes cambiar su nombre u horario.` };
+    if (missing.length) {
+      const names = missing.map((id) => campaign.pickupPoints.find((p) => p.id === id)?.name ?? id);
+      return { error: `Hay pedidos para recoger en ${names.join(", ")}: ese punto no se puede quitar. Puedes cambiar su nombre u horario.` };
+    }
   }
   if (input.status === "active" && !(await getCurrentTerms(db, campaign.id))) {
     return { error: "Publica los términos antes de activar la campaña." };

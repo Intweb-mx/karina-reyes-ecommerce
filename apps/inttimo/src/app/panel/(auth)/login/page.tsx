@@ -12,7 +12,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/panel/logi
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-4">
-      <p className="font-serif text-2xl">inttimo · panel</p>
+      <p className="font-serif text-2xl">inttimo · administración</p>
       <p className="mt-1 mb-8 text-sm text-muted">Acceso solo para administradores.</p>
       <LoginForm forbidden={forbidden} />
     </main>
