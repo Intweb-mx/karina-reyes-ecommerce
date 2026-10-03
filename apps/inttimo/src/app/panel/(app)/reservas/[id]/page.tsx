@@ -5,7 +5,7 @@ import { postPurchaseCopy } from "@/content/presale";
 import { formatMoney } from "@/lib/format";
 import { audit, requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
-import { Card, DELIVERY_LABELS, FULFILLMENT_LABELS, STATUS_LABELS } from "../../../ui";
+import { buttonClass, Card, DELIVERY_LABELS, FULFILLMENT_LABELS, STATUS_LABELS } from "../../../ui";
 import { createLabel, retryBonus, updateDelivery } from "./actions";
 import { DeliveredForm, LabelForm, ReadyForPickupForm, RetryBonusForm, ShippedForm } from "./DeliveryForms";
 
@@ -60,7 +60,6 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
     ["Estado de entrega", FULFILLMENT_LABELS[reservation.fulfillmentStatus]],
     ...(reservation.carrier ? ([["Paquetería", reservation.carrier]] as [string, React.ReactNode][]) : []),
     ...(reservation.trackingNumber ? ([["Guía", reservation.trackingUrl ? <a href={reservation.trackingUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">{reservation.trackingNumber}</a> : reservation.trackingNumber]] as [string, React.ReactNode][]) : []),
-    ...(reservation.labelUrl ? ([["Etiqueta", <a key="label" href={reservation.labelUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">Descargar PDF</a>]] as [string, React.ReactNode][]) : []),
     ["Enviado / listo", when(reservation.fulfilledAt)],
     ["Entregado", when(reservation.deliveredAt)],
     ["Bonus enviado", when(reservation.bonusSentAt)],
@@ -121,6 +120,11 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
                 </div>
               ))}
             </dl>
+            {reservation.labelUrl && (
+              <a href={reservation.labelUrl} target="_blank" rel="noreferrer" className={`${buttonClass} mt-5 inline-flex`}>
+                Imprimir guía
+              </a>
+            )}
             <div className="mt-5 border-t border-border pt-5">
               {!fulfillable ? (
                 <p className="text-sm text-muted">Solo los pedidos pagados se preparan y entregan.</p>
