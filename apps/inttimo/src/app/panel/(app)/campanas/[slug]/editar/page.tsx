@@ -7,7 +7,7 @@ import { Card } from "../../../../ui";
 import { saveCampaign, saveTerms } from "./actions";
 import { CampaignForm, TermsForm } from "./forms";
 
-export const metadata = { title: "Editar campaña" };
+export const metadata = { title: "Editar preventa" };
 
 /** Fecha en hora de CDMX (UTC-6 fijo) para <input type="datetime-local">. */
 function toLocalInput(date: Date): string {
@@ -26,13 +26,13 @@ export default async function EditCampaignPage({ params }: PageProps<"/panel/cam
     <div className="space-y-6">
       <div>
         <Link href={`/panel/campanas/${slug}`} className="text-sm text-muted">← {campaign.productName}</Link>
-        <h1 className="mt-1 font-serif text-3xl">Editar campaña</h1>
+        <h1 className="mt-1 font-serif text-3xl">Editar preventa</h1>
         <p className="mt-1 text-sm text-muted">
-          Dirección pública: <code>/preventa/{slug}</code> · {reservations.length} reservas
+          <a href={`/preventa/${slug}`} target="_blank" rel="noreferrer" className="underline underline-offset-4">Ver la página de la preventa</a> · {reservations.length} pedidos
         </p>
       </div>
 
-      <Card title="Campaña">
+      <Card title="Datos de la preventa">
         <CampaignForm
           action={saveCampaign.bind(null, slug)}
           hasReservations={reservations.length > 0}
@@ -46,10 +46,10 @@ export default async function EditCampaignPage({ params }: PageProps<"/panel/cam
             maxQuantityPerReservation: campaign.maxQuantityPerReservation,
             pickupEnabled: campaign.pickupEnabled,
             shippingEnabled: campaign.shippingEnabled,
-            pickupPoints: JSON.stringify(campaign.pickupPoints, null, 2),
+            pickupPoints: campaign.pickupPoints,
             shippingConfigured: campaign.shippingProfile !== null,
             deliveryNote: campaign.deliveryNote ?? "",
-            questions: JSON.stringify(campaign.questions, null, 2),
+            questions: JSON.stringify(campaign.questions),
           }}
         />
       </Card>
@@ -60,7 +60,7 @@ export default async function EditCampaignPage({ params }: PageProps<"/panel/cam
           <ul className="mt-4 space-y-1 text-xs text-muted">
             {versions.map((v) => (
               <li key={v.id}>
-                Versión {v.version} · {v.createdBy} · {v.createdAt.toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}
+                Versión {v.version} · {v.createdBy === "cli" ? "Soporte técnico" : v.createdBy} · {v.createdAt.toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}
               </li>
             ))}
           </ul>

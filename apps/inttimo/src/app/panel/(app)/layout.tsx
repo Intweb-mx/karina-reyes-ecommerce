@@ -10,9 +10,9 @@ export default async function PanelAppLayout({ children }: { children: ReactNode
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <nav className="flex items-center gap-6 text-sm">
-            <Link href="/panel" className="font-serif text-lg">inttimo · panel</Link>
-            <Link href="/panel" className="text-muted hover:text-fg">Campañas</Link>
-            <Link href="/panel/bitacora" className="text-muted hover:text-fg">Bitácora</Link>
+            <Link href="/panel" className="font-serif text-lg">inttimo · administración</Link>
+            <Link href="/panel" className="text-muted hover:text-fg">Inicio</Link>
+            <Link href="/panel/bitacora" className="text-muted hover:text-fg">Actividad</Link>
           </nav>
           <form action={signOut} className="flex items-center gap-3 text-sm">
             <span className="text-muted">{admin.email}</span>
