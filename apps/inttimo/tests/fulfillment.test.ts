@@ -4,7 +4,8 @@ import type { Mail } from "@inttimo/shared-utils/mail";
 import type Stripe from "stripe";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveBonusAccess } from "../src/server/presale/bonus.ts";
-import { fulfillReservation, handToCarrier, sendBonusIfEligible, type FulfillmentDeps } from "../src/server/presale/fulfillment.ts";
+import { fulfillReservation, handToCarrier, resendFulfillmentEmail, sendBonusIfEligible, type FulfillmentDeps } from "../src/server/presale/fulfillment.ts";
+import { resendConfirmation } from "../src/server/presale/notifications.ts";
 import { createStripeGateway } from "../src/server/presale/gateway.ts";
 import { createPresaleReservation, type PresaleDeps } from "../src/server/presale/reservations.ts";
 import { generateLabel, quoteShipping } from "../src/server/presale/shipping.ts";
@@ -212,5 +213,39 @@ describe("Stripe Checkout según el método de entrega", () => {
     await gateway.createCheckout({ ...base, deliveryMethod: "shipping", shippingAmount: 18_000, shippingLabel: "Envío · Estafeta Terrestre" });
     expect(calls[0]!.shipping_address_collection).toBeUndefined();
     expect(calls[0]!.shipping_options?.[0]?.shipping_rate_data).toMatchObject({ type: "fixed_amount", display_name: "Envío · Estafeta Terrestre", fixed_amount: { amount: 18_000, currency: "mxn" } });
+  });
+});
+
+describe("reenviar correos", () => {
+  it("reenvía el aviso de listo para recoger con la misma nota y sin bonus", async () => {
+    const id = await paidReservation("pickup");
+    expect(await resendFulfillmentEmail(deps, id)).toBe("not_applicable");
+    await fulfillReservation(deps, id, { type: "ready_for_pickup", note: "Sábado 10:00" }, "admin");
+    sent = [];
+
+    expect(await resendFulfillmentEmail(deps, id)).toBe("sent");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain("Sábado 10:00");
+    expect(sent[0]!.text).not.toContain("BONUS DE PREVENTA");
+  });
+
+  it("si el reenvío falla queda en el historial", async () => {
+    const id = await paidReservation("pickup");
+    await fulfillReservation(deps, id, { type: "ready_for_pickup", note: null }, "admin");
+    failMail = true;
+    expect(await resendFulfillmentEmail(deps, id)).toBe("failed");
+    expect((await listReservationEvents(db, id)).map((e) => e.type).at(-1)).toBe("FULFILLMENT_EMAIL_FAILED");
+  });
+
+  it("reenvía la confirmación de pago aunque ya se haya enviado; no aplica a pedidos sin pagar", async () => {
+    const id = await paidReservation("pickup");
+    const send = deps.send;
+    expect(await resendConfirmation(db, id, { send })).toBe("sent");
+    expect((await findReservationById(db, id))?.confirmationEmailSentAt).not.toBeNull();
+    expect(await resendConfirmation(db, id, { send })).toBe("sent");
+    expect(sent.filter((m) => m.to === "ana@ejemplo.com")).toHaveLength(2);
+
+    await db.execute(`update presale_reservations set status = 'refunded' where id = '${id}'`);
+    expect(await resendConfirmation(db, id, { send })).toBe("not_paid");
   });
 });
