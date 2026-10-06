@@ -164,6 +164,9 @@ describe("guía de SkyDropX", () => {
     expect(await generateLabel(labelDeps(), id, "admin")).toMatchObject({ ok: true, status: "ready" });
     expect(shipping.shipments).toHaveLength(1);
     expect(sent).toHaveLength(0);
+    const labelEvents = (await listReservationEvents(db, id)).map((e) => e.type).filter((t) => t === "LABEL_CREATED" || t === "LABEL_FAILED");
+    expect(labelEvents.filter((t) => t === "LABEL_CREATED").length).toBeGreaterThanOrEqual(2);
+    expect(labelEvents.at(-1)).toBe("LABEL_CREATED");
   });
 
   it("con la cotización vencida (más de 23 h) vuelve a cotizar y conserva la misma paquetería", async () => {

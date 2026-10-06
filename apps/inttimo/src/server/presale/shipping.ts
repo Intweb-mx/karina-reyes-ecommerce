@@ -188,6 +188,7 @@ export async function generateLabel(deps: ShippingDeps, reservationId: string, a
   const to: ContactAddress = { ...reservation.deliveryAddress, company: null, email: reservation.email };
 
   let shipment;
+  let labelLogged = false;
   try {
     if (reservation.shipmentId) {
       shipment = await deps.provider.getShipment(reservation.shipmentId);
@@ -204,6 +205,7 @@ export async function generateLabel(deps: ShippingDeps, reservationId: string, a
       shipment = await deps.provider.createShipment({ quotationId, rateId, from: profile.origin, to, consignmentNote: profile.consignmentNote, packageType: profile.packageType });
       await saveLabel(deps.db, reservation.id, { shipmentId: shipment.shipmentId, labelUrl: shipment.labelUrl });
       await addReservationEvent(deps.db, reservation.id, "LABEL_CREATED", "panel", { externalRef: shipment.shipmentId, metadata: { actor } });
+      labelLogged = true;
     }
   } catch (error) {
     await addReservationEvent(deps.db, reservation.id, "LABEL_FAILED", "panel", { metadata: { actor, error: String(error).slice(0, 300) } });
@@ -222,6 +224,9 @@ export async function generateLabel(deps: ShippingDeps, reservationId: string, a
     trackingNumber: shipment.trackingNumber,
     trackingUrl: null,
   });
+  if (!labelLogged) {
+    await addReservationEvent(deps.db, reservation.id, "LABEL_CREATED", "panel", { externalRef: shipment.shipmentId, metadata: { actor, trackingNumber: shipment.trackingNumber } });
+  }
   return {
     ok: true,
     status: "ready",

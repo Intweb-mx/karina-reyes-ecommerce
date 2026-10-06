@@ -60,7 +60,11 @@ function NextStepCard({ order }: { order: OrderDetail }) {
       body = (
         <div className="space-y-4">
           {step.blocked ? (
-            <p className="text-sm">Este pedido no tiene dirección completa. Pide la dirección al cliente, genera la guía en SkyDropX y regístrala abajo.</p>
+            <p className="text-sm">
+              {order.delivery.address
+                ? "La dirección de este pedido no se capturó en el formato de SkyDropX. Genera la guía en SkyDropX con la dirección de abajo y regístrala aquí."
+                : "Este pedido no tiene dirección completa. Pide la dirección al cliente, genera la guía en SkyDropX y regístrala abajo."}
+            </p>
           ) : (
             <LabelForm action={createLabel.bind(null, order.id)} pending={step.inProgress} />
           )}
@@ -240,8 +244,8 @@ export default async function OrderPage({ params }: PageProps<"/panel/pedidos/[i
           {(order.answers.length > 0 || order.postPurchase) && (
             <Card title="Respuestas del cliente">
               <dl className="space-y-3 text-sm">
-                {[...order.answers, ...(order.postPurchase ?? [])].map((row) => (
-                  <div key={row.label}>
+                {[...order.answers, ...(order.postPurchase ?? [])].map((row, index) => (
+                  <div key={`${index}-${row.label}`}>
                     <dt className="text-muted">{row.label}</dt>
                     <dd>{row.value}</dd>
                   </div>

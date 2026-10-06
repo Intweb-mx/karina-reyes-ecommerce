@@ -14,6 +14,7 @@ const base: Order = {
   trackingNumber: null,
   shipmentId: null,
   deliveryAddress: ADDRESS,
+  shippingAddress: null,
   paidAt: NOW,
   confirmationEmailSentAt: NOW,
   bonusSentAt: null,
@@ -51,6 +52,16 @@ describe("incidencias", () => {
     expect(incidentsFor(order(), [ev("LABEL_FAILED", 1)], at(60))).toEqual(["label_failed"]);
     expect(incidentsFor(order(), [ev("LABEL_FAILED", 1), ev("LABEL_CREATED", 2)], at(60))).toEqual([]);
     expect(incidentsFor(order({ fulfillmentStatus: "shipped" }), [ev("LABEL_FAILED", 1)], at(60))).toEqual([]);
+  });
+
+  it("guía fallida pero con número de guía guardado no es incidencia", () => {
+    expect(incidentsFor(order({ trackingNumber: "G1" }), [ev("LABEL_FAILED", 1)], at(60))).toEqual([]);
+  });
+
+  it("dirección faltante solo si no hay ni dirección de entrega ni la de Stripe", () => {
+    const stripeAddress = { line1: "Calle 1" } as unknown as Order["shippingAddress"];
+    expect(incidentsFor(order({ deliveryAddress: null, shippingAddress: stripeAddress }), [], at(60))).toEqual([]);
+    expect(incidentsFor(order({ deliveryAddress: null, shippingAddress: null }), [], at(60))).toEqual(["missing_address"]);
   });
 
   it("confirmación sin enviar después de 15 minutos del pago", () => {

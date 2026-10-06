@@ -100,7 +100,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/panel/ped
                   <Link href={`/panel/pedidos/${row.id}`} className="-mx-2 grid gap-2 px-2 py-3 text-sm transition-colors hover:bg-surface sm:grid-cols-[1fr_auto] sm:items-center">
                     <div className="min-w-0">
                       <p className="font-semibold">{row.fullName}</p>
-                      <p className="mt-0.5 truncate text-muted">
+                      <p className="mt-0.5 sm:truncate text-muted">
                         <span className="font-mono">{row.code}</span> · {row.email} · {row.quantity} {row.quantity === 1 ? "pieza" : "piezas"} · {formatMoney(row.totalAmount, row.currency)}
                       </p>
                     </div>

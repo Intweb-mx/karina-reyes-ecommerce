@@ -52,6 +52,7 @@ const BONUS: Record<BonusOutcome, string> = {
 export async function updateDelivery(reservationId: string, _state: DeliveryState, form: FormData): Promise<DeliveryState> {
   const state = await getAdminState();
   if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
+  if (!z.string().uuid().safeParse(reservationId).success) return { error: "Pedido no válido." };
   const parsed = schema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: parsed.error.issues.map((issue) => issue.message).join(" ") };
 
@@ -74,6 +75,7 @@ export async function updateDelivery(reservationId: string, _state: DeliveryStat
 export async function retryBonus(reservationId: string): Promise<DeliveryState> {
   const state = await getAdminState();
   if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
+  if (!z.string().uuid().safeParse(reservationId).success) return { error: "Pedido no válido." };
   const outcome = await sendBonusIfEligible(getFulfillmentDeps(), reservationId);
   await audit(state.admin, { action: "reservation.bonus_retry", targetType: "reservation", targetId: reservationId, metadata: { outcome } });
   refresh(reservationId);
@@ -86,6 +88,7 @@ export async function retryBonus(reservationId: string): Promise<DeliveryState> 
 export async function createLabel(reservationId: string): Promise<DeliveryState> {
   const state = await getAdminState();
   if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
+  if (!z.string().uuid().safeParse(reservationId).success) return { error: "Pedido no válido." };
   const result = await generateLabel(getShippingDeps(), reservationId, state.admin.email);
   await audit(state.admin, { action: "reservation.label", targetType: "reservation", targetId: reservationId, metadata: result.ok ? { status: result.status } : { error: result.error } });
   refresh(reservationId);
@@ -96,6 +99,7 @@ export async function createLabel(reservationId: string): Promise<DeliveryState>
 export async function handToCarrierAction(reservationId: string): Promise<DeliveryState> {
   const state = await getAdminState();
   if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
+  if (!z.string().uuid().safeParse(reservationId).success) return { error: "Pedido no válido." };
   const result = await handToCarrier(getFulfillmentDeps(), reservationId, state.admin.email);
   if (!result.ok) return { error: result.error };
   await audit(state.admin, { action: "reservation.hand_to_carrier", targetType: "reservation", targetId: reservationId });
@@ -109,6 +113,7 @@ const noteSchema = z.string().trim().min(1, "Escribe la nota.").max(2000, "La no
 export async function addNote(reservationId: string, _state: DeliveryState, form: FormData): Promise<DeliveryState> {
   const state = await getAdminState();
   if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
+  if (!z.string().uuid().safeParse(reservationId).success) return { error: "Pedido no válido." };
   const parsed = noteSchema.safeParse(form.get("body"));
   if (!parsed.success) return { error: parsed.error.issues.map((issue) => issue.message).join(" ") };
   try {
@@ -124,6 +129,7 @@ export async function addNote(reservationId: string, _state: DeliveryState, form
 export async function resendEmail(reservationId: string, kind: "confirmation" | "fulfillment"): Promise<DeliveryState> {
   const state = await getAdminState();
   if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
+  if (!z.string().uuid().safeParse(reservationId).success) return { error: "Pedido no válido." };
   if (kind !== "confirmation" && kind !== "fulfillment") return { error: "Correo no válido." };
   const deps = getFulfillmentDeps();
   const outcome = kind === "confirmation" ? await resendConfirmation(getDb(), reservationId, { send: deps.send }) : await resendFulfillmentEmail(deps, reservationId);

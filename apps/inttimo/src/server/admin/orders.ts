@@ -50,7 +50,9 @@ export function parseOrderQuery(params: Record<string, string | string[] | undef
   const entrega = one("entrega");
   const campana = one("campana");
   const q = one("q")?.trim().slice(0, 100);
-  const query: OrderQuery = { tab: tab && (ORDER_TABS as readonly string[]).includes(tab) ? (tab as OrderTab) : "to_prepare", page: parsePage(one("pagina")) };
+  const validTab = tab && (ORDER_TABS as readonly string[]).includes(tab) ? (tab as OrderTab) : null;
+  // Buscar sin pestaña explícita recorre todos los pedidos.
+  const query: OrderQuery = { tab: validTab ?? (q ? "all" : "to_prepare"), page: parsePage(one("pagina")) };
   if (q) query.q = q;
   if (entrega === "shipping" || entrega === "pickup") query.deliveryMethod = entrega;
   if (campana && UUID.test(campana)) query.campaignId = campana;

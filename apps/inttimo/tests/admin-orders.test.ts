@@ -71,7 +71,8 @@ describe("Por hacer", () => {
 describe("Pedidos", () => {
   it("interpreta los filtros de la URL y descarta valores inválidos", () => {
     expect(parseOrderQuery({})).toEqual({ tab: "to_prepare", page: 1 });
-    expect(parseOrderQuery({ tab: "x", entrega: "pickup", campana: "no-es-uuid", pagina: "3", q: "  ana " })).toEqual({ tab: "to_prepare", deliveryMethod: "pickup", page: 3, q: "ana" });
+    expect(parseOrderQuery({ tab: "x", entrega: "pickup", campana: "no-es-uuid", pagina: "3", q: "  ana " })).toEqual({ tab: "all", deliveryMethod: "pickup", page: 3, q: "ana" });
+    expect(parseOrderQuery({ q: "ana", tab: "delivered" })).toEqual({ tab: "delivered", page: 1, q: "ana" });
     for (const pagina of ["Infinity", "1e21", "0", "-2", "2.7", "10001", "abc"]) expect(parseOrderQuery({ pagina }).page).toBe(1);
     expect(parseOrderQuery({ pagina: "10000" }).page).toBe(10_000);
     expect(parseOrderQuery({ tab: "all", campana: campaignId })).toEqual({ tab: "all", campaignId, page: 1 });

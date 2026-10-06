@@ -38,7 +38,7 @@ Se puede dejar preparada la arquitectura de este repo (scaffold, tipos, tokens v
 
 - **Actualización 2026-10-01:** la preventa cotiza el envío con **SkyDropX** antes de Stripe (producto + envío en un solo pago) y genera guías desde el panel; recolección con punto elegido (Sophos/Baluarte, Costco). Solo `server/shipping/skydropx.ts` habla con SkyDropX. Ver `docs/preventa/README.md`.
 - La excepción cubre **solo la preventa**: `packages/database` (tablas `presale_*`), `apps/inttimo/src/server/presale/`, rutas `/api/preventa/*` y `/api/webhooks/stripe`, y las páginas `/preventa/[slug]` y `/preventa/[slug]/confirmacion`.
-- Catálogo, carrito, checkout general, inventario, cuentas y panel operativo de la tienda completa siguen bloqueados por el gate de arriba.
+- Desde 2026-10-06 el gate está levantado (ver nota arriba): la tienda completa se construye oculta al público hasta que termine la preventa.
 - El frontend de la preventa lo construye un colaborador. El backend es el contrato de `apps/inttimo/src/server/presale/contract.ts`; no romperlo sin avisar.
 - Solo `gateway.ts` importa el SDK de Stripe. El precio vive en la base; nunca se acepta del cliente.
 - Nunca apuntar migraciones al puerto 54322: lo usa el Supabase local de otro proyecto (AJL-Group).

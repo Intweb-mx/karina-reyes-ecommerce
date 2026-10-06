@@ -49,6 +49,7 @@ export default async function InboxPage() {
             action="Marcar recogido"
             empty="Nadie tiene pedidos pendientes de recoger."
             now={now}
+            ownBadgeOnly
           />
         </Card>
       </div>
@@ -56,7 +57,7 @@ export default async function InboxPage() {
   );
 }
 
-function InboxList({ rows, action, empty, now }: { rows: Row[]; action: string; empty: string; now: Date }) {
+function InboxList({ rows, action, empty, now, ownBadgeOnly = false }: { rows: Row[]; action: string; empty: string; now: Date; ownBadgeOnly?: boolean }) {
   if (!rows.length) return <EmptyState title={empty} />;
   return (
     <ul className="-my-2 divide-y divide-border">
@@ -69,7 +70,7 @@ function InboxList({ rows, action, empty, now }: { rows: Row[]; action: string; 
               <div className="min-w-0">
                 <p className="flex flex-wrap items-center gap-2 font-semibold">
                   {row.fullName}
-                  {row.badge ? <Badge tone="attention">{row.badge}</Badge> : waiting >= 3 && <Badge tone="attention">{waiting} días esperando</Badge>}
+                  {row.badge ? <Badge tone="attention">{row.badge}</Badge> : !ownBadgeOnly && waiting >= 3 && <Badge tone="attention">{waiting} días esperando</Badge>}
                 </p>
                 <p className="mt-0.5 text-muted">
                   <span className="font-mono">{row.code}</span> · {row.quantity} {row.quantity === 1 ? "pieza" : "piezas"} · {row.campaignName} · pagado el{" "}
