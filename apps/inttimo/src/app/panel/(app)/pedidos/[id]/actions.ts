@@ -111,7 +111,11 @@ export async function addNote(reservationId: string, _state: DeliveryState, form
   if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
   const parsed = noteSchema.safeParse(form.get("body"));
   if (!parsed.success) return { error: parsed.error.issues.map((issue) => issue.message).join(" ") };
-  await addOrderNote(getDb(), { reservationId, body: parsed.data, authorEmail: state.admin.email });
+  try {
+    await addOrderNote(getDb(), { reservationId, body: parsed.data, authorEmail: state.admin.email });
+  } catch {
+    return { error: "No se pudo guardar la nota. Recarga la página e inténtalo de nuevo." };
+  }
   await audit(state.admin, { action: "reservation.note", targetType: "reservation", targetId: reservationId });
   refresh(reservationId);
   return { ok: "Nota guardada." };
@@ -123,8 +127,10 @@ export async function resendEmail(reservationId: string, kind: "confirmation" | 
   if (kind !== "confirmation" && kind !== "fulfillment") return { error: "Correo no válido." };
   const deps = getFulfillmentDeps();
   const outcome = kind === "confirmation" ? await resendConfirmation(getDb(), reservationId, { send: deps.send }) : await resendFulfillmentEmail(deps, reservationId);
-  await audit(state.admin, { action: "reservation.resend_email", targetType: "reservation", targetId: reservationId, metadata: { kind, outcome } });
-  refresh(reservationId);
+  if (outcome === "sent" || outcome === "failed") {
+    await audit(state.admin, { action: "reservation.resend_email", targetType: "reservation", targetId: reservationId, metadata: { kind, outcome } });
+    refresh(reservationId);
+  }
   if (outcome === "sent") return { ok: "Correo reenviado." };
   if (outcome === "failed") return { error: "No se pudo enviar el correo (quedó en el historial). Inténtalo más tarde." };
   return { error: "Este correo no aplica para el estado actual del pedido." };

@@ -97,9 +97,7 @@ function NextStepCard({ order }: { order: OrderDetail }) {
     case "mark_delivered":
       body = (
         <div className="space-y-2 text-sm">
-          <p>
-            Enviado con <Tracking delivery={order.delivery} />. Cuando la paquetería lo entregue:
-          </p>
+          <p>Enviado. Cuando la paquetería lo entregue:</p>
           <DeliveredForm action={deliver} />
         </div>
       );
@@ -110,13 +108,13 @@ function NextStepCard({ order }: { order: OrderDetail }) {
     case "mark_picked_up":
       body = (
         <div className="space-y-2">
-          <p className="text-sm text-muted">El cliente ya fue avisado el {when(order.delivery.fulfilledAt)}. Cuando lo recoja:</p>
+          <p className="text-sm text-muted">El cliente ya fue avisado. Cuando lo recoja:</p>
           <DeliveredForm action={deliver} />
         </div>
       );
       break;
     case "none":
-      body = <p className="text-sm text-muted">Entregado el {when(order.delivery.deliveredAt)}. No hay nada pendiente.</p>;
+      body = <p className="text-sm text-muted">Entregado. No hay nada pendiente.</p>;
       break;
   }
   return (
@@ -156,7 +154,6 @@ export default async function OrderPage({ params }: PageProps<"/panel/pedidos/[i
   ];
 
   const paymentRows: [string, ReactNode][] = [
-    ["Estado", <Badge key="s" tone={STATUS_TONES[payment.status]}>{STATUS_LABELS[payment.status]}</Badge>],
     ["Producto", `${order.campaign?.productName ?? "—"} · ${pieces(payment.quantity)} × ${formatMoney(payment.unitAmount, payment.currency)}`],
     ["Envío", shipping ? (payment.shippingAmount ? formatMoney(payment.shippingAmount, payment.currency) : "No se cobró") : "Recolección (sin costo)"],
     ["Total pagado", formatMoney(payment.totalAmount, payment.currency)],
