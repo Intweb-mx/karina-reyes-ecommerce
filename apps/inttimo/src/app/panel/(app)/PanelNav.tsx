@@ -4,15 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/panel", label: "Pedidos", match: (p: string) => p === "/panel" || p.startsWith("/panel/campanas") || p.startsWith("/panel/reservas") },
-  { href: "/panel/bitacora", label: "Actividad", match: (p: string) => p.startsWith("/panel/bitacora") },
+  { href: "/panel", label: "Por hacer", match: (p: string) => p === "/panel" },
+  { href: "/panel/pedidos", label: "Pedidos", match: (p: string) => p.startsWith("/panel/pedidos") || p.startsWith("/panel/reservas") },
+  { href: "/panel/preventa", label: "Preventa", match: (p: string) => p.startsWith("/panel/preventa") || p.startsWith("/panel/campanas") },
+  { href: "/panel/ajustes", label: "Ajustes", match: (p: string) => p.startsWith("/panel/ajustes") || p.startsWith("/panel/bitacora") },
 ];
 
 /** Navegación del panel con la sección actual marcada. */
 export function PanelNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Secciones del panel" className="flex items-center gap-1">
+    <nav aria-label="Secciones del panel" className="flex items-center gap-1 overflow-x-auto">
       {LINKS.map((link) => {
         const active = link.match(pathname);
         return (
