@@ -6,7 +6,8 @@ import { postPurchaseCopy } from "@/content/presale";
 import { formatMoney } from "@/lib/format";
 import { audit, requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
-import { buttonClass, Card, DELIVERY_LABELS, EVENT_LABELS, FULFILLMENT_LABELS, linkClass, STATUS_LABELS } from "../../../ui";
+import { CheckIcon } from "@/components/ui/icons";
+import { Badge, buttonClass, Card, DELIVERY_LABELS, EmptyState, EVENT_LABELS, FULFILLMENT_LABELS, FULFILLMENT_TONES, linkClass, PageHeader, secondaryButtonClass, STATUS_LABELS, STATUS_TONES } from "../../../ui";
 import { createLabel, retryBonus, updateDelivery } from "./actions";
 import { DeliveredForm, LabelForm, ReadyForPickupForm, RetryBonusForm, ShippedForm } from "./DeliveryForms";
 
@@ -41,13 +42,30 @@ function Rows({ rows }: { rows: [string, ReactNode][] }) {
   );
 }
 
-function Step({ n, done, children }: { n: number; done: boolean; children: ReactNode }) {
+function Step({ n, done, last, children }: { n: number; done: boolean; last?: boolean; children: ReactNode }) {
   return (
-    <li className="flex gap-3">
-      <span className={`grid size-6 shrink-0 place-items-center rounded-full text-xs ${done ? "bg-success text-bg" : "border border-border"}`}>{done ? "✓" : n}</span>
-      <div className="min-w-0 flex-1 text-sm">{children}</div>
+    <li className="relative flex gap-4">
+      {!last && <span aria-hidden="true" className={`absolute top-8 bottom-[-1.25rem] left-[0.9375rem] w-px ${done ? "bg-success/50" : "bg-border"}`} />}
+      <span
+        aria-hidden="true"
+        className={`relative z-10 grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold ${done ? "bg-success text-on-ink" : "border border-border bg-[#fffdf9] text-fg/70"}`}
+      >
+        {done ? <CheckIcon className="size-4" /> : n}
+      </span>
+      <div className="min-w-0 flex-1 pt-1 text-sm">
+        {children}
+        <span className="sr-only">{done ? " (hecho)" : " (pendiente)"}</span>
+      </div>
     </li>
   );
+}
+
+/** Teléfono mexicano de 10 dígitos → número internacional para WhatsApp (sin inventar si no es claro). */
+function whatsappNumber(phone: string | null): string | null {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  if (digits.length === 10) return `52${digits}`;
+  if (digits.length === 12 && digits.startsWith("52")) return digits;
+  return null;
 }
 
 export default async function ReservationPage({ params }: PageProps<"/panel/reservas/[id]">) {
@@ -127,17 +145,43 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
 
   return (
     <div className="space-y-6">
-      <div>
-        {campaign && <Link href={`/panel/campanas/${campaign.slug}`} className="text-sm text-muted">← Todos los pedidos de {campaign.productName}</Link>}
-        <h1 className="mt-1 font-serif text-3xl">{reservation.fullName}</h1>
-        <p className="mt-1 text-sm text-muted">
-          Folio {reservation.code} · {STATUS_LABELS[reservation.status]} · {DELIVERY_LABELS[reservation.deliveryMethod]} · {FULFILLMENT_LABELS[reservation.fulfillmentStatus]}
-        </p>
-      </div>
+      <PageHeader
+        back={campaign && <Link href={`/panel/campanas/${campaign.slug}`} className="hover:text-fg">← Todos los pedidos de {campaign.productName}</Link>}
+        title={reservation.fullName}
+        subtitle={
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-fg">{reservation.code}</span>
+            <Badge tone={STATUS_TONES[reservation.status]}>{STATUS_LABELS[reservation.status]}</Badge>
+            <Badge tone="neutral">{DELIVERY_LABELS[reservation.deliveryMethod]}</Badge>
+            {fulfillable && <Badge tone={FULFILLMENT_TONES[reservation.fulfillmentStatus]}>{FULFILLMENT_LABELS[reservation.fulfillmentStatus]}</Badge>}
+          </span>
+        }
+        actions={
+          <>
+            <a href={`mailto:${reservation.email}?subject=${encodeURIComponent(`Tu pedido ${reservation.code}`)}`} className={secondaryButtonClass}>
+              Escribir correo
+            </a>
+            {reservation.phone && (
+              <a href={`tel:${reservation.phone.replace(/[^+\d]/g, "")}`} className={secondaryButtonClass}>
+                Llamar
+              </a>
+            )}
+            {whatsappNumber(reservation.phone) && (
+              <a href={`https://wa.me/${whatsappNumber(reservation.phone)}`} target="_blank" rel="noreferrer" className={secondaryButtonClass}>
+                WhatsApp
+              </a>
+            )}
+          </>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
-          <Card title={shipping ? "Envío" : "Recolección"}>
+          <Card
+            title={shipping ? "Envío: qué sigue" : "Recolección: qué sigue"}
+            description={fulfillable ? (shipping ? "Sigue los pasos en orden." : "Avisa al cliente cuando el pedido esté listo.") : undefined}
+            className={fulfillable && pending ? "border-warning/40 shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-warning)_10%,transparent)]" : ""}
+          >
             {!fulfillable ? (
               <p className="text-sm text-muted">Este pedido no está pagado: no se prepara ni se envía.</p>
             ) : shipping ? (
@@ -164,7 +208,7 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
                     <p className="mt-1 text-muted">{pending ? "El botón aparece aquí cuando la guía esté generada." : "Esta guía se registró a mano: imprímela desde SkyDropX."}</p>
                   )}
                 </Step>
-                <Step n={3} done={reservation.fulfillmentStatus === "delivered"}>
+                <Step n={3} done={reservation.fulfillmentStatus === "delivered"} last>
                   <p className="font-semibold">Confirmar la entrega</p>
                   {reservation.fulfillmentStatus === "shipped" ? (
                     <div className="mt-2">
@@ -261,14 +305,19 @@ export default async function ReservationPage({ params }: PageProps<"/panel/rese
         </div>
       </div>
 
-      <Card title="Historial del pedido">
-        <ol className="space-y-2 text-sm">
-          {events.map((event) => (
-            <li key={event.id} className="grid gap-1 sm:grid-cols-[12rem_1fr] sm:gap-4">
-              <span className="text-muted">{when(event.createdAt)}</span>
-              <span>{EVENT_LABELS[event.type] ?? "Actualización del pedido"}</span>
-            </li>
-          ))}
+      <Card title="Historial del pedido" description="Todo lo que ha pasado con este pedido, del más antiguo al más reciente.">
+        {events.length === 0 && <EmptyState title="Todavía no hay movimientos en este pedido." />}
+        <ol className="relative space-y-4 border-l border-border pl-5 text-sm empty:hidden">
+          {events.map((event) => {
+            const failed = event.type.endsWith("_FAILED");
+            return (
+              <li key={event.id} className="relative">
+                <span aria-hidden="true" className={`absolute top-1.5 -left-[1.6875rem] size-2.5 rounded-full border-2 border-[#fffdf9] ${failed ? "bg-danger" : "bg-fg/40"}`} />
+                <p className={failed ? "font-medium text-danger" : "font-medium"}>{EVENT_LABELS[event.type] ?? "Actualización del pedido"}</p>
+                <p className="mt-0.5 text-xs text-muted">{when(event.createdAt)}</p>
+              </li>
+            );
+          })}
         </ol>
       </Card>
     </div>

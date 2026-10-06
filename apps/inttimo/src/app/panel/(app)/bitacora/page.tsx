@@ -2,7 +2,7 @@ import { listAdminActions } from "@inttimo/database";
 import { formatMoney } from "@/lib/format";
 import { requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
-import { ACTION_LABELS, Card, FIELD_LABELS } from "../../ui";
+import { ACTION_LABELS, Card, EmptyState, FIELD_LABELS, PageHeader } from "../../ui";
 
 export const metadata = { title: "Actividad" };
 
@@ -41,32 +41,27 @@ export default async function AuditLogPage() {
   await requireAdmin();
   const entries = (await listAdminActions(getDb(), 300)).filter((e) => e.action !== "reservation.view").slice(0, 200);
   return (
-    <div className="space-y-6">
-      <h1 className="font-serif text-3xl">Actividad</h1>
-      <p className="text-sm text-muted">Quién hizo qué en el panel. Este registro no se puede editar ni borrar.</p>
+    <div className="space-y-8">
+      <PageHeader title="Actividad" subtitle="Quién hizo qué en el panel. Este registro no se puede editar ni borrar." />
       <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-border text-xs text-muted">
-              <tr>
-                <th className="py-2 pr-4 font-normal">Fecha</th>
-                <th className="py-2 pr-4 font-normal">Quién</th>
-                <th className="py-2 pr-4 font-normal">Qué hizo</th>
-                <th className="py-2 font-normal">Detalle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((e) => (
-                <tr key={e.id} className="border-b border-border/60 align-top last:border-0">
-                  <td className="py-2 pr-4 whitespace-nowrap text-muted">{when(e.createdAt)}</td>
-                  <td className="py-2 pr-4">{e.actorEmail === "cli" ? "Soporte técnico" : e.actorEmail}</td>
-                  <td className="py-2 pr-4">{ACTION_LABELS[e.action] ?? "Otra acción"}</td>
-                  <td className="py-2 text-muted">{detail(e.action, e.metadata)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {entries.length === 0 && <EmptyState title="Todavía no hay actividad." />}
+        <ol className="divide-y divide-border">
+          {entries.map((e) => {
+            const info = detail(e.action, e.metadata);
+            return (
+              <li key={e.id} className="grid gap-1 py-3 text-sm sm:grid-cols-[11rem_1fr] sm:gap-6">
+                <span className="text-xs text-muted sm:pt-0.5 sm:text-sm">{when(e.createdAt)}</span>
+                <div className="min-w-0">
+                  <p>
+                    <span className="font-medium">{ACTION_LABELS[e.action] ?? "Otra acción"}</span>
+                    <span className="text-muted"> · {e.actorEmail === "cli" ? "Soporte técnico" : e.actorEmail}</span>
+                  </p>
+                  {info && <p className="mt-0.5 break-words text-muted">{info}</p>}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       </Card>
     </div>
   );

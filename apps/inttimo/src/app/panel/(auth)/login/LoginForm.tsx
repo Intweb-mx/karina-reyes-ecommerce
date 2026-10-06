@@ -10,11 +10,11 @@ export function LoginForm({ forbidden }: { forbidden: boolean }) {
     <form action={action} className="space-y-4">
       {forbidden && !state?.error && <Alert>Esta cuenta no tiene acceso al panel.</Alert>}
       {state?.error && <Alert>{state.error}</Alert>}
-      <label className="block text-sm">
+      <label className="block text-sm font-medium">
         Correo
         <input name="email" type="email" autoComplete="username" required defaultValue={state?.email} className={inputClass} />
       </label>
-      <label className="block text-sm">
+      <label className="block text-sm font-medium">
         Contraseña
         <input name="password" type="password" autoComplete="current-password" required className={inputClass} />
       </label>

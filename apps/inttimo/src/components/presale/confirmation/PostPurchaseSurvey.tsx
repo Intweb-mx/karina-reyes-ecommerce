@@ -10,13 +10,26 @@ type Status = "idle" | "submitting" | "sent" | "skipped";
 
 /**
  * Cuestionario opcional tras la confirmación de pago (Especificaciones finales postcompra UNO+UNO, §1).
- * Las 3 preguntas son opcionales; no bloquea ni condiciona nada del pedido.
+ * Todas las preguntas son opcionales; no bloquea ni condiciona nada del pedido.
  */
 export function PostPurchaseSurvey({ slug, sessionId }: { slug: string; sessionId: string }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<Status>("idle");
 
-  if (status === "sent" || status === "skipped") return null;
+  if (status === "skipped") return null;
+  if (status === "sent") {
+    return (
+      <section role="status" className="animate-rise mt-12 flex items-start gap-4 border border-success/30 bg-success/5 p-6 sm:p-8 print:hidden">
+        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-success text-on-ink">
+          <CheckIcon className="animate-pop size-5" />
+        </span>
+        <div>
+          <p className="font-serif text-2xl font-medium">{postPurchaseCopy.sent}</p>
+          <p className="mt-1 text-sm text-muted">Quedaron guardadas con tu pedido.</p>
+        </div>
+      </section>
+    );
+  }
 
   async function send(currentAnswers: Record<string, string>, submit: boolean) {
     if (submit) setStatus("submitting");

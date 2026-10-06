@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
-import { Card } from "../../../../ui";
+import { Card, PageHeader, secondaryButtonClass } from "../../../../ui";
 import { saveCampaign, saveTerms } from "./actions";
 import { CampaignForm, TermsForm } from "./forms";
 
@@ -23,14 +23,17 @@ export default async function EditCampaignPage({ params }: PageProps<"/panel/cam
   const [terms, versions, reservations] = await Promise.all([getCurrentTerms(db, campaign.id), listTermsVersions(db, campaign.id), listReservations(db, campaign.id)]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href={`/panel/campanas/${slug}`} className="text-sm text-muted">← {campaign.productName}</Link>
-        <h1 className="mt-1 font-serif text-3xl">Editar preventa</h1>
-        <p className="mt-1 text-sm text-muted">
-          <a href={`/preventa/${slug}`} target="_blank" rel="noreferrer" className="underline underline-offset-4">Ver la página de la preventa</a> · {reservations.length} pedidos
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        back={<Link href={`/panel/campanas/${slug}`} className="hover:text-fg">← {campaign.productName}</Link>}
+        title="Editar preventa"
+        subtitle={`${reservations.length} ${reservations.length === 1 ? "pedido" : "pedidos"} hasta ahora. Los cambios se ven en la página al guardar.`}
+        actions={
+          <a href={`/preventa/${slug}`} target="_blank" rel="noreferrer" className={secondaryButtonClass}>
+            Ver la página ↗
+          </a>
+        }
+      />
 
       <Card title="Datos de la preventa">
         <CampaignForm

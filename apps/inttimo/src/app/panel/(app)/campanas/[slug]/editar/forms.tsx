@@ -34,11 +34,11 @@ export function CampaignForm({ action, defaults, hasReservations }: { action: Ac
   const [state, formAction, pending] = useActionState(action, undefined);
   return (
     <form action={formAction} className="grid gap-4 sm:grid-cols-2">
-      <label className="text-sm sm:col-span-2">
+      <label className="text-sm font-medium sm:col-span-2">
         Producto
         <input name="productName" defaultValue={defaults.productName} required className={inputClass} />
       </label>
-      <label className="text-sm">
+      <label className="text-sm font-medium">
         Estado
         <select name="status" defaultValue={defaults.status} className={inputClass}>
           <option value="draft">Oculta (nadie la ve)</option>
@@ -46,19 +46,19 @@ export function CampaignForm({ action, defaults, hasReservations }: { action: Ac
           <option value="closed">Cerrada (ya no se puede comprar)</option>
         </select>
       </label>
-      <label className="text-sm">
+      <label className="text-sm font-medium">
         Máximo de piezas por compra
         <input name="maxQuantityPerReservation" type="number" min={1} max={20} defaultValue={defaults.maxQuantityPerReservation} className={inputClass} />
       </label>
-      <label className="text-sm">
+      <label className="text-sm font-medium">
         Abre (hora del centro de México)
         <input name="startsAt" type="datetime-local" defaultValue={defaults.startsAt} required className={inputClass} />
       </label>
-      <label className="text-sm">
+      <label className="text-sm font-medium">
         Cierra (hora del centro de México)
         <input name="endsAt" type="datetime-local" defaultValue={defaults.endsAt} required className={inputClass} />
       </label>
-      <label className="text-sm">
+      <label className="text-sm font-medium">
         Precio ({defaults.currency})
         <input name="price" inputMode="decimal" defaultValue={defaults.price} required className={inputClass} />
       </label>
@@ -69,7 +69,7 @@ export function CampaignForm({ action, defaults, hasReservations }: { action: Ac
         </label>
       )}
       <fieldset className="grid gap-3 border border-border p-4 text-sm sm:col-span-2 sm:grid-cols-3">
-        <legend className="px-1 text-xs text-muted">Entrega</legend>
+        <legend className="px-1 text-xs font-semibold tracking-[0.12em] text-muted uppercase">Entrega</legend>
         <label className="flex items-center gap-2">
           <input type="checkbox" name="pickupEnabled" defaultChecked={defaults.pickupEnabled} className="size-4 accent-fg" />
           Recolección en Chihuahua (sin costo)
@@ -85,7 +85,7 @@ export function CampaignForm({ action, defaults, hasReservations }: { action: Ac
         </p>
         <PickupPointsEditor initial={defaults.pickupPoints} />
       </fieldset>
-      <label className="text-sm sm:col-span-2">
+      <label className="text-sm font-medium sm:col-span-2">
         Nota sobre la entrega (opcional, la ven los clientes)
         <textarea name="deliveryNote" rows={2} defaultValue={defaults.deliveryNote} className={inputClass} />
       </label>
