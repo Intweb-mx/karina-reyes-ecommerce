@@ -28,6 +28,8 @@ No crear rutas, lógica de checkout, pagos, SkyDropX, inventario real o panel op
 
 > "Ya está aprobada la web de Karina. Inicia el e-commerce / inttimo."
 
+> **Gate levantado (decisión del usuario, 2026-10-06):** la web de Karina está aprobada; se inicia la construcción del e-commerce completo sobre stack propio (ver `docs/decisions/ADR-ECOMMERCE-PLATFORM.md`) y del panel completo (`docs/panel-admin/PLAN.md`). **Restricción de visibilidad:** mientras la preventa esté abierta, el dominio público solo muestra la preventa y las páginas legales. Toda ruta de la tienda nueva (catálogo, carrito, checkout, cuenta, etc.) se construye oculta detrás de un interruptor y se publica solo cuando el usuario lo indique al terminar la preventa. El panel (`/panel`) sí puede crecer, porque requiere login.
+
 Se puede dejar preparada la arquitectura de este repo (scaffold, tipos, tokens visuales, configuración) pero **no desarrollar lógica de negocio real de la Fase 2 antes de esa aprobación**. Si no tienes constancia de esa aprobación en la conversación actual, pregunta antes de construir cualquier funcionalidad transaccional.
 
 ### Excepción aprobada: preventa de UNO+UNO (prioridad 1)
