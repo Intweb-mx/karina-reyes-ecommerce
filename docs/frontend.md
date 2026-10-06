@@ -22,7 +22,7 @@ pnpm dev:seed            # carga una campaña DEMO con preguntas y términos de 
 pnpm dev                 # http://localhost:3100/preventa/demo
 ```
 
-`.env.example` ya trae los valores locales; no necesitas llaves de producción. El panel de administración (`/panel`) no hace falta para tu trabajo.
+`.env.example` ya trae los valores locales; no necesitas llaves de producción. Para el panel crea un usuario local con `pnpm admin --create --email=tu@correo`.
 
 Al terminar el día: `pnpm supabase:stop`. Los datos locales se conservan.
 
@@ -49,7 +49,8 @@ Referencia visual: `docs/mockups/inttimo/` (sobre todo `04-uno-mas-uno-detalle.p
 ## Reglas
 
 - **Sí** tocas: `src/app/preventa/**`, `src/components/**`, `src/app/globals.css`, `src/app/layout.tsx`, `public/`.
-- **No** tocas sin coordinar: `src/server/**`, `src/app/api/**`, `src/app/panel/**`, `src/proxy.ts`, `packages/**`. Si necesitas un dato que la API no da, pídelo.
+- **No** tocas sin coordinar: `src/server/**`, `src/app/api/**`, `src/app/panel/**/actions.ts`, `src/proxy.ts`, `packages/**`. Si necesitas un dato que la API no da, pídelo.
+- Panel (`src/app/panel/**`): sí puedes rediseñar las pantallas; el contrato está en [`docs/panel-admin/CONTRATO.md`](./panel-admin/CONTRATO.md).
 - El cuestionario **siempre** se arma con `questions` de la API; no hardcodear preguntas.
 - Precios, fechas, textos legales y de entrega vienen de la base de datos. No escribir datos de negocio en el código; el contenido DEMO es solo para local.
 - Montos en centavos: usar `formatMoney` de `src/lib/format.ts`.
