@@ -17,7 +17,7 @@ export function ReadyForPickupForm({ action }: { action: Action }) {
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="type" value="ready_for_pickup" />
-      <label className="block text-sm">
+      <label className="block text-sm font-medium">
         Punto, fecha y horario de recolección (va en el correo al cliente)
         <textarea name="note" rows={3} required className={inputClass} placeholder="Ej.: Costco …, sábado 18 de octubre de 10:00 a 13:00." />
       </label>
@@ -32,19 +32,19 @@ export function ShippedForm({ action }: { action: Action }) {
   return (
     <form action={formAction} className="grid gap-3 sm:grid-cols-2">
       <input type="hidden" name="type" value="shipped" />
-      <label className="text-sm">
+      <label className="text-sm font-medium">
         Paquetería
         <input name="carrier" required maxLength={80} className={inputClass} />
       </label>
-      <label className="text-sm">
+      <label className="text-sm font-medium">
         Número de guía
         <input name="trackingNumber" required maxLength={80} className={inputClass} />
       </label>
-      <label className="text-sm sm:col-span-2">
+      <label className="text-sm font-medium sm:col-span-2">
         Liga para rastrear (opcional)
         <input name="trackingUrl" type="url" maxLength={500} className={inputClass} />
       </label>
-      <label className="text-sm sm:col-span-2">
+      <label className="text-sm font-medium sm:col-span-2">
         Nota para el cliente (opcional)
         <textarea name="note" rows={2} className={inputClass} />
       </label>

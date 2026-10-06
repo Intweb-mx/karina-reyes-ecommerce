@@ -49,10 +49,14 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
     ...Object.fromEntries(campaign.questions.map((q) => [answerKey(q.id), q.label])),
   };
 
+  // La entrega cuenta como lista solo con el método elegido y su dato: punto de recolección o envío cotizado.
+  const deliveryDone =
+    deliveryMethod === "pickup" ? !!form.pickupPointId : deliveryMethod === "shipping" ? !!form.quote && !!form.optionId : false;
+
   const steps = [
     { id: "paso-datos", label: formCopy.sections.contact, done: done.contact },
     ...(hasQuestions ? [{ id: "paso-cuestionario", label: formCopy.sections.questions, done: done.questions.done }] : []),
-    { id: "paso-entrega", label: deliveryCopy.sectionTitle, done: true },
+    { id: "paso-entrega", label: deliveryCopy.sectionTitle, done: deliveryDone },
     { id: "paso-confirmacion", label: formCopy.sections.confirm, done: done.confirm },
   ];
   const completed = steps.filter((step) => step.done).length;
@@ -134,7 +138,7 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
               </div>
               <div>
                 <label htmlFor="phone" className={labelClass}>
-                  Teléfono<Optional />
+                  Teléfono{deliveryMethod === "shipping" ? <span className="ml-1 text-xs font-normal text-muted">(obligatorio para envío)</span> : <Optional />}
                 </label>
                 <TextInput
                   id="phone"
@@ -150,6 +154,7 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
                   onChange={(e) => setField("phone", e.target.value)}
                   onBlur={() => blur("phone")}
                   aria-invalid={!!errors.phone}
+                  required={deliveryMethod === "shipping"}
                   aria-describedby={describedBy("phone", { errors: errors.phone })}
                 />
                 <FieldError id="phone" errors={errors.phone} />
@@ -180,7 +185,7 @@ export function ReservationForm({ campaign, product }: { campaign: PublicCampaig
             </FormSection>
           )}
 
-          <FormSection step={hasQuestions ? "3" : "2"} title={deliveryCopy.sectionTitle} description={deliveryCopy.sectionIntro} id="paso-entrega" complete>
+          <FormSection step={hasQuestions ? "3" : "2"} title={deliveryCopy.sectionTitle} description={deliveryCopy.sectionIntro} id="paso-entrega" complete={deliveryDone}>
             <DeliverySelector
               delivery={campaign.delivery}
               currency={campaign.currency}

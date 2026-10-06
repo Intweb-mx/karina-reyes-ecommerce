@@ -27,7 +27,7 @@ export function MfaForm({ enrolling }: { enrolling: boolean }) {
       {enrollment && (
         <div className="space-y-3">
           {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URL generado por Supabase */}
-          <img src={enrollment.qrCode} alt="Código QR para la app autenticadora" width={200} height={200} className="border border-border bg-white p-2" />
+          <img src={enrollment.qrCode} alt="Código QR para la app autenticadora" width={200} height={200} className="mx-auto border border-border bg-white p-2" />
           <p className="text-xs text-muted">
             ¿No puedes escanear? Clave manual: <code className="break-all select-all">{enrollment.secret}</code>
           </p>
@@ -37,7 +37,7 @@ export function MfaForm({ enrolling }: { enrolling: boolean }) {
       {state?.error && <Alert>{state.error}</Alert>}
       <label className="block text-sm">
         Código
-        <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required autoFocus className={`${inputClass} tracking-[0.4em]`} />
+        <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required autoFocus className={`${inputClass} text-center font-mono text-lg tracking-[0.5em]`} />
       </label>
       <button type="submit" disabled={pending} className={`${buttonClass} w-full`}>
         {pending ? "Verificando…" : "Verificar"}

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { formatMoney } from "@/lib/format";
 import { requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
-import { Card, inputClass, secondaryButtonClass, Stat, STATUS_LABELS, DELIVERY_LABELS, FULFILLMENT_LABELS } from "../../../ui";
+import { Badge, buttonClass, Card, DELIVERY_LABELS, EmptyState, FULFILLMENT_LABELS, FULFILLMENT_TONES, inputClass, PageHeader, secondaryButtonClass, Stat, STATUS_LABELS, STATUS_TONES } from "../../../ui";
 
 const PAGE_SIZE = 50;
 const STATUSES = Object.keys(STATUS_LABELS) as ReservationStatus[];
@@ -36,33 +36,37 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
   };
   const exportHref = `/panel/campanas/${slug}/export${status ? `?estado=${status}` : ""}`;
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Link href="/panel" className="text-sm text-muted">← Inicio</Link>
-          <h1 className="mt-1 font-serif text-3xl">{campaign.productName}</h1>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/panel/campanas/${slug}/editar`} className={secondaryButtonClass}>Editar preventa</Link>
-          <a href={exportHref} className={secondaryButtonClass}>Descargar lista (Excel)</a>
-        </div>
-      </div>
+  const fulfillable = (r: (typeof rows)[number]) => r.status === "paid" || r.status === "partially_refunded";
+  const date = (d: Date) => d.toLocaleString("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium", timeStyle: "short" });
 
-      <div className="grid gap-3 sm:grid-cols-4">
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        back={<Link href="/panel" className="hover:text-fg">← Pedidos</Link>}
+        title={campaign.productName}
+        subtitle="Todos los pedidos de esta preventa."
+        actions={
+          <>
+            <Link href={`/panel/campanas/${slug}/editar`} className={secondaryButtonClass}>Editar preventa</Link>
+            <a href={exportHref} className={secondaryButtonClass}>Descargar lista (Excel)</a>
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Pedidos pagados" value={stats.paidReservations} />
         <Stat label="Piezas pagadas" value={stats.paidUnits} />
         <Stat label="Ventas (sin reembolsos)" value={formatMoney(stats.netRevenue, campaign.currency)} />
-        <Stat label="Procesando (OXXO)" value={stats.byStatus.processing ?? 0} />
+        <Stat label="Pago en proceso (OXXO)" value={stats.byStatus.processing ?? 0} tone={(stats.byStatus.processing ?? 0) > 0 ? "attention" : "neutral"} />
       </div>
 
       <Card>
-        <form className="mb-4 flex flex-wrap items-end gap-3" action={`/panel/campanas/${slug}`}>
-          <label className="min-w-60 flex-1 text-sm">
+        <form className="flex flex-wrap items-end gap-3" action={`/panel/campanas/${slug}`} role="search">
+          <label className="min-w-0 flex-[1_1_16rem] text-sm font-medium">
             Buscar por nombre, correo o folio
-            <input name="q" defaultValue={q} className={inputClass} />
+            <input name="q" type="search" defaultValue={q} placeholder="Ej.: Ana, ana@correo.com o PV-…" className={inputClass} />
           </label>
-          <label className="text-sm">
+          <label className="flex-[0_1_14rem] text-sm font-medium">
             Estado del pago
             <select name="estado" defaultValue={status} className={inputClass}>
               <option value="">Todos</option>
@@ -71,58 +75,96 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
               ))}
             </select>
           </label>
-          <button type="submit" className={secondaryButtonClass}>Filtrar</button>
+          <button type="submit" className={buttonClass}>Buscar</button>
+          {(q || status) && (
+            <Link href={`/panel/campanas/${slug}`} className="inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 hover:text-fg">
+              Limpiar
+            </Link>
+          )}
         </form>
 
-        <div className="overflow-x-auto">
+        <p className="mt-5 text-sm text-muted">
+          {total} {total === 1 ? "pedido" : "pedidos"}
+          {q && <> con «{q}»</>}
+          {status && <> · {STATUS_LABELS[status]}</>}
+        </p>
+
+        {/* Celular: tarjetas */}
+        <ul className="mt-3 divide-y divide-border border-y border-border md:hidden">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <Link href={`/panel/reservas/${r.id}`} className="block py-3.5 transition-colors hover:bg-surface">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{r.fullName}</p>
+                    <p className="mt-0.5 font-mono text-xs text-muted">{r.code}</p>
+                  </div>
+                  <p className="shrink-0 font-semibold lining-nums tabular-nums">{formatMoney(r.totalAmount, r.currency)}</p>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge tone={STATUS_TONES[r.status]}>{STATUS_LABELS[r.status]}</Badge>
+                  {fulfillable(r) && <Badge tone={FULFILLMENT_TONES[r.fulfillmentStatus]}>{FULFILLMENT_LABELS[r.fulfillmentStatus]}</Badge>}
+                  <span className="text-xs text-muted">{DELIVERY_LABELS[r.deliveryMethod]} · {r.quantity} {r.quantity === 1 ? "pieza" : "piezas"}</span>
+                </div>
+              </Link>
+            </li>
+          ))}
+          {rows.length === 0 && <li className="py-8"><EmptyState title="No hay pedidos con esta búsqueda." /></li>}
+        </ul>
+
+        {/* Escritorio: tabla */}
+        <div className="mt-3 hidden overflow-x-auto md:block">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border text-xs text-muted">
               <tr>
-                <th className="py-2 pr-4 font-normal">Folio</th>
-                <th className="py-2 pr-4 font-normal">Nombre</th>
-                <th className="py-2 pr-4 font-normal">Correo</th>
-                <th className="py-2 pr-4 font-normal">Piezas</th>
-                <th className="py-2 pr-4 font-normal">Total</th>
-                <th className="py-2 pr-4 font-normal">Pago</th>
-                <th className="py-2 pr-4 font-normal">Entrega</th>
-                <th className="py-2 font-normal">Fecha</th>
+                <th scope="col" className="py-2.5 pr-4 font-medium">Folio</th>
+                <th scope="col" className="py-2.5 pr-4 font-medium">Cliente</th>
+                <th scope="col" className="py-2.5 pr-4 text-right font-medium">Piezas</th>
+                <th scope="col" className="py-2.5 pr-4 text-right font-medium">Total</th>
+                <th scope="col" className="py-2.5 pr-4 font-medium">Pago</th>
+                <th scope="col" className="py-2.5 pr-4 font-medium">Entrega</th>
+                <th scope="col" className="py-2.5 font-medium">Fecha</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b border-border/60 last:border-0">
-                  <td className="py-2 pr-4 font-mono">
-                    <Link href={`/panel/reservas/${r.id}`} className="underline underline-offset-4">{r.code}</Link>
+                <tr key={r.id} className="group relative border-b border-border/60 transition-colors last:border-0 hover:bg-surface">
+                  <td className="py-3 pr-4 font-mono text-xs">
+                    {/* El enlace cubre toda la fila: se puede hacer clic en cualquier parte. */}
+                    <Link href={`/panel/reservas/${r.id}`} className="underline-offset-4 after:absolute after:inset-0 group-hover:underline">
+                      {r.code}
+                    </Link>
                   </td>
-                  <td className="py-2 pr-4">{r.fullName}</td>
-                  <td className="py-2 pr-4">{r.email}</td>
-                  <td className="py-2 pr-4 tabular-nums">{r.quantity}</td>
-                  <td className="py-2 pr-4 tabular-nums">{formatMoney(r.totalAmount, r.currency)}</td>
-                  <td className="py-2 pr-4">{STATUS_LABELS[r.status]}</td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    {DELIVERY_LABELS[r.deliveryMethod]}
-                    {(r.status === "paid" || r.status === "partially_refunded") && <span className="block text-xs text-muted">{FULFILLMENT_LABELS[r.fulfillmentStatus]}</span>}
+                  <td className="py-3 pr-4">
+                    <span className="block font-medium">{r.fullName}</span>
+                    <span className="block text-xs text-muted">{r.email}</span>
                   </td>
-                  <td className="py-2 whitespace-nowrap text-muted">{r.createdAt.toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}</td>
+                  <td className="py-3 pr-4 text-right lining-nums tabular-nums">{r.quantity}</td>
+                  <td className="py-3 pr-4 text-right lining-nums tabular-nums">{formatMoney(r.totalAmount, r.currency)}</td>
+                  <td className="py-3 pr-4"><Badge tone={STATUS_TONES[r.status]}>{STATUS_LABELS[r.status]}</Badge></td>
+                  <td className="py-3 pr-4">
+                    <span className="block whitespace-nowrap">{DELIVERY_LABELS[r.deliveryMethod]}</span>
+                    {fulfillable(r) && <span className="mt-1 block"><Badge tone={FULFILLMENT_TONES[r.fulfillmentStatus]}>{FULFILLMENT_LABELS[r.fulfillmentStatus]}</Badge></span>}
+                  </td>
+                  <td className="py-3 whitespace-nowrap text-muted">{date(r.createdAt)}</td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-muted">No hay pedidos con esta búsqueda.</td>
+                  <td colSpan={7} className="py-8"><EmptyState title="No hay pedidos con esta búsqueda." /></td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-sm text-muted">
-          <span>{total} pedidos</span>
-          <span className="flex gap-3">
-            {page > 1 && <Link href={link({ pagina: page - 1 })} className="underline underline-offset-4">← Anterior</Link>}
-            <span>Página {page} de {pages}</span>
-            {page < pages && <Link href={link({ pagina: page + 1 })} className="underline underline-offset-4">Siguiente →</Link>}
-          </span>
-        </div>
+        {pages > 1 && (
+          <nav aria-label="Páginas" className="mt-5 flex items-center justify-between gap-3 text-sm">
+            {page > 1 ? <Link href={link({ pagina: page - 1 })} className={secondaryButtonClass}>← Anterior</Link> : <span />}
+            <span className="text-muted">Página {page} de {pages}</span>
+            {page < pages ? <Link href={link({ pagina: page + 1 })} className={secondaryButtonClass}>Siguiente →</Link> : <span />}
+          </nav>
+        )}
       </Card>
     </div>
   );

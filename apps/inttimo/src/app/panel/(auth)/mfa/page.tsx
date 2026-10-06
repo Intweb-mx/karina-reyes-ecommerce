@@ -12,8 +12,9 @@ export default async function MfaPage() {
   const enrolling = state.status === "needs_mfa_enroll";
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-4">
-      <p className="font-serif text-2xl">Verificación en dos pasos</p>
+    <main className="flex min-h-dvh items-center justify-center bg-[radial-gradient(120%_80%_at_50%_0%,var(--color-sand)_0%,transparent_60%)] px-4 py-12">
+      <div className="w-full max-w-sm border border-border bg-[#fffdf9] p-7 shadow-[0_30px_60px_-40px_rgb(34_28_23/0.45)] sm:p-9">
+      <p className="font-serif text-2xl font-medium">Verificación en dos pasos</p>
       <p className="mt-2 mb-8 text-sm text-muted">
         {enrolling
           ? "Obligatoria para el panel. Escanea el código con una app autenticadora (Google Authenticator, 1Password, Authy) y escribe el código de 6 dígitos."
@@ -23,6 +24,7 @@ export default async function MfaPage() {
       <form action={signOut} className="mt-6 text-center text-sm">
         <button type="submit" className="text-muted underline underline-offset-4">Salir ({state.admin.email})</button>
       </form>
+      </div>
     </main>
   );
 }
