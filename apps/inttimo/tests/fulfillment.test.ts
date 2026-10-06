@@ -4,7 +4,7 @@ import type { Mail } from "@inttimo/shared-utils/mail";
 import type Stripe from "stripe";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveBonusAccess } from "../src/server/presale/bonus.ts";
-import { fulfillReservation, sendBonusIfEligible, type FulfillmentDeps } from "../src/server/presale/fulfillment.ts";
+import { fulfillReservation, handToCarrier, sendBonusIfEligible, type FulfillmentDeps } from "../src/server/presale/fulfillment.ts";
 import { createStripeGateway } from "../src/server/presale/gateway.ts";
 import { createPresaleReservation, type PresaleDeps } from "../src/server/presale/reservations.ts";
 import { generateLabel, quoteShipping } from "../src/server/presale/shipping.ts";
@@ -78,6 +78,8 @@ describe("entrega de pedidos", () => {
     expect(access).toMatchObject({ status: "ok", bonus: BONUS });
     expect(await resolveBonusAccess(db, tokenFrom(sent[0]!), new Date(NOW.getTime() + 31 * 86_400_000))).toMatchObject({ status: "expired" });
     expect(await resolveBonusAccess(db, "x".repeat(43), NOW)).toEqual({ status: "invalid" });
+    const emailEvent = (await listReservationEvents(db, id)).find((e) => e.type === "FULFILLMENT_EMAIL_SENT");
+    expect(emailEvent?.metadata).toMatchObject({ note: "Costco Juventud, sábado 10:00–13:00" });
   });
 
   it("envío: guarda paquetería y guía y las manda al cliente", async () => {
@@ -119,24 +121,48 @@ describe("entrega de pedidos", () => {
 });
 
 describe("guía de SkyDropX", () => {
-  const labelDeps = () => ({ db, provider: shipping, now: () => NOW, fulfillment: deps });
+  const labelDeps = () => ({ db, provider: shipping, now: () => NOW });
 
-  it("compra la guía con la tarifa pagada, marca ENVIADO y avisa con el número de guía", async () => {
+  it("compra la guía con la tarifa pagada y la deja lista, sin avisar al cliente", async () => {
     const id = await paidReservation("shipping");
     const result = await generateLabel(labelDeps(), id, "admin@inttimo.test");
-    expect(result).toMatchObject({ ok: true, status: "shipped" });
+    expect(result).toMatchObject({ ok: true, status: "ready" });
     expect(shipping.shipments[0]).toMatchObject({ quotationId: "quo_1", rateId: "rate_eco", to: { postalCode: ADDRESS.postalCode, phone: "6141234567", email: "ana@ejemplo.com" } });
-    expect(await findReservationById(db, id)).toMatchObject({ fulfillmentStatus: "shipped", trackingNumber: "GUIA123", shipmentId: "shp_1", labelUrl: "https://etiquetas.test/1.pdf" });
+    expect(await findReservationById(db, id)).toMatchObject({
+      fulfillmentStatus: "pending",
+      carrier: "Estafeta",
+      trackingNumber: "GUIA123",
+      shipmentId: "shp_1",
+      labelUrl: "https://etiquetas.test/1.pdf",
+      bonusSentAt: null,
+    });
+    expect(sent).toHaveLength(0);
+    expect(await generateLabel(labelDeps(), id, "admin")).toMatchObject({ ok: false });
+    expect(shipping.shipments).toHaveLength(1);
+  });
+
+  it("Entregué a la paquetería: marca ENVIADO y manda guía y bonus en un solo correo, una vez", async () => {
+    const id = await paidReservation("shipping");
+    expect(await handToCarrier(deps, id, "admin")).toEqual({ ok: false, error: "Primero genera la guía." });
+    await generateLabel(labelDeps(), id, "admin");
+
+    const result = await handToCarrier(deps, id, "admin@inttimo.test");
+    expect(result).toMatchObject({ ok: true, email: "sent", bonus: "sent" });
+    expect(await findReservationById(db, id)).toMatchObject({ fulfillmentStatus: "shipped", trackingNumber: "GUIA123" });
+    expect(sent).toHaveLength(1);
     expect(sent[0]!.text).toContain("GUIA123");
-    expect(await generateLabel(labelDeps(), id, "admin")).toEqual({ ok: false, error: "El pedido ya fue enviado." });
+    expect(sent[0]!.text).toContain("BONUS DE PREVENTA");
+    expect(await handToCarrier(deps, id, "admin")).toEqual({ ok: false, error: "El pedido ya cambió de estado. Recarga la página." });
+    expect(sent).toHaveLength(1);
   });
 
   it("si la guía aún no tiene número, la deja pendiente y la completa al reintentar sin comprar otra", async () => {
     const id = await paidReservation("shipping");
     shipping.tracking = null;
     expect(await generateLabel(labelDeps(), id, "admin")).toMatchObject({ ok: true, status: "pending" });
-    expect(await generateLabel(labelDeps(), id, "admin")).toMatchObject({ ok: true, status: "shipped" });
+    expect(await generateLabel(labelDeps(), id, "admin")).toMatchObject({ ok: true, status: "ready" });
     expect(shipping.shipments).toHaveLength(1);
+    expect(sent).toHaveLength(0);
   });
 
   it("con la cotización vencida (más de 23 h) vuelve a cotizar y conserva la misma paquetería", async () => {

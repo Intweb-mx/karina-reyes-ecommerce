@@ -79,7 +79,7 @@ export async function retryBonus(reservationId: string): Promise<DeliveryState> 
 export async function createLabel(reservationId: string): Promise<DeliveryState> {
   const state = await getAdminState();
   if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
-  const result = await generateLabel({ ...getShippingDeps(), fulfillment: getFulfillmentDeps() }, reservationId, state.admin.email);
+  const result = await generateLabel(getShippingDeps(), reservationId, state.admin.email);
   await audit(state.admin, { action: "reservation.label", targetType: "reservation", targetId: reservationId, metadata: result.ok ? { status: result.status } : { error: result.error } });
   revalidatePath(`/panel/reservas/${reservationId}`);
   return result.ok ? { ok: result.message } : { error: result.error };

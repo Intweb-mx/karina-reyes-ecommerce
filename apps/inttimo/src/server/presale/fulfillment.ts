@@ -58,6 +58,7 @@ export async function fulfillReservation(deps: FulfillmentDeps, reservationId: s
 
   if (action.type === "delivered") return { ok: true, reservation: updated, email: "skipped", bonus: "skipped" };
 
+  const note = action.note?.trim() || null;
   const campaign = await getCampaignById(deps.db, updated.campaignId);
   const point = campaign?.pickupPoints.find((p) => p.id === updated.pickupPointId);
 
@@ -78,12 +79,12 @@ export async function fulfillReservation(deps: FulfillmentDeps, reservationId: s
   let email: Outcome = "sent";
   let bonus: BonusOutcome = bonusInfo ? "sent" : eligibility === "ok" ? "skipped" : eligibility;
   try {
-    await deps.send(fulfillmentMail(updated, campaign?.productName ?? "inttimo", action.note?.trim() || null, point, bonusInfo));
-    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", "panel", { metadata: { status: updated.fulfillmentStatus, bonusIncluded: !!bonusInfo } });
+    await deps.send(fulfillmentMail(updated, campaign?.productName ?? "inttimo", note, point, bonusInfo));
+    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", "panel", { metadata: { status: updated.fulfillmentStatus, bonusIncluded: !!bonusInfo, note } });
     if (bonusInfo) await addReservationEvent(deps.db, updated.id, "BONUS_SENT", "api", { metadata: { expiresAt: bonusInfo.expiresAt.toISOString() } });
   } catch (error) {
     email = "failed";
-    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_FAILED", "panel", { metadata: { error: String(error).slice(0, 300) } });
+    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_FAILED", "panel", { metadata: { error: String(error).slice(0, 300), note } });
     if (bonusInfo) {
       bonus = "failed";
       await releaseBonusSend(deps.db, updated.id);
@@ -92,6 +93,31 @@ export async function fulfillReservation(deps: FulfillmentDeps, reservationId: s
   }
 
   return { ok: true, reservation: updated, email, bonus };
+}
+
+/**
+ * Envío: Karina entregó el paquete a la paquetería. Usa la guía ya generada en el panel; marca ENVIADO,
+ * avisa al cliente con su número de guía y libera el bonus (regla de Karina, 2026-10-02: guía generada ≠ enviado).
+ */
+export async function handToCarrier(deps: FulfillmentDeps, reservationId: string, actor: string): Promise<FulfillmentResult> {
+  const reservation = await findReservationById(deps.db, reservationId);
+  if (!reservation) return { ok: false, error: "Pedido no encontrado." };
+  if (!reservation.trackingNumber || !reservation.carrier) return { ok: false, error: "Primero genera la guía." };
+  return fulfillReservation(
+    deps,
+    reservationId,
+    {
+      type: "shipped",
+      shipment: {
+        carrier: reservation.carrier,
+        trackingNumber: reservation.trackingNumber,
+        trackingUrl: reservation.trackingUrl,
+        shipmentId: reservation.shipmentId,
+        labelUrl: reservation.labelUrl,
+      },
+    },
+    actor,
+  );
 }
 
 /**
