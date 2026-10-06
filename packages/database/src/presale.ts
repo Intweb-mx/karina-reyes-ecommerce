@@ -5,6 +5,7 @@ import {
   adminAuditLog,
   presaleBonusLinks,
   presaleCampaigns,
+  presaleOrderNotes,
   presaleTerms,
   presalePostPurchaseAnswers,
   presaleReservationEvents,
@@ -390,8 +391,12 @@ export async function getShippingQuote(db: Executor, id: string): Promise<Shippi
   return row ?? null;
 }
 
-/** Guía comprada pero el pedido aún no se marca como enviado (p. ej. falló el paso siguiente). */
-export async function saveLabel(db: Executor, reservationId: string, label: { shipmentId: string; labelUrl: string | null }): Promise<void> {
+/** Guía comprada en SkyDropX. Con número de guía queda lista para imprimir; el pedido NO pasa a enviado aquí. */
+export async function saveLabel(
+  db: Executor,
+  reservationId: string,
+  label: { shipmentId: string; labelUrl: string | null; carrier?: string | null; trackingNumber?: string | null; trackingUrl?: string | null },
+): Promise<void> {
   await db.update(presaleReservations).set(label).where(eq(presaleReservations.id, reservationId));
 }
 
@@ -675,4 +680,88 @@ export async function searchReservations(db: Executor, campaignId: string, searc
     db.select({ value: count() }).from(presaleReservations).where(where),
   ]);
   return { rows, total: total?.value ?? 0 };
+}
+
+// ---------- Panel: pedidos de todas las preventas ----------
+
+export type OrderTab = "to_prepare" | "in_transit" | "delivered" | "canceled" | "all";
+export type OrderSearch = { query?: string; tab: OrderTab; deliveryMethod?: DeliveryMethod; campaignId?: string; limit: number; offset: number };
+
+const ORDER_TABS: OrderTab[] = ["to_prepare", "in_transit", "delivered", "canceled", "all"];
+
+function orderTabCondition(tab: OrderTab) {
+  const paid = inArray(presaleReservations.status, FULFILLABLE);
+  switch (tab) {
+    case "to_prepare":
+      return and(paid, eq(presaleReservations.fulfillmentStatus, "pending"));
+    case "in_transit":
+      return and(paid, inArray(presaleReservations.fulfillmentStatus, ["shipped", "ready_for_pickup"]));
+    case "delivered":
+      return and(paid, eq(presaleReservations.fulfillmentStatus, "delivered"));
+    case "canceled":
+      return inArray(presaleReservations.status, ["refunded", "canceled", "expired", "payment_failed"]);
+    case "all":
+      return undefined;
+  }
+}
+
+/** Búsqueda del panel en todas las preventas: nombre, correo, folio, teléfono o número de guía. */
+export async function searchAllReservations(db: Executor, search: OrderSearch) {
+  const escaped = search.query?.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+  const base = and(
+    search.campaignId ? eq(presaleReservations.campaignId, search.campaignId) : undefined,
+    search.deliveryMethod ? eq(presaleReservations.deliveryMethod, search.deliveryMethod) : undefined,
+    escaped
+      ? or(
+          ilike(presaleReservations.code, `%${escaped}%`),
+          ilike(presaleReservations.email, `%${escaped}%`),
+          ilike(presaleReservations.fullName, `%${escaped}%`),
+          ilike(presaleReservations.phone, `%${escaped}%`),
+          ilike(presaleReservations.trackingNumber, `%${escaped}%`),
+        )
+      : undefined,
+  );
+  const [rows, totals] = await Promise.all([
+    db
+      .select()
+      .from(presaleReservations)
+      .where(and(base, orderTabCondition(search.tab)))
+      .orderBy(desc(presaleReservations.createdAt))
+      .limit(search.limit)
+      .offset(search.offset),
+    Promise.all(ORDER_TABS.map((tab) => db.select({ value: count() }).from(presaleReservations).where(and(base, orderTabCondition(tab))))),
+  ]);
+  const counts = Object.fromEntries(ORDER_TABS.map((tab, i) => [tab, totals[i]?.[0]?.value ?? 0])) as Record<OrderTab, number>;
+  return { rows, total: counts[search.tab], counts };
+}
+
+/** Pedidos que pueden requerir acción: pagados (cualquier estado de entrega) y pagos sin resolver. */
+export async function listActionableReservations(db: Executor): Promise<PresaleReservation[]> {
+  return db
+    .select()
+    .from(presaleReservations)
+    .where(inArray(presaleReservations.status, ["paid", "partially_refunded", "pending_payment", "processing"]))
+    .orderBy(asc(presaleReservations.createdAt));
+}
+
+export async function listEventsForReservations(db: Executor, reservationIds: string[], types: PresaleEventType[]) {
+  if (!reservationIds.length || !types.length) return [];
+  return db
+    .select({ reservationId: presaleReservationEvents.reservationId, type: presaleReservationEvents.type, createdAt: presaleReservationEvents.createdAt })
+    .from(presaleReservationEvents)
+    .where(and(inArray(presaleReservationEvents.reservationId, reservationIds), inArray(presaleReservationEvents.type, types)))
+    .orderBy(asc(presaleReservationEvents.createdAt));
+}
+
+// ---------- Notas internas ----------
+
+export type OrderNote = typeof presaleOrderNotes.$inferSelect;
+
+export async function addOrderNote(db: Executor, input: { reservationId: string; body: string; authorEmail: string }): Promise<OrderNote> {
+  const [row] = await db.insert(presaleOrderNotes).values(input).returning();
+  return row!;
+}
+
+export async function listOrderNotes(db: Executor, reservationId: string): Promise<OrderNote[]> {
+  return db.select().from(presaleOrderNotes).where(eq(presaleOrderNotes.reservationId, reservationId)).orderBy(asc(presaleOrderNotes.createdAt));
 }
