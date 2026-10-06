@@ -38,6 +38,11 @@ export function toOrderSummary(r: PresaleReservation, campaignNames: Map<string,
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function parsePage(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n >= 1 && n <= 10_000 ? n : 1;
+}
+
 /** Filtros de la lista de pedidos a partir de la URL (?tab, q, entrega, campana, pagina). Lo inválido se descarta. */
 export function parseOrderQuery(params: Record<string, string | string[] | undefined>): OrderQuery {
   const one = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : undefined);
@@ -45,7 +50,7 @@ export function parseOrderQuery(params: Record<string, string | string[] | undef
   const entrega = one("entrega");
   const campana = one("campana");
   const q = one("q")?.trim().slice(0, 100);
-  const query: OrderQuery = { tab: tab && (ORDER_TABS as readonly string[]).includes(tab) ? (tab as OrderTab) : "to_prepare", page: Math.max(1, Math.floor(Number(one("pagina"))) || 1) };
+  const query: OrderQuery = { tab: tab && (ORDER_TABS as readonly string[]).includes(tab) ? (tab as OrderTab) : "to_prepare", page: parsePage(one("pagina")) };
   if (q) query.q = q;
   if (entrega === "shipping" || entrega === "pickup") query.deliveryMethod = entrega;
   if (campana && UUID.test(campana)) query.campaignId = campana;
