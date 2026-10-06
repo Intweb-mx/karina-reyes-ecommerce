@@ -184,6 +184,9 @@ export const ACTION_LABELS: Record<string, string> = {
   "reservation.ready_for_pickup": "Marcó un pedido listo para recoger",
   "reservation.delivered": "Marcó un pedido como entregado",
   "reservation.bonus_retry": "Reenvió el bonus",
+  "reservation.hand_to_carrier": "Entregó un pedido a la paquetería",
+  "reservation.note": "Agregó una nota a un pedido",
+  "reservation.resend_email": "Reenvió un correo a un cliente",
 };
 
 export const FIELD_LABELS: Record<string, string> = {
