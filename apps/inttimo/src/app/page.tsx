@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { PresaleShell } from "@/components/layout/PresaleShell";
 import { StateMessage } from "@/components/presale/sections/StateMessage";
+import { PageTransition } from "@/components/store/layout/PageTransition";
 import { StoreShell } from "@/components/store/layout/StoreShell";
 import { StoreHome } from "@/components/store/pages/StoreHome";
 import { storeEnabled } from "@/lib/store/flags";
@@ -14,7 +15,9 @@ export default async function HomePage() {
   if (storeEnabled) {
     return (
       <StoreShell>
-        <StoreHome />
+        <PageTransition>
+          <StoreHome />
+        </PageTransition>
       </StoreShell>
     );
   }

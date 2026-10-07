@@ -110,6 +110,12 @@ export type ShippingRate = { id: string; label: string; carrier: string; service
 
 export type ShippingQuoteResponse = { quoteId: string; expiresAt: string; rates: ShippingRate[] };
 
+/**
+ * GET /api/tienda/codigo-postal/[cp]. Autocompleta estado, municipio y colonias (catálogo SEPOMEX o SkyDropX)
+ * para que la persona solo escriba su código postal, calle y número. 404 si el código no existe.
+ */
+export type PostalCodeLookupResponse = { postalCode: string; state: string; city: string; neighborhoods: string[] };
+
 /** POST /api/tienda/checkout (cabecera Idempotency-Key). Crea el pedido pendiente y la sesión de pago. */
 export type CheckoutRequest = {
   contact: { fullName: string; email: string; phone?: string };

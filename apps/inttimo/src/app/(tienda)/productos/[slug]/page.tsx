@@ -7,6 +7,7 @@ import { CheckIcon } from "@/components/ui/icons";
 import { PlaceholderTag } from "@/components/presale/sections/PresaleHero";
 import { TrustStrip } from "@/components/store/Blocks";
 import { AddToCartButton } from "@/components/store/cart/AddToCartButton";
+import { StickyBuyBar } from "@/components/store/cart/StickyBuyBar";
 import { FaqList } from "@/components/store/FaqList";
 import { SectionHeading } from "@/components/store/PageHero";
 import { legalPaths } from "@/content/legal";
@@ -76,7 +77,7 @@ export default async function ProductPage({ params }: PageProps<"/productos/[slu
               {product.price && <span className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">{product.price.currency}</span>}
             </p>
             <p className="mt-1 text-xs text-muted">El envío se calcula en el checkout. <Link href={legalPaths.shipping} className="underline underline-offset-4">Envíos y recolección</Link></p>
-            <div className="mt-6">
+            <div id="comprar" className="mt-6">
               {purchasable ? (
                 <AddToCartButton productId={product.id} productName={product.name} withQuantity max={product.maxQuantityPerOrder} />
               ) : (
@@ -126,6 +127,7 @@ export default async function ProductPage({ params }: PageProps<"/productos/[slu
       <section className="border-t border-border/70">
         <div className="container-page py-12"><TrustStrip /></div>
       </section>
+      {purchasable && product.price && <StickyBuyBar productId={product.id} productName={product.name} price={formatMoney(product.price.amount, product.price.currency)} targetId="comprar" />}
     </main>
   );
 }

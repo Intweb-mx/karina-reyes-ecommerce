@@ -7,6 +7,7 @@ import { AlertIcon, CheckIcon, MailIcon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { getStoreApi } from "@/lib/store/api";
 import { formatDate } from "@/lib/format";
+import { CheckoutSteps } from "../checkout/CheckoutSteps";
 import { DeliveryInfo, OrderLines, OrderSteps, PAYMENT_TEXT } from "./OrderParts";
 
 /** 09 · Confirmación: folio real, productos, total, estado inicial y accesos a rastreo/cuenta. */
@@ -34,6 +35,7 @@ export function ConfirmationClient({ sessionId }: { sessionId: string | null }) 
   const paid = order.paymentStatus === "paid";
   return (
     <div className="space-y-12">
+      {paid && <CheckoutSteps current={3} />}
       <header className="animate-rise">
         <span aria-hidden="true" className={`grid size-12 place-items-center rounded-full ${paid ? "bg-success text-on-ink" : "bg-sand text-warning"}`}><CheckIcon className="animate-pop size-6" /></span>
         <p className="eyebrow mt-6 text-muted">{paid ? "¡Gracias por tu compra!" : PAYMENT_TEXT[order.paymentStatus]}</p>

@@ -18,6 +18,7 @@ import type {
   NewsletterRequest,
   OrderConfirmationResponse,
   OrderView,
+  PostalCodeLookupResponse,
   ProductDetail,
   ShippingQuoteRequest,
   ShippingQuoteResponse,
@@ -36,6 +37,7 @@ export interface StoreApi {
   quoteCart(request: CartQuoteRequest): Promise<Result<CartQuoteResponse>>;
   deliveryOptions(): Promise<Result<DeliveryOptionsResponse>>;
   quoteShipping(request: ShippingQuoteRequest): Promise<Result<ShippingQuoteResponse>>;
+  lookupPostalCode(postalCode: string): Promise<Result<PostalCodeLookupResponse>>;
   checkout(request: CheckoutRequest, idempotencyKey: string): Promise<Result<CheckoutResponse>>;
   orderConfirmation(sessionId: string): Promise<Result<OrderConfirmationResponse>>;
   trackOrder(request: TrackOrderRequest): Promise<Result<OrderView>>;

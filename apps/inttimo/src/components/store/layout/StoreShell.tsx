@@ -4,6 +4,7 @@ import { Wordmark } from "@/components/layout/Wordmark";
 import { ChatIcon, MailIcon } from "@/components/ui/icons";
 import { business, legalDocuments } from "@/content/legal";
 import { nav } from "@/content/store";
+import { CartDrawer } from "../cart/CartDrawer";
 import { CartProvider } from "../cart/CartProvider";
 import { NewsletterForm } from "../forms/NewsletterForm";
 import { DemoNotice } from "../DemoNotice";
@@ -18,6 +19,7 @@ export function StoreShell({ children }: { children: ReactNode }) {
       </a>
       <DemoNotice />
       <StoreHeader />
+      <CartDrawer />
       <div id="contenido" className="flex flex-1 flex-col">
         {children}
       </div>

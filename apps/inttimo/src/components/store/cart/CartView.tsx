@@ -1,18 +1,18 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { ButtonLink } from "@/components/ui/Button";
-import { BagIcon, LockIcon, MinusIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { BagIcon, LockIcon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { formatMoney } from "@/lib/format";
+import { CartLineItem } from "./CartLineItem";
 import { useCart } from "./CartProvider";
 import { useCartQuote } from "./useCartQuote";
 
 /** 07 · Carrito: cantidades, eliminar, cupón, resumen calculado en servidor y paso seguro a checkout. */
 export function CartView() {
-  const { setQuantity, remove, count } = useCart();
+  const { count } = useCart();
   const [couponInput, setCouponInput] = useState("");
   const [coupon, setCoupon] = useState<string | undefined>();
   const { quote, error, loading } = useCartQuote(coupon);
@@ -38,33 +38,7 @@ export function CartView() {
           {loading && !quote ? (
             <li className="flex items-center gap-3 py-10 text-sm text-muted"><Spinner className="size-5" /> Calculando tu carrito…</li>
           ) : (
-            quote?.lines.map((line) => (
-              <li key={line.productId} className="flex gap-4 py-5 sm:gap-6">
-                <Link href={`/productos/${line.slug}`} className="relative size-24 shrink-0 overflow-hidden bg-sand sm:size-28">
-                  <Image src={line.image.src} alt="" fill sizes="112px" className="object-cover" />
-                </Link>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <Link href={`/productos/${line.slug}`} className="font-serif text-2xl leading-tight font-medium hover:underline hover:underline-offset-4">{line.name}</Link>
-                      <p className="mt-0.5 text-sm text-muted lining-nums">{money(line.unitPrice)} c/u</p>
-                    </div>
-                    <p className="shrink-0 font-semibold lining-nums tabular-nums">{money(line.subtotal)}</p>
-                  </div>
-                  {line.notice && <p className="mt-1 text-xs text-warning">{line.notice}</p>}
-                  <div className="mt-auto flex items-center justify-between gap-3 pt-3">
-                    <div role="group" aria-label={`Cantidad de ${line.name}`} className="inline-flex items-stretch divide-x divide-border border border-border bg-[#fffdf9]">
-                      <button type="button" aria-label="Quitar uno" onClick={() => setQuantity(line.productId, line.quantity - 1)} className="grid size-11 place-items-center hover:bg-sand/60"><MinusIcon className="size-3.5" /></button>
-                      <output aria-live="polite" className="grid w-10 place-items-center font-semibold lining-nums">{line.quantity}</output>
-                      <button type="button" aria-label="Agregar uno" disabled={line.quantity >= line.maxQuantity} onClick={() => setQuantity(line.productId, line.quantity + 1)} className="grid size-11 place-items-center hover:bg-sand/60 disabled:text-muted/40"><PlusIcon className="size-3.5" /></button>
-                    </div>
-                    <button type="button" onClick={() => remove(line.productId)} className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted transition-colors hover:text-danger">
-                      <TrashIcon className="size-4" /> Eliminar
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))
+            quote?.lines.map((line) => <CartLineItem key={line.productId} line={line} />)
           )}
         </ul>
         <Link href="/productos" className="mt-6 inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4">← Seguir comprando</Link>
@@ -93,7 +67,7 @@ export function CartView() {
             <label htmlFor="cupon" className="text-sm font-medium">¿Tienes un cupón?</label>
             <div className="mt-2 flex gap-2">
               <input id="cupon" value={couponInput} onChange={(e) => setCouponInput(e.target.value.toUpperCase())} aria-describedby={quote?.couponError ? "cupon-error" : undefined} className="min-h-11 min-w-0 flex-1 border border-border bg-bg px-3 text-sm uppercase outline-none focus:border-fg" />
-              <button type="submit" className="min-h-11 border border-fg/80 px-4 text-xs font-semibold tracking-[0.12em] uppercase hover:bg-fg hover:text-bg">Aplicar</button>
+              <Button type="submit" variant="outline" size="sm" className="min-h-11">Aplicar</Button>
             </div>
             {quote?.couponError && <p id="cupon-error" className="mt-1.5 text-xs text-danger">{quote.couponError}</p>}
           </form>

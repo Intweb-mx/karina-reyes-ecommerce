@@ -17,6 +17,10 @@ type CartContextValue = {
   clear: () => void;
   /** Último producto agregado, para mostrar la confirmación. */
   lastAdded: { productId: string; at: number } | null;
+  /** Carrito lateral: se abre al agregar y desde el ícono del header. */
+  drawerOpen: boolean;
+  openDrawer: () => void;
+  closeDrawer: () => void;
 };
 
 const KEY = "inttimo:cart:v1";
@@ -37,6 +41,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [ready, setReady] = useState(false);
   const [lastAdded, setLastAdded] = useState<CartContextValue["lastAdded"]>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   useEffect(() => {
     // Se lee al montar (el servidor no conoce el carrito) y se sincroniza entre pestañas.
@@ -62,11 +69,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
       lines,
       ready,
       lastAdded,
+      drawerOpen,
+      openDrawer,
+      closeDrawer,
       count: lines.reduce((sum, line) => sum + line.quantity, 0),
       add(productId, quantity = 1) {
         const existing = lines.find((line) => line.productId === productId);
         persist(existing ? lines.map((line) => (line.productId === productId ? { ...line, quantity: line.quantity + quantity } : line)) : [...lines, { productId, quantity }]);
         setLastAdded({ productId, at: Date.now() });
+        setDrawerOpen(true);
       },
       setQuantity(productId, quantity) {
         persist(quantity <= 0 ? lines.filter((line) => line.productId !== productId) : lines.map((line) => (line.productId === productId ? { ...line, quantity } : line)));
@@ -78,7 +89,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         persist([]);
       },
     }),
-    [lines, ready, lastAdded, persist],
+    [lines, ready, lastAdded, drawerOpen, openDrawer, closeDrawer, persist],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

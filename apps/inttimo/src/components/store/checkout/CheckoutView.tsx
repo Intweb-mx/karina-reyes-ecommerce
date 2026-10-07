@@ -21,13 +21,34 @@ const ADDRESS_FIELDS: { key: keyof Address; label: string; autoComplete: string;
   { key: "name", label: "Nombre de quien recibe", autoComplete: "name", span: true },
   { key: "phone", label: "Teléfono de quien recibe", autoComplete: "tel" },
   { key: "postalCode", label: "Código postal", autoComplete: "postal-code", inputMode: "numeric" },
-  { key: "street", label: "Calle y número (exterior e interior)", autoComplete: "street-address", span: true },
   { key: "neighborhood", label: "Colonia", autoComplete: "address-level3" },
   { key: "city", label: "Ciudad o municipio", autoComplete: "address-level2" },
   { key: "state", label: "Estado", autoComplete: "address-level1" },
-  { key: "reference", label: "Referencias para la entrega", autoComplete: "off", optional: true },
+  { key: "street", label: "Calle y número (exterior e interior)", autoComplete: "street-address", span: true },
+  { key: "reference", label: "Referencias para la entrega", autoComplete: "off", optional: true, span: true },
 ];
 const emptyAddress: Address = { name: "", phone: "", street: "", neighborhood: "", postalCode: "", city: "", state: "", reference: "" };
+const emptyContact = { fullName: "", email: "", phone: "" };
+
+/** Datos guardados en este dispositivo para no volver a escribirlos (solo si la persona lo permite). */
+const SAVED_KEY = "inttimo:checkout:v1";
+type Saved = { contact: typeof emptyContact; address: Address; method: "pickup" | "shipping" | null; pickupPointId: string };
+function readSaved(): Saved | null {
+  try {
+    const raw = window.localStorage.getItem(SAVED_KEY);
+    return raw ? (JSON.parse(raw) as Saved) : null;
+  } catch {
+    return null;
+  }
+}
+function writeSaved(saved: Saved | null) {
+  try {
+    if (saved) window.localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
+    else window.localStorage.removeItem(SAVED_KEY);
+  } catch {
+    // Almacenamiento bloqueado: simplemente no se recuerdan los datos.
+  }
+}
 
 /**
  * 08 · Checkout: contacto → entrega (recolección o envío cotizado) → confirmación → pago en la pasarela.
@@ -40,6 +61,11 @@ export function CheckoutView() {
   const [method, setMethod] = useState<"pickup" | "shipping" | null>(null);
   const [pickupPointId, setPickupPointId] = useState("");
   const [address, setAddress] = useState<Address>(emptyAddress);
+  const [contact, setContact] = useState(emptyContact);
+  const [remember, setRemember] = useState(true);
+  const [restored, setRestored] = useState(false);
+  const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
+  const [lookingUp, setLookingUp] = useState(false);
   const [shippingQuote, setShippingQuote] = useState<ShippingQuoteResponse | null>(null);
   const [rateId, setRateId] = useState<string | null>(null);
   const [quoting, setQuoting] = useState(false);
@@ -49,9 +75,37 @@ export function CheckoutView() {
   const [idempotencyKey] = useState(() => (typeof crypto !== "undefined" ? crypto.randomUUID() : String(Date.now())));
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
+  const payRef = useRef<HTMLDivElement>(null);
+  const [payVisible, setPayVisible] = useState(true);
+  const loaded = useRef(false);
 
   useEffect(() => {
     void getStoreApi().deliveryOptions().then((result) => result.ok && setOptions(result.data));
+    const saved = readSaved();
+    if (saved) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- restaura los datos guardados en este dispositivo
+      setContact({ ...emptyContact, ...saved.contact });
+      setAddress({ ...emptyAddress, ...saved.address });
+      setMethod(saved.method);
+      setPickupPointId(saved.pickupPointId ?? "");
+      setRestored(true);
+    }
+    loaded.current = true;
+  }, []);
+
+  // Guarda lo capturado mientras se escribe (si la persona lo permite) para no perderlo al salir y volver.
+  useEffect(() => {
+    if (!loaded.current) return;
+    writeSaved(remember ? { contact, address, method, pickupPointId } : null);
+  }, [remember, contact, address, method, pickupPointId]);
+
+  // En móvil, la barra fija de pago se oculta cuando el botón principal ya está a la vista.
+  useEffect(() => {
+    const target = payRef.current;
+    if (!target || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setPayVisible(!!entry?.isIntersecting), { rootMargin: "0px 0px -40px 0px" });
+    observer.observe(target);
+    return () => observer.disconnect();
   }, []);
 
   const rate = shippingQuote?.rates.find((r) => r.id === rateId) ?? null;
@@ -60,11 +114,30 @@ export function CheckoutView() {
   const total = quote ? quote.total.amount + (shippingAmount ?? 0) : null;
 
   function setAddressField(key: keyof Address, value: string) {
-    setAddress((current) => ({ ...current, [key]: key === "postalCode" ? value.replace(/\D/g, "").slice(0, 5) : value }));
+    const next = key === "postalCode" ? value.replace(/\D/g, "").slice(0, 5) : value;
+    setAddress((current) => ({ ...current, [key]: next }));
+    if (errors[`address.${key}`]) setErrors((current) => ({ ...current, [`address.${key}`]: [] }));
     if (shippingQuote && ["postalCode", "state", "city", "neighborhood"].includes(key)) {
       setShippingQuote(null);
       setRateId(null);
     }
+    if (key === "postalCode" && next.length === 5 && next !== address.postalCode) void lookupPostalCode(next);
+  }
+
+  /** Con el código postal llenamos estado, ciudad y sugerimos colonias: menos campos que escribir. */
+  async function lookupPostalCode(postalCode: string) {
+    setLookingUp(true);
+    const result = await getStoreApi().lookupPostalCode(postalCode);
+    setLookingUp(false);
+    if (!result.ok) return setNeighborhoods([]);
+    const { state, city, neighborhoods: list } = result.data;
+    setNeighborhoods(list);
+    setAddress((current) => ({
+      ...current,
+      state,
+      city,
+      neighborhood: list.length === 1 ? list[0]! : list.includes(current.neighborhood) ? current.neighborhood : current.neighborhood && !neighborhoods.includes(current.neighborhood) ? current.neighborhood : "",
+    }));
   }
 
   function addressErrors(): Errors {
@@ -96,6 +169,15 @@ export function CheckoutView() {
     }
   }
 
+  // Cotiza el envío solo en cuanto la dirección alcanza para hacerlo (sin tener que buscar el botón).
+  const quotable = method === "shipping" && /^\d{5}$/.test(address.postalCode) && !!address.state.trim() && !!address.city.trim() && !!address.neighborhood.trim();
+  useEffect(() => {
+    if (!quotable || shippingQuote || quoting || errors.shipping?.length) return;
+    const timer = setTimeout(() => void requestShippingQuote(), 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo cuando cambia la dirección cotizable
+  }, [quotable, address.postalCode, address.state, address.city, address.neighborhood, shippingQuote]);
+
   function focusProblem() {
     requestAnimationFrame(() => {
       const target = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
@@ -108,8 +190,8 @@ export function CheckoutView() {
     event.preventDefault();
     if (submitting) return;
     const form = new FormData(event.currentTarget);
-    const fullName = String(form.get("fullName") ?? "").trim();
-    const email = String(form.get("email") ?? "").trim();
+    const fullName = contact.fullName.trim();
+    const email = contact.email.trim();
     const e: Errors = {};
     if (fullName.length < 2) e.fullName = ["Escribe tu nombre completo."];
     if (!EMAIL.test(email)) e.email = ["Correo no válido."];
@@ -127,7 +209,7 @@ export function CheckoutView() {
     setSubmitting(true);
     const result = await getStoreApi().checkout(
       {
-        contact: { fullName, email, phone: String(form.get("phone") ?? "").trim() || undefined },
+        contact: { fullName, email, phone: contact.phone.trim() || undefined },
         lines,
         delivery: method === "pickup" ? { method: "pickup", pickupPointId } : { method: "shipping", quoteId: shippingQuote!.quoteId, rateId: rateId!, address: { ...address, reference: address.reference || undefined } },
         acceptTerms: true,
@@ -160,7 +242,7 @@ export function CheckoutView() {
 
   const money = (amount: number) => formatMoney(amount, currency);
   const done = {
-    contact: false,
+    contact: contact.fullName.trim().length >= 2 && EMAIL.test(contact.email.trim()),
     delivery: method === "pickup" ? !!pickupPointId : method === "shipping" ? !!rate : false,
   };
 
@@ -172,10 +254,29 @@ export function CheckoutView() {
         </div>
 
         <FormSection step="1" title="Contacto" description="Para enviarte la confirmación y el seguimiento." id="paso-contacto" complete={done.contact}>
+          {restored && (
+            <p className="flex flex-wrap items-center justify-between gap-2 border border-border bg-surface px-4 py-2.5 text-sm">
+              <span>Usamos los datos que guardaste en este dispositivo.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setContact(emptyContact);
+                  setAddress(emptyAddress);
+                  setMethod(null);
+                  setPickupPointId("");
+                  setShippingQuote(null);
+                  setRestored(false);
+                }}
+                className="min-h-9 font-semibold underline underline-offset-4"
+              >
+                Borrar y empezar de nuevo
+              </button>
+            </p>
+          )}
           <div className="grid gap-6 sm:grid-cols-2">
-            <Field name="fullName" label="Nombre completo" autoComplete="name" errors={errors.fullName} className="sm:col-span-2" />
-            <Field name="email" label="Correo electrónico" type="email" autoComplete="email" errors={errors.email} />
-            <Field name="phone" label="Teléfono" type="tel" autoComplete="tel" optional errors={errors.phone} />
+            <Field name="fullName" label="Nombre completo" autoComplete="name" value={contact.fullName} onChange={(e: { target: { value: string } }) => setContact((c) => ({ ...c, fullName: e.target.value }))} errors={errors.fullName} className="sm:col-span-2" />
+            <Field name="email" label="Correo electrónico" type="email" autoComplete="email" inputMode="email" value={contact.email} onChange={(e: { target: { value: string } }) => setContact((c) => ({ ...c, email: e.target.value }))} errors={errors.email} hint="Aquí te llegan la confirmación y el seguimiento." />
+            <Field name="phone" label="Teléfono" type="tel" autoComplete="tel" inputMode="tel" optional value={contact.phone} onChange={(e: { target: { value: string } }) => setContact((c) => ({ ...c, phone: e.target.value }))} errors={errors.phone} hint="Solo si hay algún detalle con tu entrega." />
           </div>
         </FormSection>
 
@@ -231,14 +332,19 @@ export function CheckoutView() {
                     onChange={(e: { target: { value: string } }) => setAddressField(field.key, e.target.value)}
                     errors={errors[`address.${field.key}`]}
                     className={field.span ? "sm:col-span-2" : undefined}
+                    list={field.key === "neighborhood" && neighborhoods.length ? "colonias" : undefined}
+                    hint={field.key === "postalCode" ? (lookingUp ? "Buscando tu código postal…" : "Con él llenamos estado y ciudad por ti.") : undefined}
                   />
                 ))}
+                <datalist id="colonias">{neighborhoods.map((n) => <option key={n} value={n} />)}</datalist>
               </div>
               <div id="shipping" aria-live="polite" className="space-y-3">
                 {!shippingQuote ? (
-                  <Button type="button" variant="outline" size="md" onClick={requestShippingQuote} loading={quoting} disabled={quoting}>
-                    {quoting ? "Calculando envío…" : "Calcular envío"}
-                  </Button>
+                  quoting ? (
+                    <p className="flex items-center gap-2 text-sm text-muted"><Spinner className="size-4" /> Calculando opciones de envío para tu dirección…</p>
+                  ) : (
+                    <Button type="button" variant="outline" size="md" onClick={requestShippingQuote}>Calcular envío</Button>
+                  )
                 ) : (
                   <fieldset>
                     <legend className="block text-[0.9375rem] font-semibold">Elige tu envío</legend>
@@ -315,14 +421,38 @@ export function CheckoutView() {
               <input type="checkbox" name="marketingConsent" className="choice" />
               <span className="pt-0.5">Quiero recibir noticias de inttimo por correo. (opcional)</span>
             </label>
+            <label className="flex cursor-pointer items-start gap-3.5 px-4 text-xs text-muted">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="choice" />
+              <span className="pt-0.5">Recordar mis datos en este dispositivo para mi próxima compra.</span>
+            </label>
           </div>
 
-          <Button type="submit" variant="bronze" block arrow="right" loading={submitting} disabled={submitting || loading}>
-            {submitting ? "Preparando pago…" : total !== null ? `Pagar ${money(total)}` : "Pagar"}
-          </Button>
+          <div ref={payRef}>
+            <Button type="submit" variant="bronze" block arrow="right" loading={submitting} disabled={submitting || loading}>
+              {submitting ? "Preparando pago…" : total !== null ? `Pagar ${money(total)}` : "Pagar"}
+            </Button>
+          </div>
           <p className="flex items-center justify-center gap-2 text-center text-xs text-muted"><LockIcon className="size-3.5 shrink-0" /> Pagarás en la página segura de Stripe. No guardamos datos de tu tarjeta.</p>
         </div>
       </aside>
+
+      {/* Barra fija en móvil: total siempre visible y el pago a un toque. */}
+      <div
+        aria-hidden={payVisible}
+        inert={payVisible}
+        className={`fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg/95 px-4 py-3 shadow-[0_-12px_30px_-20px_rgb(34_28_23/0.5)] backdrop-blur-md transition-transform duration-300 ease-soft lg:hidden print:hidden ${payVisible ? "translate-y-full" : "translate-y-0"}`}
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+      >
+        <div className="flex items-center gap-4">
+          <div className="min-w-0">
+            <p className="text-xs text-muted">Total</p>
+            <p className="font-serif text-2xl leading-none font-medium lining-nums">{total !== null ? money(total) : "—"}</p>
+          </div>
+          <Button type="submit" variant="bronze" size="md" arrow={false} loading={submitting} disabled={submitting || loading} className="flex-1 justify-center">
+            {submitting ? "Preparando…" : "Pagar"}
+          </Button>
+        </div>
+      </div>
     </form>
   );
 }

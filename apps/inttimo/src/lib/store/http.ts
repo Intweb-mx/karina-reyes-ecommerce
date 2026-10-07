@@ -33,6 +33,7 @@ export const httpStoreApi: StoreApi = {
   quoteCart: (request) => call("/carrito/cotizar", post(request)),
   deliveryOptions: () => call("/entrega"),
   quoteShipping: (request) => call("/envio/cotizar", post(request)),
+  lookupPostalCode: (postalCode) => call(`/codigo-postal/${encodeURIComponent(postalCode)}`),
   checkout: (request, idempotencyKey) => call("/checkout", { ...post(request), idempotencyKey }),
   orderConfirmation: (sessionId) => call(`/pedido/confirmacion?session_id=${encodeURIComponent(sessionId)}`),
   trackOrder: (request) => call("/rastrear", post(request)),

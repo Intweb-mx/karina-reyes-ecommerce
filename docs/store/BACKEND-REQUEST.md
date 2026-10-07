@@ -31,6 +31,29 @@ Convenciones iguales a la preventa: montos en **centavos**, fechas ISO, errores 
 | 11 | `POST /api/tienda/contacto` (`contact`) | Contacto | Formulario de contacto con tema, antispam y límite de intentos. Manda un correo al equipo (y un ticket o CRM si se decide después). |
 | 12 | `POST /api/tienda/iglesias/cotizacion` (`churchQuote`) | Iglesias | Solicitud B2B (brief §24). Se guarda con un estado en el panel y se avisa al equipo. |
 | 13 | `POST /api/tienda/newsletter` (`newsletter`) | Pie de página (todas) | Doble confirmación con consentimiento explícito. Nunca suscribir a alguien por comprar. |
+| 14 | `GET /api/tienda/codigo-postal/[cp]` (`lookupPostalCode`) | Checkout | **Nuevo.** Con el código postal devuelve estado, municipio y colonias (catálogo SEPOMEX o el de SkyDropX). El checkout los llena solo y sugiere la colonia, así la persona escribe menos. 404 si el código no existe; entonces el checkout deja escribir a mano. |
+
+## Panel de la tienda (nuevo)
+
+Las pantallas ya están construidas en `/panel/tienda` con datos simulados (`src/lib/store/admin-mock.ts`). El contrato está en `apps/inttimo/src/lib/store/admin-contract.ts`, y el adaptador HTTP en `src/lib/store/admin.ts` ya llama a estas rutas.
+
+Reglas para **todas** estas rutas:
+
+- Solo administradores (`requireAdmin`, con MFA).
+- Cada acción queda en la bitácora del panel.
+- Errores con la misma forma que la tienda.
+
+| # | Método y ruta | Pantalla | Qué hace |
+|---|---|---|---|
+| A1 | `GET /api/panel/tienda/resumen?periodo=7d\|30d\|all` | Resumen | Ventas pagadas, pedidos, ticket promedio, pedidos por enviar y por recoger, incidencias, productos con poco inventario, solicitudes nuevas y más vendidos. Solo métricas reales. |
+| A2 | `GET /api/panel/tienda/pedidos?filtro=…&q=…&pagina=…` | Pedidos | Lista con conteos por filtro (`to_ship`, `to_pickup`, `in_transit`, `exception`, `delivered`, `unpaid`, `all`). Busca por folio, nombre, correo o guía. Primero va lo que espera acción, del más antiguo al más reciente. |
+| A3 | `GET /api/panel/tienda/pedidos/exportar?filtro=…&q=…` | Pedidos | CSV con el filtro actual, en UTF-8 con BOM para que Excel muestre bien los acentos. |
+| A4 | `GET /api/panel/tienda/pedidos/[folio]` | Detalle | `AdminOrderDetail`: datos del cliente, entrega, guía, notas internas, la bitácora completa (solo se agrega, nunca se borra) y `allowedActions`. **El backend decide qué acciones caben en cada estado**; el panel solo muestra esas. |
+| A5 | `POST /api/panel/tienda/pedidos/[folio]/acciones` (`Idempotency-Key`) | Detalle | Acciones: generar guía (SkyDropX, igual que en la preventa), marcar enviado, listo para recoger (con correo al cliente), entregado, reportar incidencia con nota, reenviar confirmación y cancelar (reembolso en Stripe si ya se pagó). Devuelve el pedido actualizado. |
+| A6 | `POST /api/panel/tienda/pedidos/[folio]/notas` | Detalle | Nota interna que el cliente nunca ve. |
+| A7 | `GET /api/panel/tienda/productos` · `PATCH /api/panel/tienda/productos/[id]` | Productos | Lista con inventario (`onHand`, `reserved`, `available`, `lowStockThreshold`). El PATCH edita precio (en centavos), publicar u ocultar, aviso de poco inventario y máximo por pedido. |
+| A8 | `POST /api/panel/tienda/productos/[id]/inventario` · `GET …/movimientos` | Productos | Entradas y salidas con motivo (recepción, ajuste, merma, devolución, corrección). Es un **movimiento auditable**, nunca se sobrescribe el número. Las existencias no pueden quedar debajo de lo apartado. |
+| A9 | `GET /api/panel/tienda/solicitudes` · `PATCH /api/panel/tienda/solicitudes/[id]` | Solicitudes | Contacto y cotizaciones de iglesias, con estado (`new`, `contacted`, `quoted`, `won`, `closed`) y notas del equipo. |
 
 ## Modelo de datos necesario (brief §11–§21)
 
@@ -41,12 +64,22 @@ Convenciones iguales a la preventa: montos en **centavos**, fechas ISO, errores 
 - **Clientes:** cuentas opcionales. Comprar como invitado debe seguir siendo posible.
 - **Solicitudes:** contacto y cotizaciones de iglesias, cada una con un estado en el panel.
 
-## Panel administrativo (Karina)
+## Pendiente para una siguiente fase del panel
 
-- Pedidos de la tienda, igual que hoy en la preventa: lista, detalle, guía, listo para recoger / enviado / entregado.
-- Productos e inventario: precio, stock, estado y fotos, sin tocar código.
-- Solicitudes de contacto y de iglesias, con estado y notas.
-- Preguntas frecuentes, costo de envío y paqueterías permitidas.
+- Fotos y textos de productos desde el panel.
+- Preguntas frecuentes, costo de envío y paqueterías permitidas, configurables sin tocar código.
+- Cupones.
+
+## Lo que el frontend ya resuelve sin backend
+
+Estas mejoras no requieren nada del backend:
+
+- **Carrito lateral** al agregar un producto.
+- **Barra de compra fija** en celular.
+- **Pasos de la compra:** carrito, datos, pago y confirmación.
+- **Transiciones suaves** entre páginas.
+- **Envío automático:** se cotiza solo en cuanto la dirección está completa.
+- **Datos recordados** para la próxima compra, solo en el navegador de la persona y con su permiso.
 
 ## Decisiones de negocio pendientes (no son de frontend)
 

@@ -144,6 +144,12 @@ export const mockStoreApi: StoreApi = {
       ],
     });
   },
+  async lookupPostalCode(postalCode) {
+    await wait(300);
+    // EJEMPLO: el backend real consulta el catálogo de códigos postales. Aquí solo se simula Chihuahua (31xxx).
+    if (!/^31\d{3}$/.test(postalCode)) return { ok: false, error: { code: "not_found", message: "No reconocimos ese código postal. Escribe los datos a mano." } };
+    return ok({ postalCode, state: "Chihuahua", city: "Chihuahua", neighborhoods: ["Colonia de EJEMPLO 1", "Colonia de EJEMPLO 2", "Colonia de EJEMPLO 3"] });
+  },
   async checkout() {
     await wait(900);
     // Sin pasarela en modo simulado: se va directo a la confirmación de ejemplo.

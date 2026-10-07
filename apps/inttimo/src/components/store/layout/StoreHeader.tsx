@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/layout/Wordmark";
+import { ButtonLink } from "@/components/ui/Button";
 import { BagIcon, CloseIcon, MenuIcon, UserIcon } from "@/components/ui/icons";
 import { nav } from "@/content/store";
 import { useCart } from "../cart/CartProvider";
@@ -11,7 +12,7 @@ import { useCart } from "../cart/CartProvider";
 /** Header global de la tienda (CLAUDE.md §9): navegación, cuenta, carrito con contador y CTA. Menú plegable en móvil. */
 export function StoreHeader() {
   const pathname = usePathname();
-  const { count, ready } = useCart();
+  const { count, ready, openDrawer, drawerOpen } = useCart();
   const [open, setOpen] = useState(false);
 
   // Cierra el menú al cambiar de página y con Escape.
@@ -31,7 +32,7 @@ export function StoreHeader() {
   const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-bg/85 backdrop-blur-md supports-[backdrop-filter]:bg-bg/75 print:static">
+    <header style={{ viewTransitionName: "store-header" }} className="sticky top-0 z-40 border-b border-border/70 bg-bg/85 backdrop-blur-md supports-[backdrop-filter]:bg-bg/75 print:static">
       <div className="container-page flex h-(--header-height) items-center justify-between gap-4">
         <Link href="/" aria-label="inttimo, inicio" className="shrink-0">
           <Wordmark />
@@ -55,17 +56,26 @@ export function StoreHeader() {
           <Link href="/cuenta" aria-label="Mi cuenta" className="grid size-11 place-items-center text-fg/80 transition-colors hover:text-fg">
             <UserIcon className="size-5" />
           </Link>
-          <Link href="/carrito" aria-label={`Carrito${ready && count ? `, ${count} ${count === 1 ? "producto" : "productos"}` : ", vacío"}`} className="relative grid size-11 place-items-center text-fg/80 transition-colors hover:text-fg">
+          <button
+            type="button"
+            onClick={openDrawer}
+            aria-haspopup="dialog"
+            aria-expanded={drawerOpen}
+            aria-label={`Abrir carrito${ready && count ? `, ${count} ${count === 1 ? "producto" : "productos"}` : ", vacío"}`}
+            className="relative grid size-11 place-items-center text-fg/80 transition-colors hover:text-fg"
+          >
             <BagIcon className="size-5" />
             {ready && count > 0 && (
               <span key={count} aria-hidden="true" className="animate-pop absolute top-1.5 right-1 grid min-w-5 place-items-center rounded-full bg-bronze px-1 text-[0.625rem] leading-5 font-semibold text-on-ink lining-nums">
                 {count > 99 ? "99+" : count}
               </span>
             )}
-          </Link>
-          <Link href="/productos" className="ml-2 hidden min-h-10 items-center bg-accent px-4 text-xs font-semibold tracking-[0.14em] text-bg uppercase transition-colors hover:bg-ink/85 sm:inline-flex">
-            Ir a la tienda
-          </Link>
+          </button>
+          <span className="ml-2 hidden sm:block">
+            <ButtonLink href="/productos" size="sm" arrow={false}>
+              Ir a la tienda
+            </ButtonLink>
+          </span>
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}

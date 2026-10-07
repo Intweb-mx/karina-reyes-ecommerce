@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { BagIcon, CheckIcon, MinusIcon, PlusIcon } from "@/components/ui/icons";
@@ -29,7 +28,7 @@ export function AddToCartButton({ productId, productName, compact, withQuantity,
         type="button"
         onClick={onAdd}
         aria-label={`Agregar ${productName} al carrito`}
-        className={`inline-flex min-h-11 items-center gap-2 border px-4 text-xs font-semibold tracking-[0.14em] uppercase transition-colors ${added ? "border-success bg-success text-on-ink" : "border-fg/80 hover:bg-fg hover:text-bg"}`}
+        className={`inline-flex min-h-11 items-center gap-2 border px-4 text-xs font-semibold tracking-[0.14em] uppercase transition-[color,background-color,border-color,transform] duration-(--duration-base) active:scale-[0.97] ${added ? "border-success bg-success text-on-ink" : "border-fg/80 hover:bg-fg hover:text-bg"}`}
       >
         {added ? <CheckIcon className="animate-pop size-4" /> : <BagIcon className="size-4" />}
         <span aria-live="polite">{added ? "Agregado" : "Agregar"}</span>
@@ -38,7 +37,7 @@ export function AddToCartButton({ productId, productName, compact, withQuantity,
   }
 
   return (
-    <div className="space-y-3">
+    <div>
       <div className="flex flex-wrap items-stretch gap-3">
         {withQuantity && (
           <div role="group" aria-label="Cantidad" className="inline-flex items-stretch divide-x divide-border border border-border bg-[#fffdf9]">
@@ -55,12 +54,6 @@ export function AddToCartButton({ productId, productName, compact, withQuantity,
           <span aria-live="polite">{added ? "Agregado al carrito" : "Agregar al carrito"}</span>
         </Button>
       </div>
-      {added && (
-        <p role="status" className="animate-rise text-sm [animation-duration:300ms]">
-          Listo.{" "}
-          <Link href="/carrito" className="font-semibold underline underline-offset-4">Ver carrito</Link> o sigue explorando.
-        </p>
-      )}
     </div>
   );
 }
