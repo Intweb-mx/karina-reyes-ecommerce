@@ -126,7 +126,7 @@ export async function listStockMovements(db: Executor, productId: string, limit 
     .from(storeStockMovements)
     .leftJoin(storeOrders, eq(storeOrders.id, storeStockMovements.orderId))
     .where(eq(storeStockMovements.productId, productId))
-    .orderBy(desc(storeStockMovements.createdAt), desc(storeStockMovements.id))
+    .orderBy(desc(storeStockMovements.seq))
     .limit(limit);
 }
 
@@ -342,7 +342,7 @@ export async function listStoreOrderItems(db: Executor, orderId: string): Promis
 }
 
 export async function listStoreOrderEvents(db: Executor, orderId: string) {
-  return db.select().from(storeOrderEvents).where(eq(storeOrderEvents.orderId, orderId)).orderBy(asc(storeOrderEvents.createdAt), asc(storeOrderEvents.id));
+  return db.select().from(storeOrderEvents).where(eq(storeOrderEvents.orderId, orderId)).orderBy(asc(storeOrderEvents.seq));
 }
 
 export async function addStoreOrderNote(db: Executor, input: { orderId: string; body: string; authorEmail: string }): Promise<StoreOrderNote> {
@@ -351,7 +351,7 @@ export async function addStoreOrderNote(db: Executor, input: { orderId: string; 
 }
 
 export async function listStoreOrderNotes(db: Executor, orderId: string): Promise<StoreOrderNote[]> {
-  return db.select().from(storeOrderNotes).where(eq(storeOrderNotes.orderId, orderId)).orderBy(asc(storeOrderNotes.createdAt), asc(storeOrderNotes.id));
+  return db.select().from(storeOrderNotes).where(eq(storeOrderNotes.orderId, orderId)).orderBy(asc(storeOrderNotes.seq));
 }
 
 // ---------- Ciclo de pago y liberación de stock ----------
@@ -466,9 +466,10 @@ async function closePendingOrder(
     const { order, items } = locked;
     const stillExpired = !close.onlyIfHoldExpiredBefore || (order.checkoutExpiresAt ?? order.createdAt) < close.onlyIfHoldExpiredBefore;
     if (order.paymentStatus !== "pending" || !stillExpired) return { order, changed: false };
-    if (order.inventoryReserved) await releaseReservedStock(tx, order, items, close.source);
-    const [updated] = await tx.update(storeOrders).set({ paymentStatus: close.paymentStatus }).where(eq(storeOrders.id, orderId)).returning();
+    await tx.update(storeOrders).set({ paymentStatus: close.paymentStatus }).where(eq(storeOrders.id, orderId));
     await addStoreOrderEvent(tx, orderId, close.event, close.source, { metadata: close.metadata });
+    if (order.inventoryReserved) await releaseReservedStock(tx, order, items, close.source);
+    const [updated] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId));
     return { order: updated!, changed: true };
   });
 }

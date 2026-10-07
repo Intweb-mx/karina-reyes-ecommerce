@@ -174,12 +174,14 @@ describe("consultas, sesión de pago y notas", () => {
     expect((await listStoreOrderEvents(db, order.id)).map((e) => e.type)).toContain("CHECKOUT_CREATED");
   });
 
-  it("las notas internas se agregan con autor y se listan", async () => {
+  it("las notas internas se agregan con autor y se listan en orden", async () => {
     const product = await seedProduct(db, { stock: 5 });
     const { order } = await createStoreOrder(db, pickupOrder([{ productId: product.id, quantity: 1 }]));
     await addStoreOrderNote(db, { orderId: order.id, body: "Primera", authorEmail: "karina@ejemplo.com" });
     await addStoreOrderNote(db, { orderId: order.id, body: "Segunda", authorEmail: "leo@ejemplo.com" });
-    // Sin depender del orden: dos notas pueden compartir created_at.
-    expect((await listStoreOrderNotes(db, order.id)).map((n) => `${n.body}|${n.authorEmail}`).sort()).toEqual(["Primera|karina@ejemplo.com", "Segunda|leo@ejemplo.com"].sort());
+    expect((await listStoreOrderNotes(db, order.id)).map((n) => [n.body, n.authorEmail])).toEqual([
+      ["Primera", "karina@ejemplo.com"],
+      ["Segunda", "leo@ejemplo.com"],
+    ]);
   });
 });

@@ -53,7 +53,7 @@ describe("pago confirmado", () => {
     expect(await inventoryOf(db, product.id)).toMatchObject({ onHand: 3, reserved: 0 });
     const sale = (await listStockMovements(db, product.id)).find((m) => m.reason === "sale");
     expect(sale).toMatchObject({ deltaOnHand: -2, deltaReserved: -2, orderNumber: order.orderNumber });
-    expect(await eventTypes(order.id)).toEqual(expect.arrayContaining(["PAYMENT_APPROVED", "INVENTORY_COMMITTED"]));
+    expect(await eventTypes(order.id)).toEqual(["ORDER_CREATED", "INVENTORY_RESERVED", "PAYMENT_APPROVED", "INVENTORY_COMMITTED"]);
     await expectLedgerMatches(db, product.id);
   });
 
@@ -83,7 +83,7 @@ describe("pago fallido y error al crear el pago", () => {
     expect(first?.changed).toBe(true);
     expect(first?.order).toMatchObject({ paymentStatus: "failed", inventoryReserved: false });
     expect(await inventoryOf(db, product.id)).toMatchObject({ onHand: 5, reserved: 0 });
-    expect(await eventTypes(order.id)).toEqual(expect.arrayContaining(["PAYMENT_FAILED", "INVENTORY_RELEASED"]));
+    expect(await eventTypes(order.id)).toEqual(["ORDER_CREATED", "INVENTORY_RESERVED", "PAYMENT_FAILED", "INVENTORY_RELEASED"]);
 
     expect((await markStoreOrderPaymentFailed(db, order.id, stripe))?.changed).toBe(false);
     expect(await inventoryOf(db, product.id)).toMatchObject({ reserved: 0 });
@@ -114,7 +114,7 @@ describe("vencimiento", () => {
     expect(await releaseExpiredStoreOrders(db, minutes(36))).toBe(1);
     expect(await findStoreOrderById(db, order.id)).toMatchObject({ paymentStatus: "cancelled", inventoryReserved: false });
     expect(await inventoryOf(db, product.id)).toMatchObject({ onHand: 5, reserved: 0 });
-    expect(await eventTypes(order.id)).toEqual(expect.arrayContaining(["CHECKOUT_EXPIRED", "INVENTORY_RELEASED"]));
+    expect(await eventTypes(order.id)).toEqual(["ORDER_CREATED", "INVENTORY_RESERVED", "CHECKOUT_CREATED", "CHECKOUT_EXPIRED", "INVENTORY_RELEASED"]);
     expect(await releaseExpiredStoreOrders(db, minutes(60))).toBe(0);
     await expectLedgerMatches(db, product.id);
   });
@@ -181,6 +181,7 @@ describe("pago que llega tarde", () => {
     const exception = (await listStoreOrderEvents(db, late.id)).find((e) => e.type === "EXCEPTION");
     expect(exception?.metadata).toMatchObject({ reason: "oversold_after_release" });
     expect(await eventTypes(late.id)).toContain("PAYMENT_APPROVED");
+    expect((await eventTypes(late.id)).slice(-2)).toEqual(["PAYMENT_APPROVED", "EXCEPTION"]);
     expect(await eventTypes(late.id)).not.toContain("INVENTORY_COMMITTED");
     await expectLedgerMatches(db, product.id);
   });

@@ -75,6 +75,7 @@ describe("ajuste de existencias", () => {
       ].sort(),
     );
     expect(movements.find((m) => m.reason === "reception")?.note).toBe("Primer lote");
+    expect(movements.map((m) => m.reason)).toEqual(["damage", "reception"]); // más reciente primero
   });
 
   it("rechaza ajustes sin sentido", async () => {

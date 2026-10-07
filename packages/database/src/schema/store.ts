@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { createdAt, updatedAt } from "./columns.ts";
 import type { DeliveryAddress, ShippingSelection } from "./presale.ts";
 
@@ -186,6 +186,8 @@ export const storeStockMovements = pgTable(
   "store_stock_movements",
   {
     id: uuid().primaryKey().defaultRandom(),
+    /** Orden de inserción (ids uuid no ordenan; created_at se repite dentro de una transacción). */
+    seq: bigint({ mode: "number" }).generatedAlwaysAsIdentity(),
     productId: uuid()
       .notNull()
       .references(() => storeProducts.id, { onDelete: "restrict" }),
@@ -209,6 +211,8 @@ export const storeOrderEvents = pgTable(
   "store_order_events",
   {
     id: uuid().primaryKey().defaultRandom(),
+    /** Orden de inserción (ids uuid no ordenan; created_at se repite dentro de una transacción). */
+    seq: bigint({ mode: "number" }).generatedAlwaysAsIdentity(),
     orderId: uuid()
       .notNull()
       .references(() => storeOrders.id, { onDelete: "restrict" }),
@@ -228,6 +232,8 @@ export const storeOrderNotes = pgTable(
   "store_order_notes",
   {
     id: uuid().primaryKey().defaultRandom(),
+    /** Orden de inserción (ids uuid no ordenan; created_at se repite dentro de una transacción). */
+    seq: bigint({ mode: "number" }).generatedAlwaysAsIdentity(),
     orderId: uuid()
       .notNull()
       .references(() => storeOrders.id, { onDelete: "restrict" }),
