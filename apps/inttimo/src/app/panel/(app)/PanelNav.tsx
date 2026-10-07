@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { storeEnabled } from "@/lib/store/flags";
 
 const LINKS = [
   { href: "/panel", label: "Pedidos", match: (p: string) => p === "/panel" || p.startsWith("/panel/campanas") || p.startsWith("/panel/reservas") },
+  // La tienda completa solo aparece donde está habilitada (desarrollo o NEXT_PUBLIC_STORE_ENABLED=1).
+  ...(storeEnabled ? [{ href: "/panel/tienda", label: "Tienda", match: (p: string) => p.startsWith("/panel/tienda") }] : []),
   { href: "/panel/bitacora", label: "Actividad", match: (p: string) => p.startsWith("/panel/bitacora") },
 ];
 

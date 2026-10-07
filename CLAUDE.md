@@ -41,6 +41,14 @@ Se puede dejar preparada la arquitectura de este repo (scaffold, tipos, tokens v
 - Solo `gateway.ts` importa el SDK de Stripe. El precio vive en la base; nunca se acepta del cliente.
 - Nunca apuntar migraciones al puerto 54322: lo usa el Supabase local de otro proyecto (AJL-Group).
 
+### Tienda completa: frontend primero, backend por contrato (2026-10-06)
+
+> **Decisión del usuario (2026-10-06):** construir el frontend de las 13 pantallas de la tienda (§8) **sin tocar código de backend**. Lo que el frontend necesita del servidor se pide en un **contrato propuesto** (`apps/inttimo/src/lib/store/contract.ts` + `docs/store/BACKEND-REQUEST.md`) para que el equipo de backend lo implemente después. Mientras tanto la UI funciona con un adaptador simulado (`src/lib/store/mock.ts`, datos marcados como EJEMPLO).
+
+- Todo entra por pull request; nada se fusiona directo a `main`.
+- Las rutas de la tienda están ocultas en producción salvo `NEXT_PUBLIC_STORE_ENABLED=1` (la raíz sigue llevando a la preventa).
+- Sin precios, paquetes B2B, testimonios ni datos de contacto inventados: lo no aprobado se marca como pendiente.
+
 ### Plataforma: Supabase completo (producción real)
 
 > **Decisión del usuario (2026-09-28):** Supabase completo — PostgreSQL + Supabase Auth. Esto es un sistema real, listo para producción y tráfico; el backend de Karina Reyes es una demo y **no** es referencia de arquitectura. Ver `docs/decisions/ADR-003-supabase.md`.
