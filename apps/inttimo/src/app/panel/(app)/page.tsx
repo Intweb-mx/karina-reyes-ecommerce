@@ -24,11 +24,11 @@ export default async function InboxPage() {
         <Stat label="Generar guía" value={inbox.toLabel.length} tone={inbox.toLabel.length ? "attention" : "good"} />
         <Stat label="Entregar a la paquetería" value={inbox.toHandOver.length} tone={inbox.toHandOver.length ? "attention" : "good"} />
         <Stat label="Avisar que está listo" value={inbox.toNotify.length} tone={inbox.toNotify.length ? "attention" : "good"} />
-        <Stat label="Incidencias" value={inbox.incidents.length} tone={inbox.incidents.length ? "attention" : "good"} />
+        <Stat label="Problemas" value={inbox.incidents.length} tone={inbox.incidents.length ? "attention" : "good"} />
       </div>
 
       {inbox.incidents.length > 0 && (
-        <Card title={`Incidencias · ${inbox.incidents.length}`} description="Algo falló o lleva demasiado tiempo. Abre el pedido para resolverlo.">
+        <Card title={`Problemas por resolver · ${inbox.incidents.length}`} description="Algo falló o lleva demasiado tiempo. Abre el pedido para resolverlo.">
           <InboxList rows={inbox.incidents.map((o) => ({ ...o, key: `${o.id}-${o.incident}`, badge: INCIDENT_LABELS[o.incident] }))} action="Revisar" empty="" now={now} />
         </Card>
       )}
