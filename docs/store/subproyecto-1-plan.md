@@ -20,7 +20,7 @@
 - Montos en **centavos** (enteros). El precio sale siempre de la base, nunca del cliente.
 - Historiales **append-only** (movimientos, eventos, notas): trigger que rechaza UPDATE y DELETE.
 - Todo cambio de existencias o apartado escribe un movimiento; la suma de movimientos debe igualar `onHand` y `reserved`.
-- **Orden de bloqueo único:** primero las filas de `store_inventory` de los productos (ordenadas por `product_id`) y después la fila del pedido. Nunca al revés.
+- **Orden de bloqueo único:** primero, solo si hay `idempotencyKey`, el candado `pg_advisory_xact_lock(hashtext(key))`; luego las filas de `store_inventory` de los productos (ordenadas por `product_id`); y al final la fila del pedido. Nunca al revés.
 - Mensajes de error visibles en español, en lenguaje de negocio.
 - No tocar la preventa: nada de `presale_*`, `server/presale/**` ni rutas `/api/preventa/*`.
 - Comandos de verificación (desde la raíz): `pnpm lint`, `pnpm typecheck`, `pnpm test`. Para una sola prueba de base de datos: `pnpm --filter @inttimo/database exec vitest run tests/<archivo>.test.ts`.

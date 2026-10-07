@@ -104,7 +104,8 @@ describe("sin sobreventa", () => {
     expect(await inventoryOf(db, scarce.id)).toMatchObject({ reserved: 0 });
   });
 
-  it("dos compras a la vez por la última pieza: solo una gana", async () => {
+  // Prueba el resultado, no la exclusión real: PGlite atiende una conexión a la vez. El bloqueo FOR UPDATE se verifica aparte contra Postgres real.
+  it("dos compras seguidas por la última pieza: solo una gana", async () => {
     const product = await seedProduct(db, { stock: 1 });
     const results = await Promise.allSettled([
       createStoreOrder(db, pickupOrder([{ productId: product.id, quantity: 1 }])),
@@ -140,6 +141,17 @@ describe("idempotencia", () => {
     expect(second.order.id).toBe(first.order.id);
     expect(second.items).toHaveLength(1);
     expect(await inventoryOf(db, product.id)).toMatchObject({ reserved: 2 });
+  });
+
+  it("la misma clave con otro carrito devuelve el pedido original y no aparta el producto nuevo", async () => {
+    const a = await seedProduct(db, { stock: 5 });
+    const b = await seedProduct(db, { stock: 5 });
+    const key = `clave-${randomUUID()}`;
+    const first = await createStoreOrder(db, pickupOrder([{ productId: a.id, quantity: 1 }], { idempotencyKey: key }));
+    const second = await createStoreOrder(db, pickupOrder([{ productId: b.id, quantity: 1 }], { idempotencyKey: key }));
+    expect(second.reused).toBe(true);
+    expect(second.order.id).toBe(first.order.id);
+    expect(await inventoryOf(db, b.id)).toMatchObject({ reserved: 0 });
   });
 });
 

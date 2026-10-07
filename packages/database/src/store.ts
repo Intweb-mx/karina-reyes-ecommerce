@@ -228,6 +228,10 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
   const productIds = lines.map((line) => line.productId);
 
   return db.transaction(async (tx) => {
+    // Orden de bloqueo: candado de la clave (solo pedidos con clave) → filas de inventario por product_id → fila del pedido.
+    // Ninguna otra función de este módulo toma candados advisory, así que no hay ciclos. Sin él, dos peticiones con la misma
+    // clave y carritos distintos no comparten fila de inventario y la segunda fallaría con un UNIQUE crudo en idempotency_key.
+    if (input.idempotencyKey) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.idempotencyKey}))`);
     const inventory = await tx.select().from(storeInventory).where(inArray(storeInventory.productId, productIds)).orderBy(asc(storeInventory.productId)).for("update");
 
     // Con el inventario bloqueado, dos peticiones con la misma clave se serializan: la segunda ya ve el pedido de la primera.
