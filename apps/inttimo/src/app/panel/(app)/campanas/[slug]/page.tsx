@@ -42,7 +42,7 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
   return (
     <div className="space-y-8">
       <PageHeader
-        back={<Link href="/panel" className="hover:text-fg">← Pedidos</Link>}
+        back={<Link href="/panel" className="hover:text-fg">← Hoy</Link>}
         title={campaign.productName}
         subtitle="Todos los pedidos de esta preventa."
         actions={
