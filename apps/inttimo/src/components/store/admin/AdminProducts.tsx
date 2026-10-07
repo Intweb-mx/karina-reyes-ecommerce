@@ -227,6 +227,19 @@ function EditForm({ product, onDone }: { product: AdminProduct; onDone: (p: Admi
   );
 }
 
+/** Cambio de existencias; si el movimiento solo apartó o liberó unidades, muestra el cambio de apartado. */
+function MovementAmount({ movement }: { movement: StockMovement }) {
+  const reserved = movement.deltaOnHand === 0;
+  const value = reserved ? movement.deltaReserved : movement.deltaOnHand;
+  return (
+    <span className={`font-semibold lining-nums ${value > 0 ? "text-success" : "text-danger"}`}>
+      {value > 0 ? "+" : "−"}
+      {Math.abs(value)}
+      {reserved && <span className="ml-1 text-xs font-normal text-muted">apartado</span>}
+    </span>
+  );
+}
+
 function Movements({ productId }: { productId: string }) {
   const [movements, setMovements] = useState<StockMovement[] | null>(null);
   useEffect(() => {
@@ -242,7 +255,7 @@ function Movements({ productId }: { productId: string }) {
             <p className="font-medium">{MOVEMENT_REASON[m.reason]}{m.orderNumber && <> · <span className="font-mono">{m.orderNumber}</span></>}</p>
             <p className="text-xs text-muted">{dateTime(m.at)}{m.actor ? ` · ${m.actor}` : ""}{m.note ? ` · ${m.note}` : ""}</p>
           </div>
-          <span className={`font-semibold lining-nums ${m.delta > 0 ? "text-success" : "text-danger"}`}>{m.delta > 0 ? "+" : "−"}{Math.abs(m.delta)}</span>
+          <MovementAmount movement={m} />
         </li>
       ))}
     </ul>
