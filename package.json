@@ -18,6 +18,7 @@
     "presale:upsert": "pnpm --filter inttimo presale:upsert",
     "presale:export": "pnpm --silent --filter inttimo presale:export",
     "presale:reconcile": "pnpm --filter inttimo presale:reconcile",
+    "store:seed": "pnpm --filter inttimo store:seed",
     "admin": "pnpm --filter inttimo admin",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",

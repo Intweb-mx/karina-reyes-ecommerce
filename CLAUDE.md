@@ -1013,6 +1013,7 @@ pnpm db:migrate
 pnpm presale:upsert --file=...    # crear/editar campaña de preventa
 pnpm presale:export --slug=...    # CSV de reservas
 pnpm presale:reconcile            # sincronizar con Stripe si falló un webhook
+pnpm store:seed                   # catálogo inicial de la tienda (UNO+UNO sin precio); en una base remota exige --allow-remote
 ```
 
 ---
