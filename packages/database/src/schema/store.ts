@@ -106,6 +106,7 @@ export const storeOrders = pgTable(
     /** Folio público no secuencial (p. ej. INT-7K2M9QX4TB). */
     orderNumber: text().notNull().unique(),
     paymentStatus: storePaymentStatus().notNull().default("pending"),
+    /** Ojo: vale "confirmed" incluso sin pagar; todo filtro debe revisar paymentStatus primero. */
     fulfillmentStatus: storeFulfillmentStatus().notNull().default("confirmed"),
     fullName: text().notNull(),
     /** Siempre en minúsculas. */

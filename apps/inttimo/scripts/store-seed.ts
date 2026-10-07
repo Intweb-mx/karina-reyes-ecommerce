@@ -12,7 +12,14 @@ import { createDatabase, getStoreProductBySlug, upsertStoreProduct } from "@intt
 import { fail, flag } from "./cli.ts";
 
 const url = process.env.DATABASE_URL ?? fail("Falta DATABASE_URL.");
-const host = new URL(url).hostname;
+let parsed: URL;
+try {
+  parsed = new URL(url);
+} catch {
+  fail("DATABASE_URL no es una URL válida.");
+}
+if (parsed.port === "54322") fail("DATABASE_URL apunta al puerto 54322 (la base de otro proyecto): no se usa.");
+const host = parsed.hostname;
 if (!["localhost", "127.0.0.1", "[::1]"].includes(host) && !flag("allow-remote")) {
   fail(`DATABASE_URL apunta a ${host}, no a una base local. Si de verdad es la base real, repite con --allow-remote.`);
 }

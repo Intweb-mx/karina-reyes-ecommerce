@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "../src/client.ts";
 import {
@@ -64,6 +65,42 @@ describe("crear pedido", () => {
     expect(items).toHaveLength(1);
     expect(items[0]!.quantity).toBe(3);
     expect(order.subtotalAmount).toBe(150_000);
+  });
+
+  it("junta el mismo id en mayúsculas y minúsculas en una sola línea", async () => {
+    const product = await seedProduct(db, { stock: 5 });
+    const { items } = await createStoreOrder(db, pickupOrder([{ productId: product.id.toUpperCase(), quantity: 1 }, { productId: product.id, quantity: 2 }]));
+    expect(items).toHaveLength(1);
+    expect(items[0]!.quantity).toBe(3);
+  });
+
+  it("un id que no es UUID se rechaza como no disponible y no crea pedido", async () => {
+    await expect(createStoreOrder(db, pickupOrder([{ productId: "no-es-uuid", quantity: 1 }], { idempotencyKey: "key-no-uuid" }))).rejects.toBeInstanceOf(StoreProductUnavailableError);
+    const result = await db.execute(sql`select count(*)::int as n from store_orders where idempotency_key = 'key-no-uuid'`);
+    expect((result as unknown as { rows: { n: number }[] }).rows[0]!.n).toBe(0);
+  });
+
+  it("respeta el máximo por pedido (las líneas repetidas cuentan juntas)", async () => {
+    const product = await seedProduct(db, { stock: 10, maxQuantityPerOrder: 2 });
+    await expect(createStoreOrder(db, pickupOrder([{ productId: product.id, quantity: 3 }]))).rejects.toBeInstanceOf(InvalidStoreOrderError);
+    await expect(createStoreOrder(db, pickupOrder([{ productId: product.id, quantity: 1 }, { productId: product.id, quantity: 2 }]))).rejects.toBeInstanceOf(InvalidStoreOrderError);
+    expect(await inventoryOf(db, product.id)).toMatchObject({ onHand: 10, reserved: 0 });
+    const { items } = await createStoreOrder(db, pickupOrder([{ productId: product.id, quantity: 2 }]));
+    expect(items[0]!.quantity).toBe(2);
+  });
+
+  it("lista las líneas ordenadas por slug", async () => {
+    const a = await seedProduct(db, { stock: 5, slug: "aaa-orden" });
+    const z = await seedProduct(db, { stock: 5, slug: "zzz-orden" });
+    const { order } = await createStoreOrder(db, pickupOrder([{ productId: z.id, quantity: 1 }, { productId: a.id, quantity: 1 }]));
+    expect((await listStoreOrderItems(db, order.id)).map((i) => i.productSlug)).toEqual(["aaa-orden", "zzz-orden"]);
+  });
+
+  it("el mensaje de stock dice 'se agotó' cuando no queda nada", async () => {
+    const empty = await seedProduct(db, { stock: 0 });
+    await expect(createStoreOrder(db, pickupOrder([{ productId: empty.id, quantity: 1 }]))).rejects.toThrow("Este producto se agotó.");
+    const some = await seedProduct(db, { stock: 2 });
+    await expect(createStoreOrder(db, pickupOrder([{ productId: some.id, quantity: 3 }]))).rejects.toThrow("Solo quedan 2 unidades.");
   });
 
   it("con envío suma el costo al total; en recolección no se puede cobrar envío", async () => {

@@ -5,7 +5,7 @@ Implementa lo que pide frontend en [BACKEND-REQUEST.md](./BACKEND-REQUEST.md) y 
 | # | Subproyecto | Estado |
 |---|---|---|
 | 0 | Poner al día el PR #19 con `main` | hecho |
-| 1 | Base de datos e inventario ([diseño](./subproyecto-1-diseno.md), [plan](./subproyecto-1-plan.md)) | en curso |
+| 1 | Base de datos e inventario ([diseño](./subproyecto-1-diseno.md), [plan](./subproyecto-1-plan.md)) | listo, en revisión (PR pendiente) |
 | 2 | Catálogo y carrito: `GET /api/tienda/productos`, `/productos/[slug]`, `POST /carrito/cotizar` | pendiente |
 | 3 | Entrega, envío y código postal: `/entrega`, `/envio/cotizar`, `/codigo-postal/[cp]` | pendiente |
 | 4 | Checkout, Stripe y webhook: `/checkout`, `/pedido/confirmacion` | pendiente |
@@ -29,3 +29,23 @@ Implementa lo que pide frontend en [BACKEND-REQUEST.md](./BACKEND-REQUEST.md) y 
 5. **Fotos y textos oficiales.**
 6. **Máximo por pedido de UNO+UNO** (hoy 10, el valor por defecto) y **clasificación por territorios** (copiada del simulador).
 7. **Cupones:** el contrato los menciona pero no están en el alcance; decidir antes del subproyecto 2.
+
+## Notas para los siguientes subproyectos
+
+- Subproyecto 2: la lectura de catálogo y carrito no debe escribir. Calcular lo disponible como `existencias − apartado + apartados ya vencidos`, sin llamar a `releaseExpiredStoreOrders` en cada GET.
+- Subproyecto 4: ANTES de abrir el checkout, arreglar la ruta caliente `releaseExpiredStoreOrders`: pre-chequeo sin bloqueo (saltar si no está `pending` o no tiene `inventoryReserved`), `ORDER BY checkout_expires_at` con límite pequeño, `try/catch` con registro para que un error de liberación no aborte el checkout, y liberación masiva desde el comando de reconciliación o un cron.
+- Subproyecto 4: el webhook debe verificar monto y moneda contra `totalAmount` antes de marcar pagado.
+- Subproyecto 4: poner el id del pedido en `client_reference_id`/metadata de Stripe para encontrar el pedido aunque falle `attachStoreCheckoutSession`.
+- Subproyecto 4: si `attachStoreCheckoutSession` devuelve null, expirar la sesión de Stripe.
+- Subproyecto 4: decidir si se permiten métodos de pago asíncronos (OXXO caería siempre en la ruta de pago tardío).
+- Subproyecto 4: con una `idempotencyKey` repetida solo devolver una sesión pendiente y vigente; si no, responder 409 (como el `replay()` de la preventa).
+- Subproyecto 6: validar el motivo de `adjustStock` en la ruta (enum con Zod) o con una guarda en la función.
+- Subproyecto 6: recordar que `fulfillment_status` vale `confirmed` incluso sin pagar: todo filtro del panel o del rastreo debe revisar `paymentStatus` primero.
+
+## Verificación después de desplegar
+
+Comprobaciones de solo lectura en la base de producción una vez desplegada la migración:
+
+- Las tablas existen (debe dar 7): `select count(*) from information_schema.tables where table_name like 'store_%';`
+- `anon` y `authenticated` no tienen permisos sobre ellas (debe dar 0 filas): `select grantee, table_name, privilege_type from information_schema.role_table_grants where table_name like 'store_%' and grantee in ('anon','authenticated');`
+- Lo mismo para las secuencias (debe dar 0 filas): `select * from information_schema.role_usage_grants where object_type = 'SEQUENCE' and object_name like 'store_%' and grantee in ('anon','authenticated');`

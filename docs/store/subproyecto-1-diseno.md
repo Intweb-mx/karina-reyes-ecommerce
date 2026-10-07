@@ -59,7 +59,7 @@ Misma lógica que la preventa (sin sobreventa), extendida a varias líneas por p
 ## Código
 
 - `packages/database/src/schema/store.ts`: las 7 tablas.
-- Migración `0010_store_core`: RLS, historiales sin edición ni borrado, restricciones (`on_hand ≥ reserved ≥ 0`, total del pedido, cantidad ≥ 1).
+- Migraciones `0010_store_core` y `0011_store_append_order` (esta última agrega la columna `seq` que ordena de forma estable movimientos, eventos y notas): RLS, historiales sin edición ni borrado, restricciones (`on_hand ≥ reserved ≥ 0`, total del pedido, cantidad ≥ 1).
 - `packages/database/src/store.ts`: productos (listar, buscar por slug o id, crear, editar); inventario (disponibilidad liberando antes lo vencido, ajustar, listar movimientos); pedidos (crear con apartado, idempotencia y folio; ligar sesión de Stripe; marcar pagado; liberar; buscar; eventos y notas).
 - `pnpm store:seed`: crea UNO+UNO sin precio. Solo lo corre el usuario; nunca contra producción por iniciativa de Claude.
 - `docs/store/BACKEND-PLAN.md`: los 9 subproyectos y los pendientes de negocio.

@@ -173,7 +173,7 @@ export class InsufficientStoreStockError extends Error {
   readonly productId: string;
   readonly available: number;
   constructor(productId: string, available: number) {
-    super(`Solo quedan ${available} unidades.`);
+    super(available === 0 ? "Este producto se agotó." : `Solo quedan ${available} unidades.`);
     this.name = "InsufficientStoreStockError";
     this.productId = productId;
     this.available = available;
@@ -206,9 +206,14 @@ export async function addStoreOrderEvent(
   });
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 function mergeLines(lines: NewStoreOrderLine[]): NewStoreOrderLine[] {
   const merged = new Map<string, number>();
-  for (const line of lines) {
+  for (const raw of lines) {
+    const productId = String(raw.productId).toLowerCase();
+    if (!UUID_PATTERN.test(productId)) throw new StoreProductUnavailableError(raw.productId);
+    const line = { productId, quantity: raw.quantity };
     if (!Number.isInteger(line.quantity) || line.quantity < 1) throw new InvalidStoreOrderError("La cantidad de cada producto debe ser un entero de 1 o más.");
     merged.set(line.productId, (merged.get(line.productId) ?? 0) + line.quantity);
   }
@@ -250,6 +255,10 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
       if (!product || !stock.has(line.productId) || !product.published || product.price === null || product.saleStatus === "coming_soon") {
         throw new StoreProductUnavailableError(line.productId);
       }
+    }
+    for (const line of lines) {
+      const product = products.get(line.productId)!;
+      if (line.quantity > product.maxQuantityPerOrder) throw new InvalidStoreOrderError(`Máximo ${product.maxQuantityPerOrder} por pedido de ${product.name}.`);
     }
     for (const line of lines) {
       const row = stock.get(line.productId)!;
@@ -338,7 +347,7 @@ export async function findStoreOrderBySessionId(db: Executor, sessionId: string)
 }
 
 export async function listStoreOrderItems(db: Executor, orderId: string): Promise<StoreOrderItem[]> {
-  return db.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, orderId)).orderBy(asc(storeOrderItems.createdAt), asc(storeOrderItems.id));
+  return db.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, orderId)).orderBy(asc(storeOrderItems.productSlug));
 }
 
 export async function listStoreOrderEvents(db: Executor, orderId: string) {
