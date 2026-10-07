@@ -222,6 +222,39 @@ body {
   animation: tick 380ms var(--ease-out-soft) both;
 }
 
+/* Transiciones entre páginas de la tienda (PageTransition). Salida rápida, entrada más calmada; header fijo. */
+@keyframes page-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(.page-exit) {
+  animation: page-out 160ms ease-in both;
+}
+::view-transition-new(.page-enter) {
+  animation: page-in 420ms var(--ease-out-soft) 90ms both;
+}
+::view-transition-group(store-header) {
+  animation: none;
+  z-index: 50;
+}
+::view-transition-old(store-header) {
+  display: none;
+}
+::view-transition-new(store-header) {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -232,6 +265,12 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
   }
 }
 

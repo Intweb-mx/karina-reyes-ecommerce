@@ -224,3 +224,49 @@ export const FileIcon = (props: IconProps) => (
     <path d="M13.5 3.5v4h4M9 12.5h6M9 15.5h6" />
   </Base>
 );
+
+export const BagIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M5 8.5h14l-1 12H6z" />
+    <path d="M9 8.5V7a3 3 0 0 1 6 0v1.5" />
+  </Base>
+);
+
+export const MenuIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </Base>
+);
+
+export const SearchIcon = (props: IconProps) => (
+  <Base {...props}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M16 16l4.5 4.5" />
+  </Base>
+);
+
+export const TrashIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />
+  </Base>
+);
+
+export const ChurchIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 3v4M10 5h4M6 21V12l6-4 6 4v9" />
+    <path d="M10 21v-4a2 2 0 0 1 4 0v4M3.5 21h17" />
+  </Base>
+);
+
+export const SunIcon = (props: IconProps) => (
+  <Base {...props}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+  </Base>
+);
+
+export const BookIcon = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M4 5.5A2 2 0 0 1 6 3.5h6v16H6a2 2 0 0 0-2 2zM20 5.5a2 2 0 0 0-2-2h-6v16h6a2 2 0 0 1 2 2z" />
+  </Base>
+);
