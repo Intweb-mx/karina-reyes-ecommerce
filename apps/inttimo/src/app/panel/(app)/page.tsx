@@ -4,9 +4,10 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { requireAdmin } from "@/server/auth/admin";
 import { getPhase } from "@/server/presale/campaign";
 import { getDb } from "@/server/presale/runtime";
+import { WelcomeTip } from "./WelcomeTip";
 import { Badge, buttonClass, Card, daysSince, EmptyState, PageHeader, secondaryButtonClass, Stat } from "../ui";
 
-export const metadata = { title: "Inicio" };
+export const metadata = { title: "Hoy" };
 
 const PHASE = { upcoming: "Por abrir", open: "Abierta", closed: "Cerrada" } as const;
 
@@ -45,7 +46,8 @@ export default async function PanelHome() {
 
   return (
     <div className="space-y-10">
-      <PageHeader title="Pedidos" subtitle={<span className="first-letter:uppercase">{greeting}</span>} />
+      <PageHeader title="Hoy" subtitle={<span className="first-letter:uppercase">{greeting} · Lo que hay que atender, del pedido más antiguo al más reciente.</span>} />
+      <WelcomeTip />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Por enviar" value={toShip.length} hint={toShip.length ? "Generar guía e imprimir" : "Todo al día"} tone={toShip.length ? "attention" : "good"} />
