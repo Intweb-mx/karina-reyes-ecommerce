@@ -60,7 +60,7 @@ Convenciones iguales a la preventa: montos en centavos, errores `{ error: { code
 
 ## Visibilidad: las rutas de la API también dan 404 con la tienda oculta
 
-**Decisión:** todas las rutas `/api/tienda/*` pasan por `storeRoute`, que responde `404 not_found` si `storeEnabled` (de `src/lib/store/flags.ts`) es falso. Así nada de la tienda es alcanzable en producción antes del lanzamiento: ni el catálogo, ni el checkout (que crearía pedidos y sesiones de Stripe reales), aunque alguien conozca la URL. En desarrollo y previews `storeEnabled` ya es verdadero.
+**Decisión:** todas las rutas `/api/tienda/*` pasan por `storeRoute`, que responde `404 not_found` si `storeEnabled` (de `src/lib/store/flags.ts`) es falso. Así nada de la tienda es alcanzable en producción antes del lanzamiento: ni el catálogo, ni el checkout (que crearía pedidos y sesiones de Stripe reales), aunque alguien conozca la URL. En desarrollo local (`next dev`) `storeEnabled` ya es verdadero. **Los previews de Vercel no:** se construyen con `NODE_ENV=production`, así que la tienda sigue oculta en un Preview salvo que ese entorno tenga `NEXT_PUBLIC_STORE_ENABLED=1` (el comentario de `src/lib/store/flags.ts` que dice "previews" está desactualizado). Nunca poner `NEXT_PUBLIC_STORE_ENABLED=1` en un Preview que use las llaves de Stripe en modo live: cualquiera con la URL del preview podría crear pedidos y cobros reales.
 
 El **webhook no se oculta**: es el mismo endpoint de la preventa y, si la tienda se vuelve a ocultar con pedidos vivos, sus pagos y reembolsos deben seguir registrándose.
 
