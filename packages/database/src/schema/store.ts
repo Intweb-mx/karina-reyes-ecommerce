@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { bigint, boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { createdAt, updatedAt } from "./columns.ts";
-import type { DeliveryAddress, ShippingSelection } from "./presale.ts";
+import type { DeliveryAddress, PickupPoint, ShippingProfile, ShippingSelection } from "./presale.ts";
 
 export const storeProductType = pgEnum("store_product_type", ["physical", "digital"]);
 
@@ -133,6 +133,8 @@ export const storeOrders = pgTable(
     /** True mientras las unidades del pedido están apartadas (sirve para liberarlas una sola vez). */
     inventoryReserved: boolean().notNull().default(false),
     paidAt: timestamp({ withTimezone: true }),
+    /** Reserva idempotente del correo de pedido pagado (cliente o, si es excepción, solo aviso al equipo). */
+    confirmationEmailSentAt: timestamp({ withTimezone: true }),
     amountRefunded: integer().notNull().default(0),
     carrier: text(),
     trackingNumber: text(),
@@ -246,4 +248,40 @@ export const storeOrderNotes = pgTable(
     index("store_order_notes_order_idx").on(table.orderId, table.createdAt),
     check("store_order_notes_body_check", sql`char_length(${table.body}) between 1 and 2000`),
   ],
+);
+
+/** Configuración de entrega de la tienda. Una sola fila (`id = 'default'`); la siembra `pnpm store:seed` y la editará el panel. */
+export const storeSettings = pgTable(
+  "store_settings",
+  {
+    id: text().primaryKey().default("default"),
+    pickupEnabled: boolean().notNull().default(false),
+    pickupPoints: jsonb().$type<PickupPoint[]>().notNull().default([]),
+    shippingEnabled: boolean().notNull().default(false),
+    /** Origen, paquete por unidad (respaldo si el producto no tiene medidas), paqueterías permitidas, carta porte y empaque. */
+    shippingProfile: jsonb().$type<ShippingProfile>(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [check("store_settings_singleton_check", sql`${table.id} = 'default'`)],
+);
+
+export type StoreQuoteLine = { productId: string; quantity: number };
+export type StoreQuoteOption = { id: string; rateId: string; carrier: string; service: string; days: number | null; amount: number };
+
+/** Cotizaciones de envío por carrito. El costo cobrado sale de aquí, nunca del navegador. */
+export const storeShippingQuotes = pgTable(
+  "store_shipping_quotes",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    /** Líneas cotizadas (unidas por producto y ordenadas): el checkout debe traer exactamente las mismas. */
+    lines: jsonb().$type<StoreQuoteLine[]>().notNull(),
+    postalCode: text().notNull(),
+    quotationId: text().notNull(),
+    currency: text().notNull(),
+    options: jsonb().$type<StoreQuoteOption[]>().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [index("store_shipping_quotes_created_idx").on(table.createdAt)],
 );

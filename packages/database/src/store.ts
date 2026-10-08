@@ -3,7 +3,18 @@ import { and, asc, desc, eq, getTableColumns, inArray, isNull, lt, or, sql } fro
 import type { Database } from "./client.ts";
 import type { EventSource, Executor } from "./presale.ts";
 import type { DeliveryAddress, ShippingSelection } from "./schema/presale.ts";
-import { storeInventory, storeOrderEvents, storeOrderItems, storeOrderNotes, storeOrders, storeProducts, storeStockMovements, type StoreOrderEventType } from "./schema/store.ts";
+import {
+  storeInventory,
+  storeOrderEvents,
+  storeOrderItems,
+  storeOrderNotes,
+  storeOrders,
+  storeProducts,
+  storeSettings,
+  storeShippingQuotes,
+  storeStockMovements,
+  type StoreOrderEventType,
+} from "./schema/store.ts";
 
 export type StoreProduct = typeof storeProducts.$inferSelect;
 export type NewStoreProduct = typeof storeProducts.$inferInsert;
@@ -516,4 +527,38 @@ export async function releaseExpiredStoreOrders(db: Database, now: Date = new Da
     if (result?.changed) released++;
   }
   return released;
+}
+
+// ---------- Configuración de entrega y cotizaciones de envío ----------
+
+export type StoreSettings = typeof storeSettings.$inferSelect;
+export type StoreSettingsInput = Pick<typeof storeSettings.$inferInsert, "pickupEnabled" | "pickupPoints" | "shippingEnabled" | "shippingProfile">;
+
+const SETTINGS_ID = "default";
+
+export async function getStoreSettings(db: Executor): Promise<StoreSettings | null> {
+  const [row] = await db.select().from(storeSettings).where(eq(storeSettings.id, SETTINGS_ID)).limit(1);
+  return row ?? null;
+}
+
+/** Crea la configuración si no existe; con `overwrite` la reemplaza (lo usará el panel). Devuelve la vigente. */
+export async function saveStoreSettings(db: Executor, input: StoreSettingsInput, options: { overwrite?: boolean } = {}): Promise<StoreSettings> {
+  const insert = db.insert(storeSettings).values({ id: SETTINGS_ID, ...input });
+  const [row] = options.overwrite
+    ? await insert.onConflictDoUpdate({ target: storeSettings.id, set: { ...input, updatedAt: new Date() } }).returning()
+    : await insert.onConflictDoNothing().returning();
+  return row ?? (await getStoreSettings(db))!;
+}
+
+export type StoreShippingQuote = typeof storeShippingQuotes.$inferSelect;
+
+export async function saveStoreShippingQuote(db: Executor, input: typeof storeShippingQuotes.$inferInsert): Promise<StoreShippingQuote> {
+  const [row] = await db.insert(storeShippingQuotes).values(input).returning();
+  return row!;
+}
+
+export async function getStoreShippingQuote(db: Executor, id: string): Promise<StoreShippingQuote | null> {
+  if (!UUID_PATTERN.test(id)) return null;
+  const [row] = await db.select().from(storeShippingQuotes).where(eq(storeShippingQuotes.id, id)).limit(1);
+  return row ?? null;
 }
