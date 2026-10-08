@@ -19,6 +19,7 @@ import { business } from "../../content/legal/business.ts";
 import { formatMoney } from "../../lib/format.ts";
 import type { MailSender } from "../presale/notifications.ts";
 import { redactError } from "./checkout.ts";
+import type { StoreMismatch } from "./settlement.ts";
 
 const toHtml = (lines: string[]) => lines.map((line) => (line ? `<p>${escapeHtml(line)}</p>` : "")).join("");
 
@@ -70,6 +71,20 @@ export function storeTeamMail(to: string, order: StoreOrder, items: StoreOrderIt
     `Total: ${formatMoney(order.totalAmount, order.currency)}`,
   ].join("\n");
   return { to, subject: exception ? `Tienda: pago con incidencia ${order.orderNumber}` : `Tienda: pedido pagado ${order.orderNumber}`, text, html: `<pre>${escapeHtml(text)}</pre>` };
+}
+
+/** Aviso interno de un cobro cuyo monto o moneda no coincide con el pedido: solo folio y referencias, sin datos del cliente. */
+export function storeMismatchMail(to: string, mismatch: StoreMismatch): Mail {
+  const show = (value: { amount: number | null; currency: string | null }) =>
+    value.amount === null ? `monto desconocido ${value.currency ?? ""}`.trim() : formatMoney(value.amount, value.currency ?? "mxn");
+  const text = [
+    "ATENCIÓN: Stripe cobró un monto distinto al del pedido. El pedido NO se marcó como pagado; revísalo en Stripe y en el panel.",
+    `Folio: ${mismatch.orderNumber}`,
+    `Esperado: ${show(mismatch.expected)}`,
+    `Recibido: ${show(mismatch.received)}`,
+    `Referencia de Stripe: ${mismatch.reference}`,
+  ].join("\n");
+  return { to, subject: `Tienda: cobro con monto distinto ${mismatch.orderNumber}`, text, html: `<pre>${escapeHtml(text)}</pre>` };
 }
 
 /**
