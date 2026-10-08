@@ -100,10 +100,26 @@ describe("webhook de Stripe: pedidos de la tienda", () => {
   });
 
   it("ignora sesiones de la tienda que no corresponden a un pedido", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await handleStripeEvent(db, sessionEvent("checkout.session.completed", storeSession({ id: "cs_test_otra_sesion" })))).toEqual({ result: "ignored" });
     const unknown = "11111111-1111-4111-8111-111111111111";
     expect(await handleStripeEvent(db, sessionEvent("checkout.session.completed", storeSession({ id: "cs_test_otra_sesion", client_reference_id: unknown, metadata: { kind: "store", orderId: unknown } })))).toEqual({ result: "ignored" });
     expect(await reload()).toMatchObject({ paymentStatus: "pending" });
+  });
+
+  it("sesión de la tienda pagada sin pedido: deja un error estructurado sin datos del cliente", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const orphan = storeSession({ id: "cs_test_huerfana", client_reference_id: null, metadata: { kind: "store" }, customer_details: { email: "ana@ejemplo.com", name: "Ana Pérez" } as Stripe.Checkout.Session.CustomerDetails });
+    expect(await handleStripeEvent(db, sessionEvent("checkout.session.completed", orphan))).toEqual({ result: "ignored" });
+    const logs = error.mock.calls.map((call) => String(call[0])).filter((line) => line.includes("store_paid_session_without_order"));
+    expect(logs).toHaveLength(1);
+    expect(JSON.parse(logs[0]!)).toMatchObject({ level: "error", msg: "store_paid_session_without_order", sessionId: "cs_test_huerfana", amount: 100_000, currency: "mxn" });
+    expect(logs[0]).not.toContain("ana@ejemplo.com");
+    expect(logs[0]).not.toContain("Ana");
+    // Una sesión sin pagar que no corresponde a un pedido no es una incidencia.
+    error.mockClear();
+    await handleStripeEvent(db, sessionEvent("checkout.session.expired", storeSession({ id: "cs_test_huerfana_2", status: "expired", payment_status: "unpaid", client_reference_id: null, metadata: { kind: "store" } })));
+    expect(error).not.toHaveBeenCalled();
   });
 
   it("encuentra el pedido por client_reference_id si el webhook llega antes de ligar la sesión", async () => {
@@ -131,6 +147,27 @@ describe("webhook de Stripe: pedidos de la tienda", () => {
     const second = await handleStripeEvent(db, sessionEvent("checkout.session.completed", storeSession({ amount_total: 1 }), "evt_mm_b"));
     expect(first).toHaveProperty("mismatch");
     expect(second).not.toHaveProperty("mismatch");
+  });
+
+  it("monto distinto sobre un pedido ya cancelado: avisa al equipo una sola vez", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await handleStripeEvent(db, sessionEvent("checkout.session.expired", storeSession({ status: "expired", payment_status: "unpaid", payment_intent: null })));
+    expect(await reload()).toMatchObject({ paymentStatus: "cancelled" });
+    // Igual que la ruta del webhook: un aviso por cada resultado que trae `mismatch`.
+    const notices: unknown[] = [];
+    const deliver = async (event: Stripe.Event) => {
+      const outcome = await handleStripeEvent(db, event);
+      if ("storeOrderId" in outcome && outcome.mismatch) notices.push(outcome.mismatch);
+      return outcome;
+    };
+    const event = sessionEvent("checkout.session.completed", storeSession({ amount_total: 1 }), "evt_cancelado_1");
+    expect(await deliver(event)).toMatchObject({ result: "unchanged", paymentStatus: "cancelled" });
+    expect(notices).toEqual([expect.objectContaining({ orderNumber: order.orderNumber, received: { amount: 1, currency: "mxn" }, reference: "pi_store_1" })]);
+    // Reenvío del mismo evento y otro evento del mismo cobro: ninguno vuelve a avisar.
+    expect(await deliver(event)).toEqual({ result: "duplicate" });
+    await deliver(sessionEvent("checkout.session.async_payment_succeeded", storeSession({ amount_total: 1 }), "evt_cancelado_2"));
+    expect(notices).toHaveLength(1);
+    expect((await eventTypes()).filter((type) => type === "EXCEPTION")).toHaveLength(1);
   });
 
   it("reembolso de un pedido aún no pagado: avisa en el log, no cambia nada y responde sin error", async () => {

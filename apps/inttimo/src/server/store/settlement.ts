@@ -54,9 +54,11 @@ export async function applyStoreSettlement(
     console.error(JSON.stringify({ level: "error", msg: "store_amount_mismatch", orderId: order.id, expected, received }));
     const marked = await markStoreOrderPaymentMismatch(db, order.id, { paymentIntentId: snapshot.paymentIntentId, expected, received }, ctx);
     if (!marked) return null;
-    // Solo la llamada que marca el pedido por primera vez avisa al equipo (webhooks repetidos y sondeos no).
-    if (!marked.changed) return marked;
-    return { ...marked, mismatch: { orderNumber: order.orderNumber, expected, received, reference: snapshot.paymentIntentId ?? snapshot.id } };
+    const result = { order: marked.order, changed: marked.changed };
+    // Avisa al equipo la llamada que marca el pedido o registra un cobro distinto nuevo (aunque el pedido ya estuviera
+    // cancelado o pagado); webhooks repetidos y sondeos del mismo cobro no.
+    if (!marked.changed && !marked.recorded) return result;
+    return { ...result, mismatch: { orderNumber: order.orderNumber, expected, received, reference: snapshot.paymentIntentId ?? snapshot.id } };
   }
   const paid = await markStoreOrderPaid(db, order.id, { paymentIntentId: snapshot.paymentIntentId }, ctx);
   return paid ? { order: paid.order, changed: paid.outcome !== "already_paid" } : null;

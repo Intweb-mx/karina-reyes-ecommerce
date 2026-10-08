@@ -1,6 +1,6 @@
 import type { StoreError } from "../../lib/store/contract.ts";
 import { storeEnabled } from "../../lib/store/flags.ts";
-import type { StoreResult } from "./common.ts";
+import { redactError, type StoreResult } from "./common.ts";
 
 const NO_STORE = { "cache-control": "no-store" };
 
@@ -32,7 +32,7 @@ export async function storeRoute(name: string, run: () => Promise<Response>, ena
   try {
     return await run();
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", msg: `${name}_failed`, error: String(error).slice(0, 500) }));
+    console.error(JSON.stringify({ level: "error", msg: `${name}_failed`, error: redactError(error) }));
     const body: StoreError = { error: { code: "service_unavailable", message: "La tienda no está disponible por el momento. Inténtalo de nuevo en unos minutos." } };
     return Response.json(body, { status: 503, headers: NO_STORE });
   }

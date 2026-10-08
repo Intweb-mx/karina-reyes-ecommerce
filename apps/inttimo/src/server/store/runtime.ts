@@ -3,7 +3,7 @@ import { sendMail } from "@inttimo/shared-utils/mail";
 import { getDb, getPaymentGateway, getShippingProvider } from "../presale/runtime.ts";
 import type { StoreDeps } from "./common.ts";
 import type { StoreMismatch } from "./settlement.ts";
-import { redactError } from "./checkout.ts";
+import { redactError } from "./common.ts";
 import { sendStoreConfirmationIfNeeded, storeMismatchMail } from "./notifications.ts";
 
 export { clientIp } from "../presale/runtime.ts";

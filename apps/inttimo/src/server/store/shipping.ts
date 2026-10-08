@@ -13,7 +13,7 @@ import type { CartLine, DeliveryOptionsResponse, ShippingQuoteResponse, StoreErr
 import { areaSchema, pickOptions } from "../presale/shipping.ts";
 import type { Parcel, Rate, ShippingProvider } from "../shipping/provider.ts";
 import { isPurchasable, loadForSale } from "./catalog.ts";
-import { fail, hash, ok, zodFieldErrors, type StoreDeps, type StoreResult } from "./common.ts";
+import { fail, hash, ok, redactError, zodFieldErrors, type StoreDeps, type StoreResult } from "./common.ts";
 import { cartLinesSchema, normalizeLines, sameLines } from "./lines.ts";
 import { STORE_TERMS_VERSION } from "./terms.ts";
 
@@ -88,7 +88,7 @@ export async function quoteStoreShipping(deps: Pick<StoreDeps, "db" | "shipping"
   try {
     result = await deps.shipping!.quote({ from: profile.origin, to: area, parcel: cartParcel(items.map(({ product, quantity }) => ({ product: product!, quantity })), profile.parcel), carriers: profile.carriers });
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", msg: "store_shipping_quote_failed", error: String(error).slice(0, 500) }));
+    console.error(JSON.stringify({ level: "error", msg: "store_shipping_quote_failed", error: redactError(error) }));
     return fail(503, "service_unavailable", "No pudimos cotizar el envío en este momento. Inténtalo de nuevo en unos minutos o elige recolección en Chihuahua.");
   }
 

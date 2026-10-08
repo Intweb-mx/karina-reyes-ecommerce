@@ -4,10 +4,22 @@ import type { Mail } from "@inttimo/shared-utils/mail";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const failEventOnce = vi.hoisted(() => ({ type: null as string | null }));
+/** Fallos transitorios de la base, una vez cada uno. */
+const failOnce = vi.hoisted(() => ({ items: false, settings: false, release: false }));
 vi.mock("@inttimo/database", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@inttimo/database")>();
+  const once = (key: keyof typeof failOnce) => {
+    if (!failOnce[key]) return false;
+    failOnce[key] = false;
+    return true;
+  };
   return {
     ...actual,
+    listStoreOrderItems: (...args: Parameters<typeof actual.listStoreOrderItems>) =>
+      once("items") ? Promise.reject(new Error("conexión caída: params: Ana Pérez, ana@ejemplo.com")) : actual.listStoreOrderItems(...args),
+    getStoreSettings: (...args: Parameters<typeof actual.getStoreSettings>) => (once("settings") ? Promise.reject(new Error("timeout")) : actual.getStoreSettings(...args)),
+    releaseStoreConfirmationEmail: (...args: Parameters<typeof actual.releaseStoreConfirmationEmail>) =>
+      once("release") ? Promise.reject(new Error("release caído")) : actual.releaseStoreConfirmationEmail(...args),
     addStoreOrderEvent: (...args: Parameters<typeof actual.addStoreOrderEvent>) => {
       if (failEventOnce.type === args[2]) {
         failEventOnce.type = null;
@@ -33,6 +45,7 @@ beforeEach(async () => {
   ({ db, close } = await createTestDatabase());
   sent = [];
   failEventOnce.type = null;
+  Object.assign(failOnce, { items: false, settings: false, release: false });
   productId = (await seedStoreProduct(db)).id;
   await seedStoreSettings(db);
   orderId = (await createStoreOrder(db, pickupOrderFor(productId, 2), T0)).order.id;
@@ -149,6 +162,60 @@ describe("incidencias y fallos parciales", () => {
     expect(await sendStoreConfirmationIfNeeded(db, orderId, { send, notifyEmail: TEAM })).toBe("exception");
     expect(sent.map((mail) => mail.to)).toEqual([TEAM]);
     expect(await sendStoreConfirmationIfNeeded(db, orderId, { send, notifyEmail: TEAM })).toBe("skipped");
+  });
+
+  it("si falla la base después de reservar (productos), libera la reserva y el siguiente intento envía una sola vez", async () => {
+    await pay();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    failOnce.items = true;
+    expect(await sendStoreConfirmationIfNeeded(db, orderId, { send })).toBe("failed");
+    expect(sent).toEqual([]);
+    expect((await findStoreOrderById(db, orderId))?.confirmationEmailSentAt).toBeNull();
+    const failed = (await listStoreOrderEvents(db, orderId)).filter((event) => event.type === "CONFIRMATION_EMAIL_FAILED");
+    expect(failed).toHaveLength(1);
+    expect(JSON.stringify(failed)).not.toContain("ana@ejemplo.com");
+    const logs = spy.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(logs).toContain("store_confirmation_failed");
+    expect(logs).not.toContain("ana@ejemplo.com");
+    expect(logs).not.toContain("Ana Pérez");
+
+    expect(await sendStoreConfirmationIfNeeded(db, orderId, { send })).toBe("sent");
+    expect(await sendStoreConfirmationIfNeeded(db, orderId, { send })).toBe("skipped");
+    expect(sent.map((mail) => mail.to)).toEqual(["ana@ejemplo.com"]);
+  });
+
+  it("si falla la configuración después de reservar, también libera y reintenta", async () => {
+    await pay();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    failOnce.settings = true;
+    expect(await sendStoreConfirmationIfNeeded(db, orderId, { send })).toBe("failed");
+    expect(await sendStoreConfirmationIfNeeded(db, orderId, { send })).toBe("sent");
+    expect(sent).toHaveLength(1);
+  });
+
+  it("si fallan la liberación y el registro del fallo, responde 'failed' sin lanzar y lo deja en el log", async () => {
+    await pay();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    failOnce.items = true;
+    failOnce.release = true;
+    failEventOnce.type = "CONFIRMATION_EMAIL_FAILED";
+    expect(await sendStoreConfirmationIfNeeded(db, orderId, { send })).toBe("failed");
+    const logs = spy.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(logs).toContain("store_confirmation_release_failed");
+    expect(logs).toContain("store_confirmation_event_failed");
+    expect(logs).not.toContain("ana@ejemplo.com");
+  });
+
+  it("si el envío falla y además falla registrar el evento, la reserva igual se libera", async () => {
+    await pay();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    failEventOnce.type = "CONFIRMATION_EMAIL_FAILED";
+    const failing = async () => {
+      throw new Error("smtp caído");
+    };
+    expect(await sendStoreConfirmationIfNeeded(db, orderId, { send: failing })).toBe("failed");
+    expect((await findStoreOrderById(db, orderId))?.confirmationEmailSentAt).toBeNull();
+    expect(await sendStoreConfirmationIfNeeded(db, orderId, { send })).toBe("sent");
   });
 
   it("si falla el evento tras enviar al cliente, no se libera ni se manda un segundo correo", async () => {

@@ -145,12 +145,15 @@ export const storeOrders = pgTable(
     deliveredAt: timestamp({ withTimezone: true }),
     /** Atribución (utm_*, referrer). Sin PII adicional. */
     attribution: jsonb().$type<Record<string, string>>(),
+    /** Hash de la IP de quien compró (nunca la IP): límite de piezas apartadas por comprador. */
+    clientIpHash: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
     index("store_orders_payment_created_idx").on(table.paymentStatus, table.createdAt),
     index("store_orders_email_idx").on(table.email),
+    index("store_orders_client_ip_hash_idx").on(table.clientIpHash),
     check("store_orders_total_check", sql`${table.totalAmount} = ${table.subtotalAmount} - ${table.discountAmount} + ${table.shippingAmount}`),
     check("store_orders_amounts_check", sql`${table.subtotalAmount} >= 0 and ${table.discountAmount} >= 0 and ${table.discountAmount} <= ${table.subtotalAmount} and ${table.shippingAmount} >= 0`),
     check("store_orders_shipping_check", sql`${table.deliveryMethod} = 'shipping' or ${table.shippingAmount} = 0`),

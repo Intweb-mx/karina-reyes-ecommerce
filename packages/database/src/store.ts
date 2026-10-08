@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { and, asc, desc, eq, getTableColumns, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Database } from "./client.ts";
 import type { EventSource, Executor } from "./presale.ts";
 import type { DeliveryAddress, ShippingSelection } from "./schema/presale.ts";
@@ -159,6 +159,8 @@ export type NewStoreOrder = {
   marketingConsent: boolean;
   idempotencyKey: string | null;
   attribution: Record<string, string> | null;
+  /** Hash de la IP de quien compra (nunca la IP en claro). */
+  clientIpHash?: string | null;
 };
 
 /** El pedido no es válido (sin productos, cantidad inválida, envío cobrado en recolección…). */
@@ -306,6 +308,7 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
         marketingConsent: input.marketingConsent,
         idempotencyKey: input.idempotencyKey,
         attribution: input.attribution,
+        clientIpHash: input.clientIpHash ?? null,
         inventoryReserved: true,
       })
       .returning();
@@ -427,6 +430,29 @@ export async function getExpiredHeldUnits(db: Executor, productIds: string[], no
     .where(and(inArray(storeOrderItems.productId, productIds), expiredHoldWhere(holdCutoff(now))))
     .groupBy(storeOrderItems.productId);
   return new Map(rows.map((row) => [row.productId, Number(row.units)]));
+}
+
+/**
+ * Piezas que un comprador (por correo o por hash de IP) tiene apartadas en pedidos pendientes cuyo apartado sigue vigente
+ * (misma regla de vencimiento que la liberación; los marcados como excepción conservan su apartado y cuentan). Solo lee.
+ */
+export async function getStoreHeldUnits(db: Executor, buyer: { email: string } | { clientIpHash: string }, now: Date = new Date()): Promise<number> {
+  const cutoff = holdCutoff(now);
+  const who = "email" in buyer ? eq(storeOrders.email, buyer.email.trim().toLowerCase()) : eq(storeOrders.clientIpHash, buyer.clientIpHash);
+  const [row] = await db
+    .select({ units: sql<number>`coalesce(sum(${storeOrderItems.quantity}), 0)::int` })
+    .from(storeOrderItems)
+    .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.orderId))
+    .where(
+      and(
+        who,
+        eq(storeOrders.paymentStatus, "pending"),
+        eq(storeOrders.inventoryReserved, true),
+        // Negación explícita de expiredHoldWhere sin NULL: coalesce(vence la sesión, creado) >= corte.
+        or(eq(storeOrders.fulfillmentStatus, "exception"), gte(sql`coalesce(${storeOrders.checkoutExpiresAt}, ${storeOrders.createdAt})`, cutoff)),
+      ),
+    );
+  return Number(row?.units ?? 0);
 }
 
 /**
@@ -568,21 +594,25 @@ export function markStoreCheckoutExpired(db: Database, orderId: string, ctx: { s
 /**
  * Stripe informa un pago con monto o moneda distintos al pedido. No se marca pagado: queda pendiente como excepción, con
  * su apartado (la liberación automática ignora excepciones) y el payment intent guardado, para que una persona lo revise.
- * Idempotente.
+ * Idempotente. `changed` = el pedido pendiente quedó marcado ahora; `recorded` = se escribió un evento EXCEPTION nuevo
+ * (un cobro distinto que no se conocía, aunque el pedido ya no estuviera pendiente). Quien llama avisa al equipo solo
+ * cuando alguno de los dos es true.
  */
 export async function markStoreOrderPaymentMismatch(
   db: Database,
   orderId: string,
   details: { paymentIntentId: string | null; expected: { amount: number; currency: string }; received: { amount: number | null; currency: string | null } },
   ctx: { source: EventSource; externalRef?: string | null },
-): Promise<{ order: StoreOrder; changed: boolean } | null> {
+): Promise<{ order: StoreOrder; changed: boolean; recorded: boolean } | null> {
   return db.transaction(async (tx) => {
     const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).for("update");
     if (!order) return null;
     const metadata = { reason: "amount_mismatch", paymentIntentId: details.paymentIntentId, expected: details.expected, received: details.received };
     if (order.paymentStatus !== "pending" || order.fulfillmentStatus === "exception") {
-      // Sin cambiar estado, el cobro distinto queda registrado (una sola vez por referencia de Stripe).
+      // Sin cambiar estado, el cobro distinto queda registrado una sola vez: mismo payment intent (otro evento del mismo
+      // cobro) o mismo evento de Stripe ya conocidos no se vuelven a registrar.
       const ref = ctx.externalRef ?? null;
+      const pi = details.paymentIntentId;
       const known = await tx
         .select({ metadata: storeOrderEvents.metadata, externalRef: storeOrderEvents.externalRef })
         .from(storeOrderEvents)
@@ -590,10 +620,13 @@ export async function markStoreOrderPaymentMismatch(
       const duplicate = known.some((event) => {
         const meta = (event.metadata ?? {}) as Record<string, unknown>;
         if (meta.reason !== "amount_mismatch") return false;
-        return ref !== null ? event.externalRef === ref : meta.paymentIntentId === details.paymentIntentId;
+        if (pi !== null && meta.paymentIntentId === pi) return true;
+        if (ref !== null && event.externalRef === ref) return true;
+        return pi === null && ref === null && meta.paymentIntentId == null;
       });
-      if (!duplicate) await addStoreOrderEvent(tx, orderId, "EXCEPTION", ctx.source, { externalRef: ref, metadata });
-      return { order, changed: false };
+      if (duplicate) return { order, changed: false, recorded: false };
+      await addStoreOrderEvent(tx, orderId, "EXCEPTION", ctx.source, { externalRef: ref, metadata });
+      return { order, changed: false, recorded: true };
     }
     const [updated] = await tx
       .update(storeOrders)
@@ -604,7 +637,7 @@ export async function markStoreOrderPaymentMismatch(
       externalRef: ctx.externalRef ?? null,
       metadata,
     });
-    return { order: updated!, changed: true };
+    return { order: updated!, changed: true, recorded: true };
   });
 }
 

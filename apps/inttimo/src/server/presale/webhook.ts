@@ -35,7 +35,13 @@ export async function handleStripeEvent(db: Database, event: Stripe.Event): Prom
       const snapshot = snapshotFromSession(event.data.object as Stripe.Checkout.Session);
       if (snapshot.kind === "store") {
         const order = await resolveStoreOrder(tx, snapshot);
-        if (!order) return { result: "ignored" };
+        if (!order) {
+          // Un cobro de la tienda sin pedido no se pierde en silencio: una persona debe revisarlo en Stripe (sin datos del cliente).
+          if (snapshot.paymentStatus === "paid") {
+            console.error(JSON.stringify({ level: "error", msg: "store_paid_session_without_order", sessionId: snapshot.id, amount: snapshot.amountTotal, currency: snapshot.currency, eventId: event.id }));
+          }
+          return { result: "ignored" };
+        }
         const settled = await applyStoreSettlement(tx, order, snapshot, trigger, ctx);
         const current = settled?.order ?? order;
         return { result: settled?.changed ? "applied" : "unchanged", storeOrderId: current.id, paymentStatus: current.paymentStatus, ...(settled?.mismatch ? { mismatch: settled.mismatch } : {}) };

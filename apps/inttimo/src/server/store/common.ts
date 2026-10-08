@@ -50,3 +50,27 @@ export function isUniqueViolation(error: unknown): boolean {
   }
   return false;
 }
+
+/** Código de Postgres (p. ej. 23505) del error o de su causa (Drizzle envuelve el error del driver). */
+function pgCode(error: unknown): string | null {
+  for (let current = error as { code?: unknown; cause?: unknown } | undefined, depth = 0; current && depth < 5; current = current.cause as typeof current, depth++) {
+    if (typeof current.code === "string" && /^[0-9A-Z]{5}$/.test(current.code)) return current.code;
+  }
+  return null;
+}
+
+/**
+ * Resumen de un error apto para logs: nombre, código de Postgres y mensaje cortado ANTES de "params:" (Drizzle incluye
+ * ahí los valores de la consulta: nombre, correo, dirección). Nunca incluye la causa completa ni el stack.
+ */
+export function errorSummary(error: unknown): string {
+  const name = error instanceof Error ? error.name : typeof error;
+  const message = (error instanceof Error ? error.message : String(error)).split(/\bparams:/i)[0]!.trim();
+  const code = pgCode(error);
+  return `${name}${code ? ` [${code}]` : ""}: ${message}`;
+}
+
+/** Resumen del error sin parámetros de consulta ni correos (privacidad), recortado, para registrarlo o guardarlo. */
+export function redactError(error: unknown): string {
+  return errorSummary(error).replace(/[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+/g, "[correo]").slice(0, 300);
+}

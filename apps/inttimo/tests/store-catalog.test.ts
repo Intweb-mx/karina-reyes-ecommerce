@@ -177,6 +177,34 @@ describe("rutas de la tienda", () => {
     expect(errors).toHaveBeenCalledWith(expect.stringContaining("prueba_failed"));
   });
 
+  it("el log de un error inesperado nunca lleva los parámetros de la consulta ni correos", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    class FakeQueryError extends Error {
+      override name = "DrizzleQueryError";
+      constructor() {
+        super('Failed query: insert into "store_orders" ("full_name", "email") values ($1, $2)\nparams: Ana, ana@x.com');
+        this.cause = Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" });
+      }
+    }
+    await storeRoute("prueba", async () => {
+      throw new FakeQueryError();
+    }, true);
+    const logged = String(errors.mock.calls[0]![0]);
+    expect(logged).not.toContain("Ana");
+    expect(logged).not.toContain("ana@x.com");
+    expect(logged).not.toContain("params");
+    expect(JSON.parse(logged)).toMatchObject({ msg: "prueba_failed", error: expect.stringContaining("DrizzleQueryError") });
+    expect(logged).toContain("23505");
+    expect(logged).toContain("Failed query");
+
+    errors.mockClear();
+    await storeRoute("prueba", async () => {
+      throw new Error("rechazado para ana@x.com");
+    }, true);
+    expect(String(errors.mock.calls[0]![0])).toContain("[correo]");
+    expect(String(errors.mock.calls[0]![0])).not.toContain("ana@x.com");
+  });
+
   it("con la tienda visible pasa la respuesta tal cual", async () => {
     const response = await storeRoute("prueba", async () => Response.json({ ok: true }), true);
     expect(await response.json()).toEqual({ ok: true });

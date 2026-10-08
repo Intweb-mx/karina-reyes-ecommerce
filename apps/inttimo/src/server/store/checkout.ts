@@ -2,10 +2,12 @@ import {
   attachStoreCheckoutSession,
   createStoreOrder,
   findStoreOrderByIdempotencyKey,
+  getStoreHeldUnits,
   getStoreSettings,
   hitRateLimit,
   InsufficientStoreStockError,
   InvalidStoreOrderError,
+  listStoreOrderItems,
   markStoreCheckoutCreateFailed,
   releaseExpiredStoreOrders,
   StoreProductUnavailableError,
@@ -14,22 +16,28 @@ import {
   type StoreOrder,
 } from "@inttimo/database";
 import { z } from "zod";
-import type { CheckoutResponse } from "../../lib/store/contract.ts";
+import type { CartLine, CheckoutResponse } from "../../lib/store/contract.ts";
 import { addressSchema } from "../presale/shipping.ts";
 import { isPurchasable, loadForSale } from "./catalog.ts";
-import { fail, hash, isUniqueViolation, ok, zodFieldErrors, type StoreDeps, type StoreResult } from "./common.ts";
-import { cartLinesSchema, normalizeLines } from "./lines.ts";
+import { fail, hash, isUniqueViolation, ok, redactError, zodFieldErrors, type StoreDeps, type StoreResult } from "./common.ts";
+import { cartLinesSchema, normalizeLines, sameLines } from "./lines.ts";
 import { resolveStoreShippingChoice, storeShippingAvailable } from "./shipping.ts";
 import { STORE_TERMS_VERSION } from "./terms.ts";
 
 /** Vigencia de la sesión de Stripe: 30 min (mínimo de Stripe, contado desde que la crea) + 1 min de margen por latencia y reloj. */
 export const STORE_CHECKOUT_TTL_MINUTES = 31;
-const RATE_LIMIT = { perIp: { limit: 10, windowSeconds: 600 }, perEmail: { limit: 5, windowSeconds: 600 } };
+const RATE_LIMIT = { perIp: { limit: 5, windowSeconds: 600 }, perEmail: { limit: 5, windowSeconds: 600 } };
+/**
+ * Máximo de piezas que un comprador puede tener apartadas a la vez en pedidos pendientes, contado por separado por correo
+ * y por IP (hash): evita que una sola persona aparte casi todo el stock con varios checkouts sin pagar.
+ */
+export const STORE_MAX_HELD_UNITS_PER_BUYER = 20;
 /** Liberación en bloque antes de reintentar una compra que falló por stock (la ruta caliente solo libera 10). */
 const RETRY_RELEASE_LIMIT = 100;
 const UNAVAILABLE = "Uno de los productos ya no está disponible. Revisa tu carrito.";
 const PICK_POINT = "Elige el punto de recolección.";
 const QUOTE_SHIPPING = "Calcula el envío y elige una opción.";
+const REQUEST_CHANGED = "Los datos de esta compra cambiaron. Recarga la página para iniciar una nueva.";
 
 const phone = z.string().trim().max(30, "Teléfono no válido.").regex(/^[+\d\s().-]*$/, "Teléfono no válido.");
 
@@ -86,16 +94,37 @@ export function checkoutFieldKey(path: PropertyKey[]): string | null {
 /** Una sesión que vence en menos de esto ya no se ofrece: el cliente podría llegar a Stripe con la sesión caducada. */
 const MIN_REPLAY_SESSION_MS = 2 * 60_000;
 
-/** Quita correos de un texto de error antes de registrarlo o guardarlo (privacidad), y lo recorta. */
-export function redactError(error: unknown): string {
-  return String(error).replace(/[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+/g, "[correo]").slice(0, 300);
+/** Lo que identifica una compra para comparar un reintento con la misma Idempotency-Key. */
+type ReplayRequest = { email: string; lines: CartLine[]; delivery: NewStoreOrder["delivery"]; shippingAmount: number };
+
+const ADDRESS_FIELDS = ["name", "phone", "street", "neighborhood", "city", "state", "postalCode", "reference"] as const;
+
+/** ¿El reintento pide exactamente lo mismo que el pedido guardado? (correo, entrega, cotización, dirección y productos) */
+async function sameRequest(db: Database, order: StoreOrder, request: ReplayRequest): Promise<boolean> {
+  if (order.email !== request.email || order.deliveryMethod !== request.delivery.method) return false;
+  if (request.delivery.method === "pickup") {
+    if (order.pickupPointId !== request.delivery.pickupPointId) return false;
+  } else {
+    const stored = order.shippingSelection;
+    const selection = request.delivery.selection;
+    const address = order.deliveryAddress;
+    const requested = request.delivery.address;
+    if (!stored || !address) return false;
+    if (stored.quotationId !== selection.quotationId || stored.rateId !== selection.rateId || order.shippingAmount !== request.shippingAmount) return false;
+    if (ADDRESS_FIELDS.some((field) => (address[field] ?? null) !== (requested[field] ?? null))) return false;
+  }
+  const items = await listStoreOrderItems(db, order.id);
+  return sameLines(
+    items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+    request.lines,
+  );
 }
 
 /**
- * Misma Idempotency-Key. Devuelve la misma sesión si el pedido sigue pendiente y la sesión vigente; si no, dice la verdad
- * sobre lo ocurrido (nunca "ya se procesó" cuando no se cobró nada). No crea pedidos nuevos.
+ * Misma Idempotency-Key. Devuelve la misma sesión si el pedido sigue pendiente, la sesión vigente y el reintento pide lo
+ * mismo; si no, dice la verdad sobre lo ocurrido (nunca "ya se procesó" cuando no se cobró nada). No crea pedidos nuevos.
  */
-function replay(order: StoreOrder, now: Date): StoreResult<CheckoutResponse> {
+async function replay(db: Database, order: StoreOrder, request: ReplayRequest, now: Date): Promise<StoreResult<CheckoutResponse>> {
   switch (order.paymentStatus) {
     case "paid":
     case "authorized":
@@ -103,6 +132,8 @@ function replay(order: StoreOrder, now: Date): StoreResult<CheckoutResponse> {
     case "refunded":
       return fail(409, "validation_error", "Esta compra ya se procesó. Recarga la página para iniciar una nueva.");
     case "pending":
+      // Con otros datos, la sesión guardada cobraría otra cosa o entregaría en otro lugar: nunca se ofrece.
+      if (!(await sameRequest(db, order, request))) return fail(409, "validation_error", REQUEST_CHANGED);
       if (!order.stripeCheckoutUrl || !order.checkoutExpiresAt) return fail(409, "validation_error", "Estamos preparando tu pago. Espera unos segundos e inténtalo de nuevo.");
       if (order.checkoutExpiresAt.getTime() - now.getTime() >= MIN_REPLAY_SESSION_MS) {
         return ok({ orderNumber: order.orderNumber, checkoutUrl: order.stripeCheckoutUrl, checkoutExpiresAt: order.checkoutExpiresAt.toISOString() });
@@ -181,16 +212,28 @@ export async function createStoreCheckout(
     shippingLabel = `Envío · ${choice.selection.carrier} ${choice.selection.service}`.trim();
   }
 
+  const email = request.contact.email.trim().toLowerCase();
+  const replayRequest: ReplayRequest = { email, lines, delivery: orderDelivery, shippingAmount };
   if (input.idempotencyKey) {
     const existing = await findStoreOrderByIdempotencyKey(deps.db, input.idempotencyKey);
-    if (existing) return replay(existing, now);
+    if (existing) return replay(deps.db, existing, replayRequest, now);
   }
 
-  const email = request.contact.email.trim().toLowerCase();
+  const clientIpHash = input.clientIp ? hash(input.clientIp) : null;
   const limited =
-    (input.clientIp && (await hitRateLimit(deps.db, `store:checkout:ip:${hash(input.clientIp)}`, RATE_LIMIT.perIp.limit, RATE_LIMIT.perIp.windowSeconds))) ||
+    (clientIpHash && (await hitRateLimit(deps.db, `store:checkout:ip:${clientIpHash}`, RATE_LIMIT.perIp.limit, RATE_LIMIT.perIp.windowSeconds))) ||
     (await hitRateLimit(deps.db, `store:checkout:email:${hash(email)}`, RATE_LIMIT.perEmail.limit, RATE_LIMIT.perEmail.windowSeconds));
   if (limited) return fail(429, "rate_limited", "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.");
+
+  // Piezas que este comprador ya tiene apartadas (por correo y por IP, por separado), antes de crear el pedido. Solo aplica
+  // si ya tiene algo apartado: el tamaño de un pedido suelto lo limita el máximo por pedido de cada producto.
+  const units = lines.reduce((sum, line) => sum + line.quantity, 0);
+  const heldByEmail = await getStoreHeldUnits(deps.db, { email }, now);
+  const heldByIp = clientIpHash ? await getStoreHeldUnits(deps.db, { clientIpHash }, now) : 0;
+  if ((heldByEmail > 0 && heldByEmail + units > STORE_MAX_HELD_UNITS_PER_BUYER) || (heldByIp > 0 && heldByIp + units > STORE_MAX_HELD_UNITS_PER_BUYER)) {
+    console.warn(JSON.stringify({ level: "warn", msg: "store_checkout_held_units_cap", heldByEmail, heldByIp, units }));
+    return fail(429, "rate_limited", "Ya tienes piezas apartadas en otra compra. Termina ese pago o espera unos minutos.");
+  }
 
   let created: Awaited<ReturnType<typeof createStoreOrder>>;
   try {
@@ -205,6 +248,7 @@ export async function createStoreCheckout(
         marketingConsent: request.marketingConsent,
         idempotencyKey: input.idempotencyKey,
         attribution: null,
+        clientIpHash,
       },
       now,
     );
@@ -217,11 +261,11 @@ export async function createStoreCheckout(
     if (error instanceof InvalidStoreOrderError) return fail(400, "validation_error", error.message, { lines: [error.message] });
     if (input.idempotencyKey && isUniqueViolation(error)) {
       const existing = await findStoreOrderByIdempotencyKey(deps.db, input.idempotencyKey);
-      if (existing) return replay(existing, now);
+      if (existing) return replay(deps.db, existing, replayRequest, now);
     }
     throw error;
   }
-  if (created.reused) return replay(created.order, now);
+  if (created.reused) return replay(deps.db, created.order, replayRequest, now);
 
   const { order, items } = created;
   let session: { id: string; url: string; expiresAt: Date };

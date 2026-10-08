@@ -18,7 +18,7 @@ import { escapeHtml, type Mail } from "@inttimo/shared-utils/mail";
 import { business } from "../../content/legal/business.ts";
 import { formatMoney } from "../../lib/format.ts";
 import type { MailSender } from "../presale/notifications.ts";
-import { redactError } from "./checkout.ts";
+import { redactError } from "./common.ts";
 import type { StoreMismatch } from "./settlement.ts";
 
 const toHtml = (lines: string[]) => lines.map((line) => (line ? `<p>${escapeHtml(line)}</p>` : "")).join("");
@@ -88,10 +88,10 @@ export function storeMismatchMail(to: string, mismatch: StoreMismatch): Mail {
 }
 
 /**
- * Correo de pedido pagado, una sola vez por pedido. Si el envío falla se libera la reserva para que el webhook, la
- * confirmación o `store:reconcile` reintenten. Un pedido pagado con incidencia (sin stock) no se confirma al cliente:
- * solo se avisa al equipo, y la reserva se consume únicamente cuando ese aviso salió (o no hay a quién avisar).
- * Nunca se registran correos ni direcciones.
+ * Correo de pedido pagado, una sola vez por pedido. Si algo falla después de reservarlo (leer productos o configuración,
+ * armar el correo o enviarlo) se libera la reserva para que el webhook, la confirmación o `store:reconcile` reintenten.
+ * Un pedido pagado con incidencia (sin stock) no se confirma al cliente: solo se avisa al equipo, y la reserva se consume
+ * únicamente cuando ese aviso salió (o no hay a quién avisar). Nunca se registran correos ni direcciones.
  */
 export async function sendStoreConfirmationIfNeeded(
   db: Database,
@@ -100,8 +100,29 @@ export async function sendStoreConfirmationIfNeeded(
 ): Promise<"sent" | "skipped" | "failed" | "exception"> {
   const order = await claimStoreConfirmationEmail(db, orderId);
   if (!order) return "skipped";
-  const items = await listStoreOrderItems(db, order.id);
-  const point = (await getStoreSettings(db))?.pickupPoints.find((candidate) => candidate.id === order.pickupPointId);
+
+  /** Devuelve la reserva y deja constancia; cada paso con su propio catch para que nada aquí lance. */
+  const giveUp = async (msg: string, error: unknown, recordEvent: boolean): Promise<"failed"> => {
+    console.error(JSON.stringify({ level: "error", msg, orderId, error: redactError(error) }));
+    await releaseStoreConfirmationEmail(db, order.id).catch((releaseError: unknown) => {
+      console.error(JSON.stringify({ level: "error", msg: "store_confirmation_release_failed", orderId, error: redactError(releaseError) }));
+    });
+    if (recordEvent) {
+      await addStoreOrderEvent(db, order.id, "CONFIRMATION_EMAIL_FAILED", "api", { metadata: { error: redactError(error) } }).catch((eventError: unknown) => {
+        console.error(JSON.stringify({ level: "error", msg: "store_confirmation_event_failed", orderId, error: redactError(eventError) }));
+      });
+    }
+    return "failed";
+  };
+
+  let items: StoreOrderItem[];
+  let point: PickupPoint | undefined;
+  try {
+    items = await listStoreOrderItems(db, order.id);
+    point = (await getStoreSettings(db))?.pickupPoints.find((candidate) => candidate.id === order.pickupPointId);
+  } catch (error) {
+    return giveUp("store_confirmation_failed", error, order.fulfillmentStatus !== "exception");
+  }
 
   if (order.fulfillmentStatus === "exception") {
     if (!deps.notifyEmail) {
@@ -111,9 +132,7 @@ export async function sendStoreConfirmationIfNeeded(
     try {
       await deps.send(storeTeamMail(deps.notifyEmail, order, items, point));
     } catch (error) {
-      await releaseStoreConfirmationEmail(db, order.id);
-      console.error(JSON.stringify({ level: "error", msg: "store_exception_notice_failed", orderId, error: redactError(error) }));
-      return "failed";
+      return giveUp("store_exception_notice_failed", error, false);
     }
     return "exception";
   }
@@ -121,9 +140,7 @@ export async function sendStoreConfirmationIfNeeded(
   try {
     await deps.send(storeCustomerMail(order, items, point));
   } catch (error) {
-    await releaseStoreConfirmationEmail(db, order.id);
-    await addStoreOrderEvent(db, order.id, "CONFIRMATION_EMAIL_FAILED", "api", { metadata: { error: redactError(error) } });
-    return "failed";
+    return giveUp("store_confirmation_failed", error, true);
   }
   // El correo ya salió: un fallo al registrar el evento no debe liberar la reserva (mandaría un segundo correo).
   await addStoreOrderEvent(db, order.id, "CONFIRMATION_EMAIL_SENT", "api").catch((error: unknown) => {

@@ -1,7 +1,6 @@
 import { findStoreOrderBySessionId } from "@inttimo/database";
 import type { OrderConfirmationResponse } from "../../lib/store/contract.ts";
-import { redactError } from "./checkout.ts";
-import { fail, ok, type StoreDeps, type StoreResult } from "./common.ts";
+import { fail, ok, redactError, type StoreDeps, type StoreResult } from "./common.ts";
 import { buildOrderView } from "./order-view.ts";
 import { applyStoreSettlement } from "./settlement.ts";
 
@@ -25,12 +24,12 @@ export async function getOrderConfirmation(deps: Pick<StoreDeps, "db" | "gateway
         try {
           await deps.onMismatch(settled.mismatch);
         } catch (error) {
-          console.error(JSON.stringify({ level: "error", msg: "store_confirmation_mismatch_notice_failed", orderNumber: settled.mismatch.orderNumber, error: String(error).slice(0, 300) }));
+          console.error(JSON.stringify({ level: "error", msg: "store_confirmation_mismatch_notice_failed", orderNumber: settled.mismatch.orderNumber, error: redactError(error) }));
         }
       }
     } catch (error) {
       // Stripe no respondió: se muestra el último estado conocido; el webhook terminará de actualizarlo.
-      console.error(JSON.stringify({ level: "error", msg: "store_confirmation_sync_failed", orderId: pending.id, error: String(error).slice(0, 300) }));
+      console.error(JSON.stringify({ level: "error", msg: "store_confirmation_sync_failed", orderId: pending.id, error: redactError(error) }));
     }
   }
   if (order.paymentStatus === "paid" && !order.confirmationEmailSentAt) {

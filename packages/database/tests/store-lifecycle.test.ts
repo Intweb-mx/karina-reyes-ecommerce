@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "../src/client.ts";
 import {
@@ -8,6 +9,7 @@ import {
   createStoreOrder,
   findStoreOrderByIdempotencyKey,
   findStoreOrderByPaymentIntent,
+  getStoreHeldUnits,
   listStoreOrderEvents,
   listStorePaidWithoutConfirmation,
   listUnsettledStoreOrders,
@@ -67,9 +69,10 @@ describe("Stripe cobró un monto distinto", () => {
     const order = await placeWithSession();
     expect(await markStoreOrderPaymentMismatch(db, order.id, details, stripe)).toMatchObject({
       changed: true,
+      recorded: true,
       order: { paymentStatus: "pending", fulfillmentStatus: "exception", stripePaymentIntentId: "pi_x", inventoryReserved: true },
     });
-    expect(await markStoreOrderPaymentMismatch(db, order.id, details, stripe)).toMatchObject({ changed: false });
+    expect(await markStoreOrderPaymentMismatch(db, order.id, details, stripe)).toMatchObject({ changed: false, recorded: false });
 
     const exceptions = (await listStoreOrderEvents(db, order.id)).filter((event) => event.type === "EXCEPTION");
     expect(exceptions).toHaveLength(1);
@@ -153,8 +156,10 @@ describe("pedido congelado por excepción de pago", () => {
     const order = await placeWithSession();
     await markStoreCheckoutExpired(db, order.id, { source: "stripe" });
     const ref = { source: "stripe" as const, externalRef: "evt_9" };
-    expect(await markStoreOrderPaymentMismatch(db, order.id, details, ref)).toMatchObject({ changed: false, order: { paymentStatus: "cancelled" } });
-    expect(await markStoreOrderPaymentMismatch(db, order.id, details, ref)).toMatchObject({ changed: false });
+    expect(await markStoreOrderPaymentMismatch(db, order.id, details, ref)).toMatchObject({ changed: false, recorded: true, order: { paymentStatus: "cancelled" } });
+    expect(await markStoreOrderPaymentMismatch(db, order.id, details, ref)).toMatchObject({ changed: false, recorded: false });
+    // Otro evento de Stripe del mismo cobro (mismo payment intent): ya registrado, no es nuevo.
+    expect(await markStoreOrderPaymentMismatch(db, order.id, details, { source: "stripe", externalRef: "evt_10" })).toMatchObject({ changed: false, recorded: false });
     const exceptions = (await listStoreOrderEvents(db, order.id)).filter((event) => event.type === "EXCEPTION");
     expect(exceptions).toHaveLength(1);
     expect(exceptions[0]!.metadata).toMatchObject({ reason: "amount_mismatch", received: { amount: 1 } });
@@ -169,5 +174,42 @@ describe("validación de reembolsos", () => {
       await expect(applyStoreRefund(db, order.id, bad, stripe)).rejects.toThrow(/entero/);
     }
     expect(await applyStoreRefund(db, order.id, 9_999_999, stripe)).toMatchObject({ changed: true, order: { paymentStatus: "refunded", amountRefunded: 100_000 } });
+  });
+});
+
+describe("piezas apartadas por comprador", () => {
+  it("suma solo pedidos pendientes con apartado vigente, por correo y por IP (hash)", async () => {
+    const big = (await seedProduct(db, { stock: 50 })).id;
+    const place = async (quantity: number, email: string, clientIpHash: string | null, expiresAt: Date | null = minutes(30)) => {
+      const { order } = await createStoreOrder(db, pickupOrder([{ productId: big, quantity }], { contact: { fullName: "Ana Pérez", email, phone: null }, clientIpHash }), T0);
+      return expiresAt ? (await attachStoreCheckoutSession(db, order.id, { id: `cs_${order.id}`, url: "https://checkout.stripe.test/x", expiresAt }))! : order;
+    };
+    await place(2, "ana@ejemplo.com", "ip_a");
+    await place(3, "otra@ejemplo.com", "ip_a");
+    // Pagado: ya no es un apartado.
+    await markStoreOrderPaid(db, (await place(4, "ana@ejemplo.com", "ip_a")).id, { paymentIntentId: "pi_held" }, stripe);
+    // Cancelado: liberado.
+    await markStoreCheckoutExpired(db, (await place(6, "ana@ejemplo.com", "ip_a")).id, { source: "stripe" });
+    // Excepción (cobro distinto): conserva su apartado aunque su sesión venció, cuenta.
+    const frozen = await place(1, "ana@ejemplo.com", "ip_b");
+    await markStoreOrderPaymentMismatch(db, frozen.id, { paymentIntentId: "pi_mm", expected: { amount: 50_000, currency: "mxn" }, received: { amount: 1, currency: "mxn" } }, stripe);
+    await db.execute(sql`update store_orders set checkout_expires_at = ${minutes(-60).toISOString()} where id = ${frozen.id}`);
+    // Sesión vencida hace una hora (el último: crear otro pedido lo liberaría): venció aunque siga sin liberar.
+    const stale = await place(5, "ana@ejemplo.com", "ip_a", minutes(-60));
+    expect(stale).toMatchObject({ paymentStatus: "pending", inventoryReserved: true });
+
+    expect(await getStoreHeldUnits(db, { email: " ANA@ejemplo.com " }, T0)).toBe(3);
+    expect(await getStoreHeldUnits(db, { clientIpHash: "ip_a" }, T0)).toBe(5);
+    expect(await getStoreHeldUnits(db, { clientIpHash: "ip_b" }, T0)).toBe(1);
+    expect(await getStoreHeldUnits(db, { clientIpHash: "ip_desconocida" }, T0)).toBe(0);
+    // Una hora después todas las sesiones vencieron: solo queda la excepción.
+    expect(await getStoreHeldUnits(db, { email: "ana@ejemplo.com" }, minutes(60))).toBe(1);
+  });
+
+  it("un pedido sin sesión cuenta solo durante sus primeros minutos y guarda el hash de la IP", async () => {
+    const { order } = await createStoreOrder(db, pickupOrder([{ productId, quantity: 2 }], { clientIpHash: "ip_c" }), T0);
+    expect(order.clientIpHash).toBe("ip_c");
+    expect(await getStoreHeldUnits(db, { clientIpHash: "ip_c" }, T0)).toBe(2);
+    expect(await getStoreHeldUnits(db, { clientIpHash: "ip_c" }, minutes(10))).toBe(0);
   });
 });

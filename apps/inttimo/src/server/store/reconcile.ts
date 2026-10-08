@@ -1,6 +1,7 @@
 import { listStorePaidWithoutConfirmation, listUnsettledStoreOrders, releaseExpiredStoreOrders, type Database } from "@inttimo/database";
 import type { PaymentGateway } from "../presale/gateway.ts";
 import type { MailSender } from "../presale/notifications.ts";
+import { redactError } from "./common.ts";
 import { sendStoreConfirmationIfNeeded, storeMismatchMail } from "./notifications.ts";
 import { applyStoreSettlement } from "./settlement.ts";
 
@@ -38,18 +39,18 @@ export async function reconcileStore(
           await deps.send(storeMismatchMail(deps.notifyEmail, settled.mismatch));
         } catch (error) {
           report.emails.failed++;
-          report.errors.push(`${order.orderNumber}: aviso de monto distinto no enviado: ${String(error)}`);
+          report.errors.push(`${order.orderNumber}: aviso de monto distinto no enviado: ${redactError(error)}`);
         }
       }
     } catch (error) {
-      report.errors.push(`${order.orderNumber}: ${String(error)}`);
+      report.errors.push(`${order.orderNumber}: ${redactError(error)}`);
     }
   }
 
   try {
     report.released = await releaseExpiredStoreOrders(deps.db, options.now ?? new Date(), { limit: RECONCILE_RELEASE_LIMIT, source: "cli" });
   } catch (error) {
-    report.errors.push(`liberación: ${String(error)}`);
+    report.errors.push(`liberación: ${redactError(error)}`);
   }
 
   for (const order of await listStorePaidWithoutConfirmation(deps.db)) {
