@@ -1,5 +1,6 @@
 import { findStoreOrderBySessionId } from "@inttimo/database";
 import type { OrderConfirmationResponse } from "../../lib/store/contract.ts";
+import { redactError } from "./checkout.ts";
 import { fail, ok, type StoreDeps, type StoreResult } from "./common.ts";
 import { buildOrderView } from "./order-view.ts";
 import { applyStoreSettlement } from "./settlement.ts";
@@ -29,9 +30,16 @@ export async function getOrderConfirmation(deps: Pick<StoreDeps, "db" | "gateway
       }
     } catch (error) {
       // Stripe no respondió: se muestra el último estado conocido; el webhook terminará de actualizarlo.
-      console.error(JSON.stringify({ level: "warn", msg: "store_confirmation_sync_failed", orderId: pending.id, error: String(error).slice(0, 300) }));
+      console.error(JSON.stringify({ level: "error", msg: "store_confirmation_sync_failed", orderId: pending.id, error: String(error).slice(0, 300) }));
     }
   }
-  if (order.paymentStatus === "paid" && !order.confirmationEmailSentAt) await deps.onPaid?.(order.id);
+  if (order.paymentStatus === "paid" && !order.confirmationEmailSentAt) {
+    // Un fallo del correo (o de la base tras reclamarlo) no debe tumbar la página de un pedido ya pagado.
+    try {
+      await deps.onPaid?.(order.id);
+    } catch (error) {
+      console.error(JSON.stringify({ level: "error", msg: "store_confirmation_email_failed", orderId: order.id, orderNumber: order.orderNumber, error: redactError(error) }));
+    }
+  }
   return ok(await buildOrderView(deps.db, order));
 }

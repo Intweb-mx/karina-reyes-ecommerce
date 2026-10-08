@@ -112,6 +112,15 @@ describe("confirmación del pedido", () => {
     expect(error).toHaveBeenCalledWith(expect.stringContaining("store_amount_mismatch"));
   });
 
+  it("si el correo de confirmación falla, el pedido pagado se muestra igual y se registra", async () => {
+    await buy();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    gateway.snapshots.set(SESSION, { status: "complete", paymentStatus: "paid", paymentIntentId: "pi_1" });
+    onPaid.mockRejectedValueOnce(new Error("db caída"));
+    expect(await confirm()).toMatchObject({ status: 200, data: { paymentStatus: "paid" } });
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("store_confirmation_email_failed"));
+  });
+
   it("si el aviso al equipo falla, la confirmación responde igual y se registra", async () => {
     await buy();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
