@@ -362,6 +362,16 @@ export async function findStoreOrderBySessionId(db: Executor, sessionId: string)
   return row ?? null;
 }
 
+export async function findStoreOrderByPaymentIntent(db: Executor, paymentIntentId: string): Promise<StoreOrder | null> {
+  const [row] = await db.select().from(storeOrders).where(eq(storeOrders.stripePaymentIntentId, paymentIntentId)).limit(1);
+  return row ?? null;
+}
+
+export async function findStoreOrderByIdempotencyKey(db: Executor, key: string): Promise<StoreOrder | null> {
+  const [row] = await db.select().from(storeOrders).where(eq(storeOrders.idempotencyKey, key)).limit(1);
+  return row ?? null;
+}
+
 export async function listStoreOrderItems(db: Executor, orderId: string): Promise<StoreOrderItem[]> {
   return db.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, orderId)).orderBy(asc(storeOrderItems.productSlug));
 }
@@ -547,6 +557,99 @@ export function markStoreOrderPaymentFailed(db: Database, orderId: string, ctx: 
 /** No se pudo crear la sesión de pago (error técnico): libera el apartado y guarda el motivo. */
 export function markStoreCheckoutCreateFailed(db: Database, orderId: string, reason: string) {
   return closePendingOrder(db, orderId, { paymentStatus: "failed", event: "CHECKOUT_CREATE_FAILED", source: "api", metadata: { reason: reason.slice(0, 300) } });
+}
+
+/** Stripe venció la sesión sin pago: el pedido queda cancelado y se libera el apartado (una sola vez). */
+export function markStoreCheckoutExpired(db: Database, orderId: string, ctx: { source: EventSource }) {
+  return closePendingOrder(db, orderId, { paymentStatus: "cancelled", event: "CHECKOUT_EXPIRED", source: ctx.source });
+}
+
+/**
+ * Stripe informa un pago con monto o moneda distintos al pedido. No se marca pagado: queda pendiente como excepción, con
+ * su apartado (la liberación automática ignora excepciones) y el payment intent guardado, para que una persona lo revise.
+ * Idempotente.
+ */
+export async function markStoreOrderPaymentMismatch(
+  db: Database,
+  orderId: string,
+  details: { paymentIntentId: string | null; expected: { amount: number; currency: string }; received: { amount: number | null; currency: string | null } },
+  ctx: { source: EventSource; externalRef?: string | null },
+): Promise<{ order: StoreOrder; changed: boolean } | null> {
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).for("update");
+    if (!order) return null;
+    if (order.paymentStatus !== "pending" || order.fulfillmentStatus === "exception") return { order, changed: false };
+    const [updated] = await tx
+      .update(storeOrders)
+      .set({ fulfillmentStatus: "exception", stripePaymentIntentId: details.paymentIntentId ?? order.stripePaymentIntentId })
+      .where(eq(storeOrders.id, orderId))
+      .returning();
+    await addStoreOrderEvent(tx, orderId, "EXCEPTION", ctx.source, {
+      externalRef: ctx.externalRef ?? null,
+      metadata: { reason: "amount_mismatch", expected: details.expected, received: details.received },
+    });
+    return { order: updated!, changed: true };
+  });
+}
+
+/**
+ * Reembolso informado por Stripe (`amountRefunded` es el acumulado; nunca baja). Solo pedidos pagados. Devolver piezas
+ * al inventario depende de si el pedido ya salió y se decide en el panel (PR B).
+ */
+export async function applyStoreRefund(
+  db: Database,
+  orderId: string,
+  amountRefunded: number,
+  ctx: { source: EventSource; externalRef?: string | null },
+): Promise<{ order: StoreOrder; changed: boolean } | null> {
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).for("update");
+    if (!order) return null;
+    if (order.paymentStatus !== "paid" && order.paymentStatus !== "partially_refunded") return { order, changed: false };
+    const amount = Math.min(Math.max(amountRefunded, order.amountRefunded), order.totalAmount);
+    if (amount <= order.amountRefunded) return { order, changed: false };
+    const full = amount >= order.totalAmount;
+    const [updated] = await tx
+      .update(storeOrders)
+      .set({ paymentStatus: full ? "refunded" : "partially_refunded", amountRefunded: amount })
+      .where(eq(storeOrders.id, orderId))
+      .returning();
+    await addStoreOrderEvent(tx, orderId, full ? "REFUNDED" : "PARTIALLY_REFUNDED", ctx.source, { externalRef: ctx.externalRef ?? null, metadata: { amountRefunded: amount } });
+    return { order: updated!, changed: true };
+  });
+}
+
+// ---------- Correo de confirmación y reconciliación ----------
+
+/** Reserva el correo de pedido pagado; solo una llamada gana aunque lleguen webhook y confirmación en paralelo. */
+export async function claimStoreConfirmationEmail(db: Executor, orderId: string): Promise<StoreOrder | null> {
+  const [row] = await db
+    .update(storeOrders)
+    .set({ confirmationEmailSentAt: new Date() })
+    .where(and(eq(storeOrders.id, orderId), eq(storeOrders.paymentStatus, "paid"), isNull(storeOrders.confirmationEmailSentAt)))
+    .returning();
+  return row ?? null;
+}
+
+export async function releaseStoreConfirmationEmail(db: Executor, orderId: string): Promise<void> {
+  await db.update(storeOrders).set({ confirmationEmailSentAt: null }).where(eq(storeOrders.id, orderId));
+}
+
+export async function listStorePaidWithoutConfirmation(db: Executor): Promise<StoreOrder[]> {
+  return db
+    .select()
+    .from(storeOrders)
+    .where(and(eq(storeOrders.paymentStatus, "paid"), isNull(storeOrders.confirmationEmailSentAt)))
+    .orderBy(asc(storeOrders.paidAt), asc(storeOrders.id));
+}
+
+/** Pedidos pendientes con sesión de Stripe creados antes de `olderThan` (red de seguridad si un webhook no llegó). */
+export async function listUnsettledStoreOrders(db: Executor, olderThan: Date): Promise<StoreOrder[]> {
+  return db
+    .select()
+    .from(storeOrders)
+    .where(and(eq(storeOrders.paymentStatus, "pending"), sql`${storeOrders.stripeCheckoutSessionId} is not null`, lt(storeOrders.createdAt, olderThan)))
+    .orderBy(asc(storeOrders.createdAt), asc(storeOrders.id));
 }
 
 /**
