@@ -13,7 +13,7 @@ import {
   type StoreOrder,
 } from "../src/store.ts";
 import { createTestDatabase } from "../src/testing.ts";
-import { inventoryOf, pickupOrder, seedProduct } from "./store-helpers.ts";
+import { expectLedgerMatches, inventoryOf, pickupOrder, seedProduct } from "./store-helpers.ts";
 
 let db: Database;
 let close: () => Promise<void>;
@@ -81,7 +81,50 @@ describe("unidades apartadas por pedidos vencidos", () => {
   });
 });
 
+describe("unidades vencidas con varios productos", () => {
+  it("suma por producto sin mezclar pedidos vigentes", async () => {
+    const a = await seedProduct(db, { stock: 10 });
+    const b = await seedProduct(db, { stock: 10 });
+    const expired = (await createStoreOrder(db, pickupOrder([{ productId: a.id, quantity: 2 }, { productId: b.id, quantity: 3 }]), T0)).order;
+    const live = await place(a.id, 4);
+    await expireAt(expired, -60);
+    await expireAt(live, 30);
+
+    const held = await getExpiredHeldUnits(db, [a.id, b.id], T0);
+    expect(held.get(a.id)).toBe(2);
+    expect(held.get(b.id)).toBe(3);
+    expect(held.size).toBe(2);
+  });
+});
+
 describe("liberación de apartados vencidos", () => {
+  it("revalida bajo candado: un pedido marcado como excepción tras listarlo no se cancela", async () => {
+    const product = await seedProduct(db, { stock: 5 });
+    const order = await place(product.id, 2);
+    await expireAt(order, -60);
+    let flagged = false;
+    // Entre el pre-chequeo y el candado, el pedido pasa a excepción.
+    const racing = new Proxy(db, {
+      get(object, property) {
+        if (property === "transaction" && !flagged) {
+          flagged = true;
+          return async (...args: Parameters<Database["transaction"]>) => {
+            await object.update(storeOrders).set({ fulfillmentStatus: "exception" }).where(eq(storeOrders.id, order.id));
+            return object.transaction(...args);
+          };
+        }
+        const value = Reflect.get(object, property, object);
+        return typeof value === "function" ? value.bind(object) : value;
+      },
+    });
+
+    expect(await releaseExpiredStoreOrders(racing, T0)).toBe(0);
+    expect(flagged).toBe(true);
+    expect((await findStoreOrderById(db, order.id))?.paymentStatus).toBe("pending");
+    expect(await inventoryOf(db, product.id)).toMatchObject({ onHand: 5, reserved: 2 });
+    await expectLedgerMatches(db, product.id);
+  });
+
   it("procesa primero lo que venció antes y respeta el límite", async () => {
     const product = await seedProduct(db, { stock: 5 });
     const a = await place(product.id, 1);

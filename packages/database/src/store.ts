@@ -523,11 +523,13 @@ async function closePendingOrder(
   if (!current) return null;
   if (current.paymentStatus !== "pending") return { order: current, changed: false };
   return db.transaction(async (tx) => {
-
     const locked = await lockOrderAndInventory(tx, orderId);
     if (!locked) return null;
     const { order, items } = locked;
-    const stillExpired = !close.onlyIfHoldExpiredBefore || (order.checkoutExpiresAt ?? order.createdAt) < close.onlyIfHoldExpiredBefore;
+    // Con el cierre por vencimiento, revalida bajo candado: un pedido marcado como excepción conserva su apartado.
+    const stillExpired =
+      !close.onlyIfHoldExpiredBefore ||
+      ((order.checkoutExpiresAt ?? order.createdAt) < close.onlyIfHoldExpiredBefore && order.fulfillmentStatus !== "exception" && order.inventoryReserved);
     if (order.paymentStatus !== "pending" || !stillExpired) return { order, changed: false };
     await tx.update(storeOrders).set({ paymentStatus: close.paymentStatus }).where(eq(storeOrders.id, orderId));
     await addStoreOrderEvent(tx, orderId, close.event, close.source, { metadata: close.metadata });
