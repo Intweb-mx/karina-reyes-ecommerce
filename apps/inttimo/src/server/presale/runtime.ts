@@ -44,6 +44,11 @@ const lazyGateway: PaymentGateway = {
   retrieveCheckout: (sessionId) => createStripeGateway(getStripe()).retrieveCheckout(sessionId),
 };
 
+/** Pasarela de pago compartida por la preventa y la tienda (Stripe se inicializa al usarse). */
+export function getPaymentGateway(): PaymentGateway {
+  return lazyGateway;
+}
+
 let skydropx: ShippingProvider | null | undefined;
 
 /** SkyDropX si hay credenciales (SKYDROPX_CLIENT_ID/SECRET; SKYDROPX_ENV=production|sandbox). Sin ellas no se ofrece envío. */
