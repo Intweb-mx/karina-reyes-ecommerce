@@ -12,6 +12,7 @@ import {
   listStorePaidWithoutConfirmation,
   listUnsettledStoreOrders,
   markStoreCheckoutExpired,
+  markStoreOrderPaymentFailed,
   markStoreOrderPaid,
   markStoreOrderPaymentMismatch,
   releaseExpiredStoreOrders,
@@ -133,5 +134,40 @@ describe("correo de confirmación", () => {
 
     await releaseStoreConfirmationEmail(db, order.id);
     expect((await claimStoreConfirmationEmail(db, order.id))?.id).toBe(order.id);
+  });
+});
+
+describe("pedido congelado por excepción de pago", () => {
+  const details = { paymentIntentId: "pi_x", expected: { amount: 100_000, currency: "mxn" }, received: { amount: 1, currency: "mxn" } };
+
+  it("ningún camino automático lo cierra ni libera su stock", async () => {
+    const order = await placeWithSession();
+    await markStoreOrderPaymentMismatch(db, order.id, details, stripe);
+    expect(await markStoreCheckoutExpired(db, order.id, { source: "stripe" })).toMatchObject({ changed: false, order: { paymentStatus: "pending", fulfillmentStatus: "exception" } });
+    expect(await markStoreOrderPaymentFailed(db, order.id, { source: "stripe" })).toMatchObject({ changed: false, order: { paymentStatus: "pending", fulfillmentStatus: "exception" } });
+    expect(await inventoryOf(db, productId)).toMatchObject({ onHand: 5, reserved: 2 });
+    expect(await listUnsettledStoreOrders(db, new Date(Date.now() + 60_000))).toEqual([]);
+  });
+
+  it("cobro distinto sobre pedido ya cancelado: registra la excepción una vez sin cambiar estado", async () => {
+    const order = await placeWithSession();
+    await markStoreCheckoutExpired(db, order.id, { source: "stripe" });
+    const ref = { source: "stripe" as const, externalRef: "evt_9" };
+    expect(await markStoreOrderPaymentMismatch(db, order.id, details, ref)).toMatchObject({ changed: false, order: { paymentStatus: "cancelled" } });
+    expect(await markStoreOrderPaymentMismatch(db, order.id, details, ref)).toMatchObject({ changed: false });
+    const exceptions = (await listStoreOrderEvents(db, order.id)).filter((event) => event.type === "EXCEPTION");
+    expect(exceptions).toHaveLength(1);
+    expect(exceptions[0]!.metadata).toMatchObject({ reason: "amount_mismatch", received: { amount: 1 } });
+    expect(await inventoryOf(db, productId)).toMatchObject({ onHand: 5, reserved: 0 });
+  });
+});
+
+describe("validación de reembolsos", () => {
+  it("rechaza NaN, negativos y no enteros; recorta al total", async () => {
+    const order = await pay(await placeWithSession());
+    for (const bad of [Number.NaN, -1, 1.5, Number.POSITIVE_INFINITY]) {
+      await expect(applyStoreRefund(db, order.id, bad, stripe)).rejects.toThrow(/entero/);
+    }
+    expect(await applyStoreRefund(db, order.id, 9_999_999, stripe)).toMatchObject({ changed: true, order: { paymentStatus: "refunded", amountRefunded: 100_000 } });
   });
 });

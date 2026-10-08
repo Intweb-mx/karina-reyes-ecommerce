@@ -531,16 +531,17 @@ async function closePendingOrder(
   // Pre-chequeo sin bloqueo: un pedido que ya no está pendiente no toma candados de inventario.
   const current = await findStoreOrderById(db, orderId);
   if (!current) return null;
-  if (current.paymentStatus !== "pending") return { order: current, changed: false };
+  if (current.paymentStatus !== "pending" || current.fulfillmentStatus === "exception") return { order: current, changed: false };
   return db.transaction(async (tx) => {
     const locked = await lockOrderAndInventory(tx, orderId);
     if (!locked) return null;
     const { order, items } = locked;
-    // Con el cierre por vencimiento, revalida bajo candado: un pedido marcado como excepción conserva su apartado.
+    // Un pedido marcado como excepción (cobro distinto, dinero retenido) queda congelado para revisión manual: ningún camino automático lo cierra.
+    if (order.paymentStatus !== "pending" || order.fulfillmentStatus === "exception") return { order, changed: false };
+    // Con el cierre por vencimiento, revalida bajo candado.
     const stillExpired =
-      !close.onlyIfHoldExpiredBefore ||
-      ((order.checkoutExpiresAt ?? order.createdAt) < close.onlyIfHoldExpiredBefore && order.fulfillmentStatus !== "exception" && order.inventoryReserved);
-    if (order.paymentStatus !== "pending" || !stillExpired) return { order, changed: false };
+      !close.onlyIfHoldExpiredBefore || ((order.checkoutExpiresAt ?? order.createdAt) < close.onlyIfHoldExpiredBefore && order.inventoryReserved);
+    if (!stillExpired) return { order, changed: false };
     await tx.update(storeOrders).set({ paymentStatus: close.paymentStatus }).where(eq(storeOrders.id, orderId));
     await addStoreOrderEvent(tx, orderId, close.event, close.source, { metadata: close.metadata });
     if (order.inventoryReserved) await releaseReservedStock(tx, order, items, close.source);
@@ -578,7 +579,22 @@ export async function markStoreOrderPaymentMismatch(
   return db.transaction(async (tx) => {
     const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).for("update");
     if (!order) return null;
-    if (order.paymentStatus !== "pending" || order.fulfillmentStatus === "exception") return { order, changed: false };
+    const metadata = { reason: "amount_mismatch", paymentIntentId: details.paymentIntentId, expected: details.expected, received: details.received };
+    if (order.paymentStatus !== "pending" || order.fulfillmentStatus === "exception") {
+      // Sin cambiar estado, el cobro distinto queda registrado (una sola vez por referencia de Stripe).
+      const ref = ctx.externalRef ?? null;
+      const known = await tx
+        .select({ metadata: storeOrderEvents.metadata, externalRef: storeOrderEvents.externalRef })
+        .from(storeOrderEvents)
+        .where(and(eq(storeOrderEvents.orderId, orderId), eq(storeOrderEvents.type, "EXCEPTION")));
+      const duplicate = known.some((event) => {
+        const meta = (event.metadata ?? {}) as Record<string, unknown>;
+        if (meta.reason !== "amount_mismatch") return false;
+        return ref !== null ? event.externalRef === ref : meta.paymentIntentId === details.paymentIntentId;
+      });
+      if (!duplicate) await addStoreOrderEvent(tx, orderId, "EXCEPTION", ctx.source, { externalRef: ref, metadata });
+      return { order, changed: false };
+    }
     const [updated] = await tx
       .update(storeOrders)
       .set({ fulfillmentStatus: "exception", stripePaymentIntentId: details.paymentIntentId ?? order.stripePaymentIntentId })
@@ -586,7 +602,7 @@ export async function markStoreOrderPaymentMismatch(
       .returning();
     await addStoreOrderEvent(tx, orderId, "EXCEPTION", ctx.source, {
       externalRef: ctx.externalRef ?? null,
-      metadata: { reason: "amount_mismatch", expected: details.expected, received: details.received },
+      metadata,
     });
     return { order: updated!, changed: true };
   });
@@ -602,6 +618,7 @@ export async function applyStoreRefund(
   amountRefunded: number,
   ctx: { source: EventSource; externalRef?: string | null },
 ): Promise<{ order: StoreOrder; changed: boolean } | null> {
+  if (!Number.isInteger(amountRefunded) || amountRefunded < 0) throw new Error("amountRefunded debe ser un entero no negativo (centavos).");
   return db.transaction(async (tx) => {
     const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).for("update");
     if (!order) return null;
@@ -648,7 +665,7 @@ export async function listUnsettledStoreOrders(db: Executor, olderThan: Date): P
   return db
     .select()
     .from(storeOrders)
-    .where(and(eq(storeOrders.paymentStatus, "pending"), sql`${storeOrders.stripeCheckoutSessionId} is not null`, lt(storeOrders.createdAt, olderThan)))
+    .where(and(eq(storeOrders.paymentStatus, "pending"), ne(storeOrders.fulfillmentStatus, "exception"), sql`${storeOrders.stripeCheckoutSessionId} is not null`, lt(storeOrders.createdAt, olderThan)))
     .orderBy(asc(storeOrders.createdAt), asc(storeOrders.id));
 }
 
