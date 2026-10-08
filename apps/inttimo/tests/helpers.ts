@@ -1,6 +1,6 @@
 import { getCurrentTerms, publishTerms, upsertCampaign, type Database, type QuestionDefinition } from "@inttimo/database";
 import type Stripe from "stripe";
-import type { CheckoutSnapshot, CreateCheckoutInput, PaymentGateway } from "../src/server/presale/gateway.ts";
+import type { CheckoutSnapshot, CreateCheckoutInput, CreateStoreCheckoutInput, PaymentGateway } from "../src/server/presale/gateway.ts";
 import type { Rate, Shipment, ShippingProvider } from "../src/server/shipping/provider.ts";
 
 export const QUESTIONS: QuestionDefinition[] = [
@@ -80,6 +80,8 @@ export async function seedCampaign(db: Database, overrides: Partial<Parameters<t
 
 export class FakeGateway implements PaymentGateway {
   created: CreateCheckoutInput[] = [];
+  storeCreated: CreateStoreCheckoutInput[] = [];
+  expired: string[] = [];
   fail = false;
   snapshots = new Map<string, Partial<CheckoutSnapshot>>();
 
@@ -90,17 +92,39 @@ export class FakeGateway implements PaymentGateway {
     return { id, url: `https://checkout.stripe.test/${id}`, expiresAt: input.expiresAt };
   }
 
+  async createStoreCheckout(input: CreateStoreCheckoutInput) {
+    if (this.fail) throw new Error("stripe down");
+    this.storeCreated.push(input);
+    const id = `cs_test_store_${String(this.storeCreated.length).padStart(12, "0")}`;
+    return { id, url: `https://checkout.stripe.test/${id}`, expiresAt: input.expiresAt };
+  }
+
+  async expireCheckout(sessionId: string) {
+    this.expired.push(sessionId);
+  }
+
   async retrieveCheckout(sessionId: string): Promise<CheckoutSnapshot> {
+    const base = { id: sessionId, status: "open" as const, paymentStatus: "unpaid" as const, paymentIntentId: null, shippingAddress: null };
+    if (sessionId.startsWith("cs_test_store_")) {
+      const input = this.storeCreated[Number(sessionId.slice("cs_test_store_".length)) - 1];
+      return {
+        ...base,
+        kind: "store",
+        reservationId: null,
+        storeOrderId: input?.orderId ?? null,
+        amountTotal: input ? input.lines.reduce((sum, line) => sum + line.unitAmount * line.quantity, 0) + input.shippingAmount : null,
+        currency: input?.currency ?? null,
+        ...this.snapshots.get(sessionId),
+      };
+    }
     const input = this.created.find((_, index) => `cs_test_${String(index + 1).padStart(12, "0")}` === sessionId);
     return {
-      id: sessionId,
-      status: "open",
-      paymentStatus: "unpaid",
+      ...base,
+      kind: "presale",
       reservationId: input?.reservationId ?? null,
-      paymentIntentId: null,
+      storeOrderId: null,
       amountTotal: input ? input.unitAmount * input.quantity : null,
       currency: input?.currency ?? null,
-      shippingAddress: null,
       ...this.snapshots.get(sessionId),
     };
   }

@@ -29,10 +29,13 @@ export function fail(status: number, code: StoreErrorCode, message: string, fiel
 
 const joinPath = (path: PropertyKey[]) => path.map(String).join(".") || "_";
 
-/** Errores de Zod → fieldErrors. `keyOf` traduce la ruta del error a la clave que pinta la pantalla. */
-export function zodFieldErrors(error: ZodError, keyOf: (path: PropertyKey[]) => string = joinPath): Record<string, string[]> {
+/** Errores de Zod → fieldErrors. `keyOf` traduce la ruta del error a la clave que pinta la pantalla; `null` = sin campo (solo va al mensaje). */
+export function zodFieldErrors(error: ZodError, keyOf: (path: PropertyKey[]) => string | null = joinPath): Record<string, string[]> {
   const result: Record<string, string[]> = {};
-  for (const issue of error.issues) (result[keyOf(issue.path)] ??= []).push(issue.message);
+  for (const issue of error.issues) {
+    const key = keyOf(issue.path);
+    if (key !== null) (result[key] ??= []).push(issue.message);
+  }
   return result;
 }
 

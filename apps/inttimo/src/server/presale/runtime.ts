@@ -41,7 +41,9 @@ export function confirmPaid(reservationId: string) {
 /** Stripe se inicializa al usarse: sin llave, la validación y las consultas siguen funcionando. */
 const lazyGateway: PaymentGateway = {
   createCheckout: (input) => createStripeGateway(getStripe()).createCheckout(input),
+  createStoreCheckout: (input) => createStripeGateway(getStripe()).createStoreCheckout(input),
   retrieveCheckout: (sessionId) => createStripeGateway(getStripe()).retrieveCheckout(sessionId),
+  expireCheckout: (sessionId) => createStripeGateway(getStripe()).expireCheckout(sessionId),
 };
 
 /** Pasarela de pago compartida por la preventa y la tienda (Stripe se inicializa al usarse). */
