@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { and, asc, desc, eq, getTableColumns, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Database } from "./client.ts";
 import type { EventSource, Executor } from "./presale.ts";
 import type { DeliveryAddress, ShippingSelection } from "./schema/presale.ts";
@@ -237,8 +237,13 @@ function mergeLines(lines: NewStoreOrderLine[]): NewStoreOrderLine[] {
  * Con una `idempotencyKey` ya usada devuelve el pedido existente (`reused: true`) sin apartar otra vez.
  */
 export async function createStoreOrder(db: Database, input: NewStoreOrder, now: Date = new Date()): Promise<{ order: StoreOrder; items: StoreOrderItem[]; reused: boolean }> {
-  // Libera lo que ya venció antes de contar lo disponible (transacciones separadas; siempre idempotente).
-  await releaseExpiredStoreOrders(db, now);
+  // Libera lo vencido antes de contar lo disponible: pocos pedidos, del que venció antes al más reciente. Un error de
+  // liberación nunca aborta la compra (la liberación en bloque la hacen el reintento del checkout y `store:reconcile`).
+  try {
+    await releaseExpiredStoreOrders(db, now, { limit: STORE_CHECKOUT_RELEASE_LIMIT });
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", msg: "store_release_before_order_failed", error: String(error).slice(0, 300) }));
+  }
   const lines = mergeLines(input.lines);
   if (!lines.length) throw new InvalidStoreOrderError("El pedido no tiene productos.");
   if (input.delivery.method === "pickup" && input.shippingAmount !== 0) throw new InvalidStoreOrderError("La recolección no tiene costo de envío.");
@@ -381,6 +386,39 @@ type StoreTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 /** Minutos extra después de que vence la sesión de Stripe antes de liberar el apartado (un webhook puede llegar tarde). */
 export const STORE_HOLD_GRACE_MINUTES = 5;
 
+/** Pedidos vencidos que libera, como máximo, la ruta caliente del checkout. */
+export const STORE_CHECKOUT_RELEASE_LIMIT = 10;
+
+const holdCutoff = (now: Date) => new Date(now.getTime() - STORE_HOLD_GRACE_MINUTES * 60_000);
+
+/**
+ * Pedido pendiente cuyo apartado venció (sesión vencida más la gracia, o 5 minutos sin sesión). Los marcados como
+ * excepción (p. ej. Stripe cobró otro monto) conservan su apartado hasta que una persona los resuelva.
+ */
+function expiredHoldWhere(cutoff: Date) {
+  return and(
+    eq(storeOrders.paymentStatus, "pending"),
+    eq(storeOrders.inventoryReserved, true),
+    ne(storeOrders.fulfillmentStatus, "exception"),
+    or(lt(storeOrders.checkoutExpiresAt, cutoff), and(isNull(storeOrders.checkoutExpiresAt), lt(storeOrders.createdAt, cutoff))),
+  );
+}
+
+/**
+ * Unidades apartadas por pedidos ya vencidos que aún no se liberan, por producto. Solo lee: catálogo y carrito suman
+ * esto a `existencias − apartado` en vez de liberar en cada consulta.
+ */
+export async function getExpiredHeldUnits(db: Executor, productIds: string[], now: Date = new Date()): Promise<Map<string, number>> {
+  if (!productIds.length) return new Map();
+  const rows = await db
+    .select({ productId: storeOrderItems.productId, units: sql<number>`sum(${storeOrderItems.quantity})::int` })
+    .from(storeOrderItems)
+    .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.orderId))
+    .where(and(inArray(storeOrderItems.productId, productIds), expiredHoldWhere(holdCutoff(now))))
+    .groupBy(storeOrderItems.productId);
+  return new Map(rows.map((row) => [row.productId, Number(row.units)]));
+}
+
 /**
  * Bloquea en el orden único del módulo: primero el inventario de los productos del pedido (por id) y después la fila del
  * pedido. Las líneas de un pedido no cambian después de crearse, así que leerlas sin bloqueo es seguro.
@@ -480,7 +518,12 @@ async function closePendingOrder(
   orderId: string,
   close: { paymentStatus: "failed" | "cancelled"; event: StoreOrderEventType; source: EventSource; metadata?: Record<string, unknown>; onlyIfHoldExpiredBefore?: Date },
 ): Promise<{ order: StoreOrder; changed: boolean } | null> {
+  // Pre-chequeo sin bloqueo: un pedido que ya no está pendiente no toma candados de inventario.
+  const current = await findStoreOrderById(db, orderId);
+  if (!current) return null;
+  if (current.paymentStatus !== "pending") return { order: current, changed: false };
   return db.transaction(async (tx) => {
+
     const locked = await lockOrderAndInventory(tx, orderId);
     if (!locked) return null;
     const { order, items } = locked;
@@ -505,26 +548,26 @@ export function markStoreCheckoutCreateFailed(db: Database, orderId: string, rea
 }
 
 /**
- * Libera los pedidos pendientes cuyo apartado venció (sesión vencida más la gracia, o 5 minutos sin sesión). Procesa hasta
- * 100 por llamada. Quien lea disponibilidad (catálogo, carrito) debe llamarla antes; `createStoreOrder` ya lo hace.
+ * Libera los pedidos pendientes cuyo apartado venció, del que venció antes al más reciente, hasta `limit` (100 por
+ * defecto; la ruta caliente del checkout usa STORE_CHECKOUT_RELEASE_LIMIT). Un pedido que falla se registra y no detiene
+ * a los demás. Leer disponibilidad NO debe llamarla: usar `getExpiredHeldUnits`.
  */
-export async function releaseExpiredStoreOrders(db: Database, now: Date = new Date()): Promise<number> {
-  const cutoff = new Date(now.getTime() - STORE_HOLD_GRACE_MINUTES * 60_000);
+export async function releaseExpiredStoreOrders(db: Database, now: Date = new Date(), options: { limit?: number; source?: EventSource } = {}): Promise<number> {
+  const cutoff = holdCutoff(now);
   const expired = await db
     .select({ id: storeOrders.id })
     .from(storeOrders)
-    .where(
-      and(
-        eq(storeOrders.paymentStatus, "pending"),
-        eq(storeOrders.inventoryReserved, true),
-        or(lt(storeOrders.checkoutExpiresAt, cutoff), and(isNull(storeOrders.checkoutExpiresAt), lt(storeOrders.createdAt, cutoff))),
-      ),
-    )
-    .limit(100);
+    .where(expiredHoldWhere(cutoff))
+    .orderBy(asc(sql`coalesce(${storeOrders.checkoutExpiresAt}, ${storeOrders.createdAt})`), asc(storeOrders.id))
+    .limit(options.limit ?? 100);
   let released = 0;
   for (const { id } of expired) {
-    const result = await closePendingOrder(db, id, { paymentStatus: "cancelled", event: "CHECKOUT_EXPIRED", source: "api", onlyIfHoldExpiredBefore: cutoff });
-    if (result?.changed) released++;
+    try {
+      const result = await closePendingOrder(db, id, { paymentStatus: "cancelled", event: "CHECKOUT_EXPIRED", source: options.source ?? "api", onlyIfHoldExpiredBefore: cutoff });
+      if (result?.changed) released++;
+    } catch (error) {
+      console.error(JSON.stringify({ level: "error", msg: "store_release_failed", orderId: id, error: String(error).slice(0, 300) }));
+    }
   }
   return released;
 }
