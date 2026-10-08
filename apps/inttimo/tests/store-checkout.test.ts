@@ -3,6 +3,7 @@ import {
   createStoreOrder,
   findStoreOrderByIdempotencyKey,
   findStoreOrderBySessionId,
+  listStoreOrderEvents,
   markStoreCheckoutCreateFailed,
   upsertStoreProduct,
   type Database,
@@ -245,6 +246,62 @@ describe("checkout de la tienda", () => {
     expect(await checkout({}, { key: "clave-stripe-caido" })).toMatchObject({ status: 503, body: { error: { code: "service_unavailable" } } });
     expect(await findStoreOrderByIdempotencyKey(db, "clave-stripe-caido")).toMatchObject({ paymentStatus: "failed", inventoryReserved: false });
     expect(await inventoryOf(db, productId)).toEqual({ onHand: 20, reserved: 0 });
+  });
+
+  it("el reintento con la misma clave no dice 'ya se procesó' si no se cobró nada", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    gateway.fail = true;
+    expect((await checkout({}, { key: "clave-reintento" })).status).toBe(503);
+    gateway.fail = false;
+    const retry = await checkout({}, { key: "clave-reintento" });
+    expect(retry).toMatchObject({ status: 409, body: { error: { code: "validation_error", message: "Este intento de pago no se completó. Recarga la página para intentarlo de nuevo." } } });
+    expect(gateway.storeCreated).toHaveLength(0);
+  });
+
+  it("replay por estado: pagado, preparando y sesión por vencer", async () => {
+    const first = await checkout({}, { key: "clave-estados" });
+    if (!first.ok) throw new Error("setup");
+    const order = (await findStoreOrderByIdempotencyKey(db, "clave-estados"))!;
+    // Sesión con menos de 2 minutos de vida: no se ofrece.
+    expect(await checkout({}, { key: "clave-estados", now: new Date(order.checkoutExpiresAt!.getTime() - 60_000) })).toMatchObject({ status: 409, body: { error: { message: expect.stringContaining("Este intento de pago no se completó") } } });
+    // Pedido pendiente sin sesión ligada todavía.
+    const { order: bare } = await createStoreOrder(db, pickupOrderFor(productId, 1, { idempotencyKey: "clave-sin-sesion" }), T0);
+    expect(bare.stripeCheckoutUrl).toBeNull();
+    expect(await checkout({}, { key: "clave-sin-sesion" })).toMatchObject({ status: 409, body: { error: { message: "Estamos preparando tu pago. Espera unos segundos e inténtalo de nuevo." } } });
+    // Pagado.
+    await db.execute(`update store_orders set payment_status = 'paid' where id = '${order.id}'`);
+    expect(await checkout({}, { key: "clave-estados" })).toMatchObject({ status: 409, body: { error: { message: "Esta compra ya se procesó. Recarga la página para iniciar una nueva." } } });
+  });
+
+  it("la expiración de Stripe se calcula justo antes de llamar a la pasarela", async () => {
+    let calls = 0;
+    const clock = () => (calls++ === 0 ? T0 : minutesAfter(5));
+    const result = await createStoreCheckout({ ...deps(), now: clock }, { body: body(), idempotencyKey: "clave-reloj-01", clientIp: null });
+    expect(result.status).toBe(201);
+    expect(gateway.storeCreated[0]!.expiresAt.getTime()).toBeGreaterThanOrEqual(minutesAfter(5).getTime() + STORE_CHECKOUT_TTL_MINUTES * 60_000);
+  });
+
+  it("los errores de Stripe no guardan correos de clientes", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    class EmailGateway extends FakeGateway {
+      override async createStoreCheckout(): Promise<never> {
+        throw new Error("invalid customer_email ana@ejemplo.com rejected");
+      }
+    }
+    gateway = new EmailGateway();
+    await checkout({}, { key: "clave-correo-01" });
+    expect(JSON.stringify(spy.mock.calls)).not.toContain("ana@ejemplo.com");
+    expect(JSON.stringify(spy.mock.calls)).toContain("[correo]");
+    const events = await listStoreOrderEvents(db, (await findStoreOrderByIdempotencyKey(db, "clave-correo-01"))!.id);
+    expect(JSON.stringify(events)).not.toContain("ana@ejemplo.com");
+    expect(JSON.stringify(events)).toContain("[correo]");
+  });
+
+  it("marketingConsent inválido responde en español", async () => {
+    const result = await checkout({ marketingConsent: "si" });
+    expect(result).toMatchObject({ status: 400, body: { error: { code: "validation_error" } } });
+    expect(!result.ok && result.body.error.message).toContain("Preferencia de comunicación no válida.");
+    expect(!result.ok && result.body.error.message).not.toMatch(/Invalid|expected/);
   });
 
   it("si el pedido se cerró antes de ligar la sesión, expira la sesión en Stripe", async () => {

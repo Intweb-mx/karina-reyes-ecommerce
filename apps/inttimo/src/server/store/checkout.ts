@@ -40,7 +40,7 @@ const checkoutSchema = z.object({
     phone: phone.optional().transform((value) => value || null),
   }),
   lines: cartLinesSchema,
-  couponCode: z.string().trim().max(50).optional(),
+  couponCode: z.string({ error: "Cupón no válido." }).trim().max(50, "Cupón no válido.").optional(),
   delivery: z.discriminatedUnion(
     "method",
     [
@@ -50,6 +50,7 @@ const checkoutSchema = z.object({
         quoteId: z.string({ error: QUOTE_SHIPPING }).max(60, QUOTE_SHIPPING),
         rateId: z.string({ error: QUOTE_SHIPPING }).max(30, QUOTE_SHIPPING),
         address: addressSchema.extend({
+          reference: z.string({ error: "Referencia no válida." }).trim().max(200, "Referencia demasiado larga.").optional().transform((value) => value || null),
           name: z.string({ error: "Indica quién recibe." }).trim().min(2, "Indica quién recibe.").max(120, "Nombre demasiado largo."),
           phone: phone.min(7, "La paquetería necesita un teléfono de contacto."),
         }),
@@ -58,9 +59,9 @@ const checkoutSchema = z.object({
     { error: "Elige cómo quieres recibir tu pedido." },
   ),
   acceptTerms: z.literal(true, { error: "Debes aceptar los Términos y Condiciones y el Aviso de Privacidad para continuar." }),
-  termsVersion: z.number({ error: "Falta la versión de los términos." }).int().positive(),
-  marketingConsent: z.boolean().default(false),
-  website: z.string().max(200).optional(),
+  termsVersion: z.number({ error: "Falta la versión de los términos." }).int("Versión de los términos no válida.").positive("Versión de los términos no válida."),
+  marketingConsent: z.boolean({ error: "Preferencia de comunicación no válida." }).default(false),
+  website: z.string({ error: "Revisa los datos marcados." }).max(200, "Revisa los datos marcados.").optional(),
 });
 
 /**
@@ -82,12 +83,34 @@ export function checkoutFieldKey(path: PropertyKey[]): string | null {
   return null;
 }
 
-/** Misma Idempotency-Key: devuelve la misma sesión mientras el pedido siga pendiente y la sesión vigente; si no, 409. */
+/** Una sesión que vence en menos de esto ya no se ofrece: el cliente podría llegar a Stripe con la sesión caducada. */
+const MIN_REPLAY_SESSION_MS = 2 * 60_000;
+
+/** Quita correos de un texto de error antes de registrarlo o guardarlo (privacidad), y lo recorta. */
+export function redactError(error: unknown): string {
+  return String(error).replace(/[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+/g, "[correo]").slice(0, 300);
+}
+
+/**
+ * Misma Idempotency-Key. Devuelve la misma sesión si el pedido sigue pendiente y la sesión vigente; si no, dice la verdad
+ * sobre lo ocurrido (nunca "ya se procesó" cuando no se cobró nada). No crea pedidos nuevos.
+ */
 function replay(order: StoreOrder, now: Date): StoreResult<CheckoutResponse> {
-  if (order.paymentStatus === "pending" && order.stripeCheckoutUrl && order.checkoutExpiresAt && order.checkoutExpiresAt > now) {
-    return ok({ orderNumber: order.orderNumber, checkoutUrl: order.stripeCheckoutUrl, checkoutExpiresAt: order.checkoutExpiresAt.toISOString() });
+  switch (order.paymentStatus) {
+    case "paid":
+    case "authorized":
+    case "partially_refunded":
+    case "refunded":
+      return fail(409, "validation_error", "Esta compra ya se procesó. Recarga la página para iniciar una nueva.");
+    case "pending":
+      if (!order.stripeCheckoutUrl || !order.checkoutExpiresAt) return fail(409, "validation_error", "Estamos preparando tu pago. Espera unos segundos e inténtalo de nuevo.");
+      if (order.checkoutExpiresAt.getTime() - now.getTime() >= MIN_REPLAY_SESSION_MS) {
+        return ok({ orderNumber: order.orderNumber, checkoutUrl: order.stripeCheckoutUrl, checkoutExpiresAt: order.checkoutExpiresAt.toISOString() });
+      }
+      return fail(409, "validation_error", "Este intento de pago no se completó. Recarga la página para intentarlo de nuevo.");
+    default:
+      return fail(409, "validation_error", "Este intento de pago no se completó. Recarga la página para intentarlo de nuevo.");
   }
-  return fail(409, "validation_error", "Esta compra ya se procesó. Recarga la página para iniciar una nueva.");
 }
 
 /** Crea el pedido; si falta stock y había apartados vencidos sin liberar, libera en bloque y reintenta una vez. */
@@ -117,7 +140,7 @@ export async function createStoreCheckout(
     return fail(400, "validation_error", "Idempotency-Key no válida (8–100 caracteres: letras, números, _ o -).");
   }
 
-  const parsed = checkoutSchema.safeParse(input.body);
+  const parsed = checkoutSchema.safeParse(input.body, { error: () => "Dato no válido." }); // texto por omisión en español para cualquier campo sin mensaje propio
   if (!parsed.success) {
     const fieldErrors = zodFieldErrors(parsed.error, checkoutFieldKey);
     // Los problemas sin campo en pantalla (p. ej. la versión de los términos) viajan solo en el mensaje.
@@ -214,11 +237,12 @@ export async function createStoreCheckout(
       email: order.email,
       successUrl: `${base}/pedido/confirmado?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${base}/checkout?pago=cancelado`,
-      expiresAt: new Date(now.getTime() + STORE_CHECKOUT_TTL_MINUTES * 60_000),
+      // Se calcula justo antes de llamar a Stripe: una liberación lenta no debe dejarla bajo el mínimo de 30 min.
+      expiresAt: new Date((deps.now?.() ?? new Date()).getTime() + STORE_CHECKOUT_TTL_MINUTES * 60_000),
     });
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", msg: "store_checkout_create_failed", orderId: order.id, error: String(error).slice(0, 300) }));
-    await markStoreCheckoutCreateFailed(deps.db, order.id, String(error));
+    console.error(JSON.stringify({ level: "error", msg: "store_checkout_create_failed", orderId: order.id, error: redactError(error) }));
+    await markStoreCheckoutCreateFailed(deps.db, order.id, redactError(error));
     return fail(503, "service_unavailable", "No pudimos conectar con el sistema de pago. Inténtalo de nuevo en unos minutos.");
   }
 
@@ -226,7 +250,7 @@ export async function createStoreCheckout(
     // El pedido se cerró en paralelo: nadie debe poder pagar esa sesión.
     console.error(JSON.stringify({ level: "error", msg: "store_checkout_attach_failed", orderId: order.id, sessionId: session.id }));
     await deps.gateway.expireCheckout(session.id).catch((error: unknown) => {
-      console.error(JSON.stringify({ level: "error", msg: "store_checkout_expire_failed", sessionId: session.id, error: String(error).slice(0, 300) }));
+      console.error(JSON.stringify({ level: "error", msg: "store_checkout_expire_failed", sessionId: session.id, error: redactError(error) }));
     });
     return fail(503, "service_unavailable", "No pudimos preparar tu pago. Inténtalo de nuevo en unos minutos.");
   }
