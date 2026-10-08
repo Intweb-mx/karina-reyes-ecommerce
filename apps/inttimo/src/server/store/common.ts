@@ -4,6 +4,7 @@ import type { ZodError } from "zod";
 import type { StoreError, StoreErrorCode } from "../../lib/store/contract.ts";
 import type { PaymentGateway } from "../presale/gateway.ts";
 import type { ShippingProvider } from "../shipping/provider.ts";
+import type { StoreMismatch } from "./settlement.ts";
 
 export type StoreDeps = {
   db: Database;
@@ -15,6 +16,8 @@ export type StoreDeps = {
   now?: () => Date;
   /** Se llama cuando un pedido queda pagado (correo de confirmación idempotente). */
   onPaid?: (orderId: string) => Promise<unknown>;
+  /** Se llama (una vez por pedido) cuando un cobro no coincide con el pedido: aviso al equipo. */
+  onMismatch?: (mismatch: StoreMismatch) => Promise<unknown>;
 };
 
 export type StoreResult<T> = { ok: true; status: number; data: T } | { ok: false; status: number; body: StoreError };

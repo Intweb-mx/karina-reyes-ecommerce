@@ -37,5 +37,6 @@ export function getStoreDeps(): StoreDeps {
     shipping: getShippingProvider(),
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "",
     onPaid: confirmStorePaid,
+    onMismatch: notifyStoreMismatch,
   };
 }

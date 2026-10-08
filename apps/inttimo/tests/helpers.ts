@@ -82,6 +82,7 @@ export class FakeGateway implements PaymentGateway {
   created: CreateCheckoutInput[] = [];
   storeCreated: CreateStoreCheckoutInput[] = [];
   expired: string[] = [];
+  retrieved: string[] = [];
   fail = false;
   snapshots = new Map<string, Partial<CheckoutSnapshot>>();
 
@@ -104,6 +105,7 @@ export class FakeGateway implements PaymentGateway {
   }
 
   async retrieveCheckout(sessionId: string): Promise<CheckoutSnapshot> {
+    this.retrieved.push(sessionId);
     const base = { id: sessionId, status: "open" as const, paymentStatus: "unpaid" as const, paymentIntentId: null, shippingAddress: null };
     if (sessionId.startsWith("cs_test_store_")) {
       const input = this.storeCreated[Number(sessionId.slice("cs_test_store_".length)) - 1];

@@ -125,6 +125,14 @@ describe("webhook de Stripe: pedidos de la tienda", () => {
     expect(await handleStripeEvent(db, sessionEvent("checkout.session.completed", storeSession({ amount_total: 1 }), "evt_mismatch_1"))).toEqual({ result: "duplicate" });
   });
 
+  it("el mismo cobro con monto distinto reenviado en otro evento solo avisa la primera vez", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const first = await handleStripeEvent(db, sessionEvent("checkout.session.completed", storeSession({ amount_total: 1 }), "evt_mm_a"));
+    const second = await handleStripeEvent(db, sessionEvent("checkout.session.completed", storeSession({ amount_total: 1 }), "evt_mm_b"));
+    expect(first).toHaveProperty("mismatch");
+    expect(second).not.toHaveProperty("mismatch");
+  });
+
   it("reembolso de un pedido aún no pagado: avisa en el log, no cambia nada y responde sin error", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -133,6 +141,7 @@ describe("webhook de Stripe: pedidos de la tienda", () => {
     expect(await handleStripeEvent(db, refundEvent("pi_store_1", 30_000))).toMatchObject({ result: "unchanged", storeOrderId: order.id, paymentStatus: "pending" });
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("store_refund_before_paid"));
     expect(warn.mock.calls[0]![0]).toContain(order.orderNumber);
+    expect(JSON.parse(warn.mock.calls[0]![0] as string)).toMatchObject({ msg: "store_refund_before_paid_needs_review", fulfillmentStatus: "exception" });
     expect(await reload()).toMatchObject({ paymentStatus: "pending", amountRefunded: 0 });
   });
 });

@@ -66,8 +66,9 @@ export async function handleStripeEvent(db: Database, event: Stripe.Event): Prom
     const refunded = await applyStoreRefund(tx, storeOrder.id, charge.amount_refunded, ctx);
     const current = refunded?.order ?? storeOrder;
     if (!refunded?.changed && !["paid", "partially_refunded", "refunded"].includes(current.paymentStatus)) {
-      // Reembolso de un pedido aún no pagado: no se descarta en silencio; la reconciliación recogerá el estado.
-      console.warn(JSON.stringify({ level: "warn", msg: "store_refund_before_paid", orderNumber: current.orderNumber, paymentIntentId }));
+      // Reembolso de un pedido aún no pagado: no se descarta en silencio, pero tampoco se corrige solo (la reconciliación NO lo
+      // recoge): una persona debe revisarlo en el panel.
+      console.warn(JSON.stringify({ level: "warn", msg: "store_refund_before_paid_needs_review", orderNumber: current.orderNumber, fulfillmentStatus: current.fulfillmentStatus, paymentIntentId }));
     }
     return { result: refunded?.changed ? "applied" : "unchanged", storeOrderId: current.id, paymentStatus: current.paymentStatus };
   });
