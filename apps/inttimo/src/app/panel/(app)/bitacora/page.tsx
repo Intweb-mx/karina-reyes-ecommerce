@@ -1,5 +1,4 @@
 import { listAdminActions } from "@inttimo/database";
-import Link from "next/link";
 import { formatMoney } from "@/lib/format";
 import { requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
@@ -43,7 +42,7 @@ export default async function AuditLogPage() {
   const entries = (await listAdminActions(getDb(), 300)).filter((e) => e.action !== "reservation.view").slice(0, 200);
   return (
     <div className="space-y-8">
-      <PageHeader back={<Link href="/panel/ajustes" className="hover:text-fg">← Ajustes</Link>} title="Actividad" subtitle="Quién hizo qué en el panel. Este registro no se puede editar ni borrar." />
+      <PageHeader title="Actividad" subtitle="Quién hizo qué en el panel. Este registro no se puede editar ni borrar." />
       <Card>
         {entries.length === 0 && <EmptyState title="Todavía no hay actividad." />}
         <ol className="divide-y divide-border">

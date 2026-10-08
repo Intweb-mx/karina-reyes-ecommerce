@@ -3,9 +3,10 @@ import { INCIDENT_LABELS, type OrderSummary } from "@/server/admin/contract";
 import { getInbox } from "@/server/admin/inbox";
 import { requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
+import { WelcomeTip } from "./WelcomeTip";
 import { Badge, Card, daysSince, EmptyState, PageHeader, Stat } from "../ui";
 
-export const metadata = { title: "Por hacer" };
+export const metadata = { title: "Hoy" };
 
 type Row = OrderSummary & { key: string; badge?: string };
 
@@ -18,7 +19,8 @@ export default async function InboxPage() {
 
   return (
     <div className="space-y-10">
-      <PageHeader title="Por hacer" subtitle={<span className="first-letter:uppercase">{greeting}</span>} />
+      <PageHeader title="Hoy" subtitle={<span className="first-letter:uppercase">{greeting} · Lo que hay que atender, del pedido más antiguo al más reciente.</span>} />
+      <WelcomeTip />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Generar guía" value={inbox.toLabel.length} tone={inbox.toLabel.length ? "attention" : "good"} />
