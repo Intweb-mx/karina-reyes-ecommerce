@@ -11,6 +11,7 @@ import {
   markShipped,
   releaseBonusSend,
   type Database,
+  type EventSource,
   type PresaleReservation,
   type ShipmentDetails,
 } from "@inttimo/database";
@@ -39,8 +40,8 @@ export function hashBonusToken(token: string): string {
  * su guía; ENTREGADO manda el correo con el bonus (una sola vez). Un fallo de correo no revierte el cambio de
  * estado: queda en el historial y el bonus se puede reintentar.
  */
-export async function fulfillReservation(deps: FulfillmentDeps, reservationId: string, action: FulfillmentAction, actor: string): Promise<FulfillmentResult> {
-  const ctx = { source: "panel" as const, actor };
+export async function fulfillReservation(deps: FulfillmentDeps, reservationId: string, action: FulfillmentAction, actor: string, source: EventSource = "panel"): Promise<FulfillmentResult> {
+  const ctx = { source, actor };
   const updated =
     action.type === "ready_for_pickup"
       ? await markReadyForPickup(deps.db, reservationId, ctx)
@@ -59,17 +60,17 @@ export async function fulfillReservation(deps: FulfillmentDeps, reservationId: s
 
   const campaign = await getCampaignById(deps.db, updated.campaignId);
 
-  if (action.type === "delivered") return deliverWithBonus(deps, updated, campaign);
+  if (action.type === "delivered") return deliverWithBonus(deps, updated, campaign, source);
 
   const note = action.note?.trim() || null;
   const point = campaign?.pickupPoints.find((p) => p.id === updated.pickupPointId);
   let email: Outcome = "sent";
   try {
     await deps.send(fulfillmentMail(updated, campaign?.productName ?? "inttimo", note, point));
-    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", "panel", { metadata: { status: updated.fulfillmentStatus, bonusIncluded: false, note } });
+    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", source, { metadata: { status: updated.fulfillmentStatus, bonusIncluded: false, note } });
   } catch (error) {
     email = "failed";
-    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_FAILED", "panel", { metadata: { error: String(error).slice(0, 300), note } });
+    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_FAILED", source, { metadata: { error: String(error).slice(0, 300), note } });
   }
 
   return { ok: true, reservation: updated, email, bonus: "skipped" };
@@ -81,7 +82,7 @@ function hasBonusFiles(config: { pdfUrl: string | null; videoUrl: string | null 
 }
 
 /** ENTREGADO: reclama el bonus (idempotente), crea el enlace personal y lo manda en el correo de entrega. */
-async function deliverWithBonus(deps: FulfillmentDeps, updated: PresaleReservation, campaign: Awaited<ReturnType<typeof getCampaignById>>): Promise<FulfillmentResult> {
+async function deliverWithBonus(deps: FulfillmentDeps, updated: PresaleReservation, campaign: Awaited<ReturnType<typeof getCampaignById>>, source: EventSource): Promise<FulfillmentResult> {
   const config = campaign?.bonus;
   if (!campaign || !config || !hasBonusFiles(config)) return { ok: true, reservation: updated, email: "skipped", bonus: "not_configured" };
   if (!updated.paidAt || updated.paidAt > campaign.endsAt) return { ok: true, reservation: updated, email: "skipped", bonus: "not_eligible" };
@@ -96,12 +97,12 @@ async function deliverWithBonus(deps: FulfillmentDeps, updated: PresaleReservati
     await createBonusLink(deps.db, { reservationId: updated.id, tokenHash: hashBonusToken(token), expiresAt });
     const bonusInfo: BonusEmailInfo = { title: config.title, url: `${deps.siteUrl.replace(/\/$/, "")}/bonus/${token}`, expiresAt };
     await deps.send(deliveredMail(updated, campaign.productName, bonusInfo));
-    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", "panel", { metadata: { status: updated.fulfillmentStatus, bonusIncluded: true } });
+    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", source, { metadata: { status: updated.fulfillmentStatus, bonusIncluded: true } });
     await addReservationEvent(deps.db, updated.id, "BONUS_SENT", "api", { metadata: { expiresAt: expiresAt.toISOString() } });
     return { ok: true, reservation: updated, email: "sent", bonus: "sent" };
   } catch (error) {
     await releaseBonusSend(deps.db, updated.id);
-    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_FAILED", "panel", { metadata: { status: updated.fulfillmentStatus, error: String(error).slice(0, 300) } });
+    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_FAILED", source, { metadata: { status: updated.fulfillmentStatus, error: String(error).slice(0, 300) } });
     await addReservationEvent(deps.db, updated.id, "BONUS_FAILED", "api", { metadata: { error: String(error).slice(0, 300) } });
     return { ok: true, reservation: updated, email: "failed", bonus: "failed" };
   }
@@ -111,7 +112,7 @@ async function deliverWithBonus(deps: FulfillmentDeps, updated: PresaleReservati
  * Envío: Karina entregó el paquete a la paquetería. Usa la guía ya generada en el panel; marca ENVIADO,
  * avisa al cliente con su número de guía (regla de Karina, 2026-10-02: guía generada ≠ enviado). El bonus sale al marcar ENTREGADO.
  */
-export async function handToCarrier(deps: FulfillmentDeps, reservationId: string, actor: string): Promise<FulfillmentResult> {
+export async function handToCarrier(deps: FulfillmentDeps, reservationId: string, actor: string, source: EventSource = "panel"): Promise<FulfillmentResult> {
   const reservation = await findReservationById(deps.db, reservationId);
   if (!reservation) return { ok: false, error: "Pedido no encontrado." };
   if (!reservation.trackingNumber || !reservation.carrier) return { ok: false, error: "Primero genera la guía." };
@@ -129,6 +130,7 @@ export async function handToCarrier(deps: FulfillmentDeps, reservationId: string
       },
     },
     actor,
+    source,
   );
 }
 
