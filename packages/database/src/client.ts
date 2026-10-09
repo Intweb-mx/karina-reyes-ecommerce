@@ -19,6 +19,10 @@ export function createDatabase(url = process.env.DATABASE_URL): Database {
     // Poolers tipo PgBouncer (modo transaction) no admiten prepared statements.
     prepare: process.env.DATABASE_PREPARE !== "false",
     connect_timeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 10),
+    // Serverless + pooler: el pooler cierra las conexiones inactivas y una función congelada no se entera; reutilizarla deja la
+    // consulta colgada hasta el límite de la función. Se cierran pronto y se renuevan seguido para no reutilizar una conexión muerta.
+    idle_timeout: Number(process.env.DATABASE_IDLE_TIMEOUT ?? 20),
+    max_lifetime: Number(process.env.DATABASE_MAX_LIFETIME ?? 300),
     onnotice: () => {},
   });
   return drizzle(client, { schema, casing: "snake_case" }) as unknown as Database;
