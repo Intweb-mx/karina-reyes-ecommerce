@@ -398,3 +398,21 @@ export const rateLimits = pgTable("rate_limits", {
   count: integer().notNull(),
   windowStartedAt: timestamp({ withTimezone: true }).notNull(),
 });
+
+/** Notas internas del equipo sobre un pedido. Append-only (trigger en la migración 0009). */
+export const presaleOrderNotes = pgTable(
+  "presale_order_notes",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    reservationId: uuid()
+      .notNull()
+      .references(() => presaleReservations.id, { onDelete: "restrict" }),
+    body: text().notNull(),
+    authorEmail: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("presale_order_notes_reservation_idx").on(table.reservationId, table.createdAt),
+    check("presale_order_notes_body_check", sql`char_length(${table.body}) between 1 and 2000`),
+  ],
+);

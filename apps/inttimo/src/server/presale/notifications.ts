@@ -1,6 +1,7 @@
 import {
   addReservationEvent,
   claimConfirmationEmail,
+  findReservationById,
   getCampaignById,
   releaseConfirmationEmail,
   type Database,
@@ -94,6 +95,28 @@ export async function sendConfirmationIfNeeded(
     });
   }
   return "sent";
+}
+
+/**
+ * Reenvío manual desde el panel. Si la confirmación nunca salió, hace el envío normal (y la marca como enviada);
+ * si ya salió, la manda otra vez y lo deja en el historial.
+ */
+export async function resendConfirmation(db: Database, reservationId: string, deps: { send: MailSender }): Promise<"sent" | "failed" | "not_paid"> {
+  const reservation = await findReservationById(db, reservationId);
+  if (!reservation || (reservation.status !== "paid" && reservation.status !== "partially_refunded")) return "not_paid";
+  const first = await sendConfirmationIfNeeded(db, reservationId, deps);
+  if (first !== "skipped") return first;
+
+  const campaign = await getCampaignById(db, reservation.campaignId);
+  const point = campaign?.pickupPoints.find((p) => p.id === reservation.pickupPointId);
+  try {
+    await deps.send(customerMail(reservation, campaign?.productName ?? "inttimo", point));
+    await addReservationEvent(db, reservation.id, "CONFIRMATION_EMAIL_SENT", "panel", { metadata: { manual: true } });
+    return "sent";
+  } catch (error) {
+    await addReservationEvent(db, reservation.id, "CONFIRMATION_EMAIL_FAILED", "panel", { metadata: { manual: true, error: String(error).slice(0, 300) } });
+    return "failed";
+  }
 }
 
 // ---------- Entrega ----------

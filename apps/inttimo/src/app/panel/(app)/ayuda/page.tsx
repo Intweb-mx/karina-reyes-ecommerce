@@ -47,10 +47,10 @@ export default async function PanelHelpPage() {
         <h2 className="font-serif text-2xl font-medium">Qué hay en cada sección</h2>
         <div className="grid gap-4 md:grid-cols-2">
           <Guide title="Hoy" href="/panel">
-            Es la pantalla de inicio. Muestra los pedidos pagados que faltan por <strong>enviar</strong> y por <strong>preparar para recoger</strong>, del más antiguo al más reciente. Si un pedido lleva 3 días o más esperando, se marca en amarillo.
+            Es la pantalla de inicio. Reúne lo que hay que atender, del pedido más antiguo al más reciente, en cinco tarjetas: <strong>Generar guía</strong>, <strong>Entregar a la paquetería</strong>, <strong>Avisar que está listo</strong>, <strong>Esperando que lo recojan</strong> y <strong>Problemas por resolver</strong>. Si un pedido lleva 3 días o más esperando, se marca en amarillo.
           </Guide>
-          <Guide title="Pedidos de la preventa">
-            La lista completa de compras. Puedes buscar por nombre, correo o folio, filtrar por estado y <strong>descargar la lista en Excel</strong>. Al abrir un pedido ves los datos del cliente, la entrega, sus respuestas y todo su historial.
+          <Guide title="Pedidos" href="/panel/pedidos">
+            La lista completa de compras, con pestañas para filtrar. Puedes buscar por nombre, correo, teléfono, folio o número de guía y <strong>descargar la lista en Excel</strong>. Al abrir un pedido ves los datos del cliente, la entrega, sus respuestas, notas internas, los botones para reenviar correos y todo su historial. En <strong>Resumen de la preventa</strong> ves ventas, piezas disponibles y el cierre.
           </Guide>
           <Guide title="Configurar preventa">
             Fechas de apertura y cierre, precio, máximo por compra, entregas (envío y recolección) y los términos. <strong>Los cambios se ven en la página en cuanto guardas</strong>: revísalos con calma.
@@ -72,10 +72,10 @@ export default async function PanelHelpPage() {
           <Card title="Pedidos con envío a domicilio">
             <Steps
               steps={[
-                <>Abre <strong>Hoy</strong> y entra al pedido más antiguo de la lista &quot;Por enviar&quot;.</>,
-                <>Presiona <strong>Generar guía</strong>. El cliente recibe su número de guía por correo automáticamente.</>,
+                <>Abre <strong>Hoy</strong> y entra al pedido más antiguo de la tarjeta &quot;Generar guía&quot;. En el pedido, el bloque <strong>Siguiente paso</strong> te dice qué botón presionar.</>,
+                <>Presiona <strong>Generar guía</strong>. Esto compra la guía; al cliente todavía no se le avisa nada.</>,
                 <>Presiona <strong>Imprimir guía</strong> y pégala en la caja.</>,
-                <>Entrega el paquete a la paquetería.</>,
+                <>Entrega el paquete a la paquetería y presiona <strong>Entregué el paquete a la paquetería</strong>. Ahí el pedido pasa a ENVIADO y el cliente recibe por correo su número de guía y el bonus.</>,
                 <>Cuando la paquetería lo entregue, regresa al pedido y presiona <strong>Marcar como ENTREGADO</strong>.</>,
               ]}
             />
@@ -83,7 +83,7 @@ export default async function PanelHelpPage() {
           <Card title="Pedidos para recoger en Chihuahua">
             <Steps
               steps={[
-                <>Abre <strong>Hoy</strong> y entra al pedido de la lista &quot;Para recoger&quot;.</>,
+                <>Abre <strong>Hoy</strong> y entra al pedido de la tarjeta &quot;Avisar que está listo&quot;.</>,
                 <>Cuando el pedido esté listo en el punto de recolección, presiona <strong>Marcar LISTO PARA RECOGER y avisar</strong>. El cliente recibe un correo.</>,
                 <>Cuando el cliente lo recoja, presiona <strong>Marcar como ENTREGADO</strong>.</>,
               ]}
@@ -132,10 +132,10 @@ export default async function PanelHelpPage() {
             Los reembolsos se hacen en el panel de Stripe. El pedido cambia a &quot;Reembolsada&quot; o &quot;Reembolso parcial&quot; en cuanto Stripe lo confirma.
           </Faq>
           <Faq q="Un pedido aparece como pago pendiente u OXXO.">
-            No lo prepares. Cuando Stripe confirme el pago, aparece solo en la lista de Hoy.
+            No lo prepares. Cuando Stripe confirme el pago, aparece solo en Hoy.
           </Faq>
           <Faq q="No encuentro un pedido.">
-            En <strong>Pedidos de la preventa</strong>, busca por nombre, correo o folio y revisa que el filtro de estado esté en &quot;Todos&quot;.
+            En <strong>Pedidos</strong>, busca por nombre, correo, teléfono, folio o número de guía y revisa que estés en la pestaña &quot;Todos&quot;.
           </Faq>
         </div>
       </section>

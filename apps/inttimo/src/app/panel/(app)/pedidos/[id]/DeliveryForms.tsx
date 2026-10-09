@@ -81,10 +81,50 @@ export function LabelForm({ action, pending: inProgress }: { action: () => Promi
   const [state, formAction, pending] = useActionState(action, undefined);
   return (
     <form action={formAction} className="space-y-3">
-      <p className="text-xs text-muted">Se compra con la paquetería que pagó el cliente (se descuenta del saldo de SkyDropX) y al cliente le llega su número de guía por correo.</p>
+      <p className="text-xs text-muted">Se compra con la paquetería que pagó el cliente (se descuenta del saldo de SkyDropX). El cliente aún no recibe nada: se le avisa cuando entregues el paquete.</p>
       <Feedback state={state} />
       <button type="submit" disabled={pending} className={buttonClass}>
         {pending ? "Generando… (puede tardar unos segundos)" : inProgress ? "Revisar si la guía ya está lista" : "Generar guía"}
+      </button>
+    </form>
+  );
+}
+
+export function HandToCarrierForm({ action }: { action: () => Promise<DeliveryState> }) {
+  const [state, formAction, pending] = useActionState(action, undefined);
+  return (
+    <form action={formAction} className="space-y-3">
+      <Feedback state={state} />
+      <button type="submit" disabled={pending} className={buttonClass}>
+        {pending ? "Avisando al cliente…" : "Entregué el paquete a la paquetería"}
+      </button>
+    </form>
+  );
+}
+
+export function NoteForm({ action }: { action: Action }) {
+  const [state, formAction, pending] = useActionState(action, undefined);
+  return (
+    <form action={formAction} className="space-y-3">
+      <label className="block text-sm font-medium">
+        Nueva nota (solo la ve el equipo)
+        <textarea name="body" rows={3} required maxLength={2000} className={inputClass} />
+      </label>
+      <Feedback state={state} />
+      <button type="submit" disabled={pending} className={secondaryButtonClass}>
+        {pending ? "Guardando…" : "Agregar nota"}
+      </button>
+    </form>
+  );
+}
+
+export function ResendEmailForm({ action, label }: { action: () => Promise<DeliveryState>; label: string }) {
+  const [state, formAction, pending] = useActionState(action, undefined);
+  return (
+    <form action={formAction} className="space-y-2">
+      <Feedback state={state} />
+      <button type="submit" disabled={pending} className={secondaryButtonClass}>
+        {pending ? "Enviando…" : label}
       </button>
     </form>
   );

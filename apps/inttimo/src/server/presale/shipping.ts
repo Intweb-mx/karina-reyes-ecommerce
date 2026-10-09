@@ -18,7 +18,6 @@ import { z } from "zod";
 import type { ContactAddress, Parcel, Rate, ShippingProvider } from "../shipping/provider.ts";
 import { getPhase, isPublic } from "./campaign.ts";
 import type { ApiError, ApiErrorCode, ShippingQuoteResponse } from "./contract.ts";
-import { fulfillReservation, type FulfillmentDeps } from "./fulfillment.ts";
 import type { ServiceResult } from "./reservations.ts";
 
 /** Tiempo que la web respeta una cotización antes de pedir otra (SkyDropX la mantiene 24 h). */
@@ -164,20 +163,22 @@ export async function resolveShippingChoice(
   };
 }
 
-export type LabelResult = { ok: true; status: "shipped" | "pending"; message: string } | { ok: false; error: string };
+export type LabelResult = { ok: true; status: "ready" | "pending"; message: string } | { ok: false; error: string };
 
 /**
- * Compra la guía en SkyDropX para un pedido pagado con envío y, cuando hay número de guía, lo marca como ENVIADO
- * (correo al cliente + bonus). Si la cotización tiene más de 23 h se vuelve a cotizar y se elige la misma paquetería
- * y servicio (o la más económica); la diferencia la absorbe inttimo, el cliente ya pagó.
+ * Compra la guía en SkyDropX para un pedido pagado con envío y guarda paquetería y número de guía. El pedido sigue
+ * EN PREPARACIÓN: pasa a ENVIADO (correo + bonus) solo con `handToCarrier`, cuando el paquete se entrega a la paquetería.
+ * Si la cotización tiene más de 23 h se vuelve a cotizar y se elige la misma paquetería y servicio (o la más económica);
+ * la diferencia la absorbe inttimo, el cliente ya pagó.
  */
-export async function generateLabel(deps: ShippingDeps & { fulfillment: FulfillmentDeps }, reservationId: string, actor: string): Promise<LabelResult> {
+export async function generateLabel(deps: ShippingDeps, reservationId: string, actor: string): Promise<LabelResult> {
   if (!deps.provider) return { ok: false, error: "SkyDropX no está configurado." };
   const reservation = await findReservationById(deps.db, reservationId);
   if (!reservation) return { ok: false, error: "Pedido no encontrado." };
   if (reservation.status !== "paid" && reservation.status !== "partially_refunded") return { ok: false, error: "Solo se generan guías de pedidos pagados." };
   if (reservation.deliveryMethod !== "shipping") return { ok: false, error: "Este pedido es con recolección." };
   if (reservation.fulfillmentStatus !== "pending") return { ok: false, error: "El pedido ya fue enviado." };
+  if (reservation.trackingNumber) return { ok: false, error: "La guía ya está generada: imprímela y avisa cuando la entregues a la paquetería." };
   if (!reservation.deliveryAddress) return { ok: false, error: "El pedido no tiene dirección capturada: genera la guía manualmente en SkyDropX." };
   const campaign = await getCampaignById(deps.db, reservation.campaignId);
   if (!campaign?.shippingProfile) return { ok: false, error: "La campaña no tiene origen ni paquete configurados." };
@@ -187,6 +188,7 @@ export async function generateLabel(deps: ShippingDeps & { fulfillment: Fulfillm
   const to: ContactAddress = { ...reservation.deliveryAddress, company: null, email: reservation.email };
 
   let shipment;
+  let labelLogged = false;
   try {
     if (reservation.shipmentId) {
       shipment = await deps.provider.getShipment(reservation.shipmentId);
@@ -203,30 +205,31 @@ export async function generateLabel(deps: ShippingDeps & { fulfillment: Fulfillm
       shipment = await deps.provider.createShipment({ quotationId, rateId, from: profile.origin, to, consignmentNote: profile.consignmentNote, packageType: profile.packageType });
       await saveLabel(deps.db, reservation.id, { shipmentId: shipment.shipmentId, labelUrl: shipment.labelUrl });
       await addReservationEvent(deps.db, reservation.id, "LABEL_CREATED", "panel", { externalRef: shipment.shipmentId, metadata: { actor } });
+      labelLogged = true;
     }
   } catch (error) {
     await addReservationEvent(deps.db, reservation.id, "LABEL_FAILED", "panel", { metadata: { actor, error: String(error).slice(0, 300) } });
     return { ok: false, error: "SkyDropX no pudo generar la guía. Revisa el saldo y los datos, o inténtalo de nuevo." };
   }
 
-  if (shipment.labelUrl && shipment.labelUrl !== reservation.labelUrl) await saveLabel(deps.db, reservation.id, { shipmentId: shipment.shipmentId, labelUrl: shipment.labelUrl });
-  if (!shipment.trackingNumber) return { ok: true, status: "pending", message: "SkyDropX está generando la guía. Vuelve a presionar en unos minutos para traer el número de guía." };
+  if (!shipment.trackingNumber) {
+    if (shipment.labelUrl && shipment.labelUrl !== reservation.labelUrl) await saveLabel(deps.db, reservation.id, { shipmentId: shipment.shipmentId, labelUrl: shipment.labelUrl });
+    return { ok: true, status: "pending", message: "SkyDropX está generando la guía. Vuelve a presionar en unos minutos para traer el número de guía." };
+  }
 
-  const result = await fulfillReservation(
-    deps.fulfillment,
-    reservation.id,
-    {
-      type: "shipped",
-      shipment: {
-        carrier: shipment.carrier ?? reservation.shippingSelection?.carrier ?? "Paquetería",
-        trackingNumber: shipment.trackingNumber,
-        trackingUrl: null,
-        shipmentId: shipment.shipmentId,
-        labelUrl: shipment.labelUrl,
-      },
-    },
-    actor,
-  );
-  if (!result.ok) return { ok: false, error: result.error };
-  return { ok: true, status: "shipped", message: `Guía ${shipment.trackingNumber} generada. Pedido marcado como ENVIADO y cliente avisado.` };
+  await saveLabel(deps.db, reservation.id, {
+    shipmentId: shipment.shipmentId,
+    labelUrl: shipment.labelUrl,
+    carrier: shipment.carrier ?? reservation.shippingSelection?.carrier ?? "Paquetería",
+    trackingNumber: shipment.trackingNumber,
+    trackingUrl: null,
+  });
+  if (!labelLogged) {
+    await addReservationEvent(deps.db, reservation.id, "LABEL_CREATED", "panel", { externalRef: shipment.shipmentId, metadata: { actor, trackingNumber: shipment.trackingNumber } });
+  }
+  return {
+    ok: true,
+    status: "ready",
+    message: `Guía ${shipment.trackingNumber} lista. Imprímela y pégala en la caja; cuando entregues el paquete a la paquetería, presiona “Entregué el paquete a la paquetería”.`,
+  };
 }

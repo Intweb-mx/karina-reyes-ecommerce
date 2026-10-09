@@ -32,20 +32,20 @@ export function PanelSidebar({ campaigns, email, storeEnabled }: { campaigns: { 
 
   const sections: Section[] = [
     { title: "Inicio", items: [{ href: "/panel", label: "Hoy", hint: "Lo que hay que atender ahora", icon: SunIcon, active: (p) => p === "/panel" }] },
-    ...campaigns.map((campaign, index) => ({
-      title: campaigns.length > 1 ? `Preventa · ${campaign.name}` : "Preventa",
+    {
+      title: "Preventa",
       items: [
-        {
-          href: `/panel/campanas/${campaign.slug}`,
-          label: `Pedidos de ${campaign.name}`,
-          hint: "Buscar, filtrar y descargar compras",
-          icon: BoxIcon,
-          // El detalle de un pedido (/panel/reservas/…) pertenece a la preventa; con una sola, se marca esa.
-          active: (p: string) => (p.startsWith(`/panel/campanas/${campaign.slug}`) && !p.endsWith("/editar")) || (index === 0 && p.startsWith("/panel/reservas")),
-        },
-        { href: `/panel/campanas/${campaign.slug}/editar`, label: "Configurar preventa", hint: "Fechas, precio, entregas y términos", icon: PenIcon, active: (p: string) => p === `/panel/campanas/${campaign.slug}/editar` },
+        { href: "/panel/pedidos", label: "Pedidos", hint: "Buscar, filtrar y descargar compras", icon: BoxIcon, active: (p) => p.startsWith("/panel/pedidos") || p.startsWith("/panel/reservas") },
+        { href: "/panel/preventa", label: "Resumen de la preventa", hint: "Ventas, piezas disponibles y cierre", icon: FileIcon, active: (p) => p === "/panel/preventa" },
+        ...campaigns.map((campaign) => ({
+          href: `/panel/campanas/${campaign.slug}/editar`,
+          label: campaigns.length > 1 ? `Configurar ${campaign.name}` : "Configurar preventa",
+          hint: "Fechas, precio, entregas y términos",
+          icon: PenIcon,
+          active: (p: string) => p === `/panel/campanas/${campaign.slug}/editar`,
+        })),
       ],
-    })),
+    },
     ...(storeEnabled
       ? [
           {

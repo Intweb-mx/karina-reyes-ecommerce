@@ -25,7 +25,7 @@ export default async function EditCampaignPage({ params }: PageProps<"/panel/cam
   return (
     <div className="space-y-8">
       <PageHeader
-        back={<Link href={`/panel/campanas/${slug}`} className="hover:text-fg">← {campaign.productName}</Link>}
+        back={<Link href="/panel/preventa" className="hover:text-fg">← Preventa</Link>}
         title="Editar preventa"
         subtitle={`${reservations.length} ${reservations.length === 1 ? "pedido" : "pedidos"} hasta ahora. Los cambios se ven en la página al guardar.`}
         actions={
