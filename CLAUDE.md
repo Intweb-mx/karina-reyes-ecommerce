@@ -146,7 +146,7 @@ Pero:
     └── preventa/                # contrato de API y operación de la preventa
 ```
 
-`packages/database` hoy contiene solo el esquema de la preventa. Cuando arranque la tienda completa, ahí se añaden productos, variantes, inventario, pedidos, cupones, territorios, etc. (ver §11 en adelante). No reutilizar el esquema de Karina Reyes — son dominios de datos distintos. Cambios de esquema: editar `packages/database/src/schema/*` → `pnpm db:generate` → `pnpm db:migrate`; las migraciones de producción corren en el build de Vercel (`VERCEL_ENV=production`).
+`packages/database` contiene el esquema de la preventa (`presale_*`) y la base de datos de la tienda (`store_*`: productos, inventario con movimientos, pedidos). Faltan variantes, cupones, clientes y territorios (ver §11 en adelante). No reutilizar el esquema de Karina Reyes — son dominios de datos distintos. Cambios de esquema: editar `packages/database/src/schema/*` → `pnpm db:generate` → `pnpm db:migrate`; las migraciones de producción corren en el build de Vercel (`VERCEL_ENV=production`).
 
 Si en algún momento se decide compartir código de verdad entre este repo y `karina-reyes-ecosyste` (en vez de mantener copias duplicadas), documentarlo en un ADR antes de hacerlo — no improvisar un submódulo o paquete publicado sin decisión explícita.
 
@@ -1013,6 +1013,7 @@ pnpm db:migrate
 pnpm presale:upsert --file=...    # crear/editar campaña de preventa
 pnpm presale:export --slug=...    # CSV de reservas
 pnpm presale:reconcile            # sincronizar con Stripe si falló un webhook
+pnpm store:seed                   # catálogo inicial de la tienda (UNO+UNO sin precio); en una base remota exige --allow-remote
 ```
 
 ---

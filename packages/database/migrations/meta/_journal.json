@@ -71,6 +71,34 @@
       "when": 1791306724504,
       "tag": "0009_order_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791391742342,
+      "tag": "0010_store_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791393626515,
+      "tag": "0011_store_append_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791480398878,
+      "tag": "0012_store_sell",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791496876721,
+      "tag": "0013_store_orders_client_ip_hash",
+      "breakpoints": true
     }
   ]
 }
