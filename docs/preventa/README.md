@@ -210,3 +210,15 @@ El envío solo se ofrece si están las tres cosas: `shippingEnabled`, `shippingP
 El cliente SkyDropX (`apps/inttimo/src/server/shipping/skydropx.ts`) sigue la documentación pública de SkyDropX Pro; el formato exacto del cuerpo se valida contra **sandbox** antes de pasar a producción.
 
 Bonus: al pasar a ENVIADO o LISTO PARA RECOGER se manda un enlace personal `/bonus/<token>` que vence en `linkDays` días (solo compras pagadas dentro del periodo). Botón **Reintentar bonus** si falla el correo.
+
+## Avisos de rastreo de SkyDropX (webhook)
+
+`POST /api/webhooks/skydropx` recibe los avisos de rastreo de SkyDropX (paquetes). "En camino" (`picked_up`, `in_transit`, `last_mile`, `delivery_attempt`, `delivered_to_branch`) marca ENVIADO y manda la guía; `delivered` marca ENTREGADO y manda el correo con el bonus. Es idempotente y tolera avisos repetidos o fuera de orden. Los botones del panel siguen funcionando como respaldo.
+
+Configuración (una vez, en producción):
+
+1. SkyDropX PRO → **Conexiones → Webhooks**: URL `https://www.inttimo.shop/api/webhooks/skydropx`, autenticación **HMAC**, y una clave secreta larga y aleatoria. Si el nombre del encabezado no es `Authorization`, anótalo.
+2. Vercel (Production): `SKYDROPX_WEBHOOK_SECRET` con esa misma clave y, solo si cambiaste el nombre del encabezado, `SKYDROPX_WEBHOOK_HEADER`.
+3. Sin `SKYDROPX_WEBHOOK_SECRET` la ruta responde 503 y nunca acepta avisos sin firmar.
+
+Solo se atienden envíos cuya guía se generó desde el panel (se buscan por id de envío o número de guía).

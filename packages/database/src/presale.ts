@@ -24,7 +24,7 @@ export type PresaleCampaign = typeof presaleCampaigns.$inferSelect;
 export type NewPresaleCampaign = typeof presaleCampaigns.$inferInsert;
 export type PresaleReservation = typeof presaleReservations.$inferSelect;
 export type ReservationStatus = PresaleReservation["status"];
-export type EventSource = "api" | "stripe" | "cli" | "panel";
+export type EventSource = "api" | "stripe" | "cli" | "panel" | "skydropx";
 export type DeliveryMethod = PresaleReservation["deliveryMethod"];
 export type FulfillmentStatus = PresaleReservation["fulfillmentStatus"];
 
@@ -215,6 +215,25 @@ export async function findReservationBySessionId(db: Executor, sessionId: string
 export async function findReservationByPaymentIntent(db: Executor, paymentIntentId: string): Promise<PresaleReservation | null> {
   const [row] = await db.select().from(presaleReservations).where(eq(presaleReservations.stripePaymentIntentId, paymentIntentId)).limit(1);
   return row ?? null;
+}
+
+/** Pedido de envío por el id de envío de SkyDropX o por su número de guía (avisos de rastreo). */
+export async function findReservationByShipment(db: Executor, ref: { shipmentId?: string | null; trackingNumber?: string | null }): Promise<PresaleReservation | null> {
+  const conditions = [
+    ref.shipmentId ? eq(presaleReservations.shipmentId, ref.shipmentId) : undefined,
+    ref.trackingNumber ? eq(presaleReservations.trackingNumber, ref.trackingNumber) : undefined,
+  ].filter((c) => c !== undefined);
+  if (conditions.length === 0) return null;
+  const [row] = await db.select().from(presaleReservations).where(or(...conditions)).limit(1);
+  return row ?? null;
+}
+
+/** Guarda el enlace de rastreo de la paquetería solo si el pedido aún no tiene uno. */
+export async function saveTrackingUrlIfMissing(db: Executor, reservationId: string, trackingUrl: string): Promise<void> {
+  await db
+    .update(presaleReservations)
+    .set({ trackingUrl })
+    .where(and(eq(presaleReservations.id, reservationId), isNull(presaleReservations.trackingUrl)));
 }
 
 export async function findReservationById(db: Executor, id: string): Promise<PresaleReservation | null> {
