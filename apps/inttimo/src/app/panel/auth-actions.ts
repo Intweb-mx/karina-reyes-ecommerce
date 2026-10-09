@@ -34,7 +34,11 @@ export async function signIn(_state: FormState, form: FormData): Promise<FormSta
 
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error) return { error: GENERIC_LOGIN_ERROR, email };
+  if (error) {
+    // Un corte de red o un tiempo agotado no es una contraseña incorrecta.
+    if (error.name === "AuthRetryableFetchError") return { error: "No se pudo conectar con el servicio de acceso. Inténtalo de nuevo.", email };
+    return { error: GENERIC_LOGIN_ERROR, email };
+  }
 
   const state = await getAdminState();
   if (state.status === "anonymous" || state.status === "forbidden") {

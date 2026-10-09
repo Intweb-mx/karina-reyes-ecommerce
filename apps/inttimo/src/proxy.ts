@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { authFetch } from "./server/auth/fetch";
 
 /**
  * Solo para /panel: refresca la sesión de Supabase (escribe las cookies
@@ -13,6 +14,7 @@ export async function proxy(request: NextRequest) {
   if (!url || !key) return response;
 
   const supabase = createServerClient(url, key, {
+    global: { fetch: authFetch },
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (toSet, headers) => {
