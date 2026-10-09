@@ -182,7 +182,7 @@ export default async function OrderPage({ params }: PageProps<"/panel/pedidos/[i
     <div className="space-y-6">
       <PageHeader
         back={
-          <Link href="/panel/pedidos" className="hover:text-fg">
+          <Link prefetch={false} href="/panel/pedidos" className="hover:text-fg">
             ← Pedidos
           </Link>
         }

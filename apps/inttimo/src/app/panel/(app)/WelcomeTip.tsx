@@ -27,7 +27,7 @@ export function WelcomeTip() {
         <p className="font-semibold">¿Primera vez en el panel?</p>
         <p className="mt-0.5 text-sm text-muted">En la barra lateral, cada sección dice para qué sirve. La guía explica la rutina diaria y qué significa cada estado.</p>
       </div>
-      <Link href="/panel/ayuda" className="inline-flex min-h-10 items-center bg-accent px-4 text-sm font-semibold text-bg transition-colors hover:bg-ink/85">Ver guía</Link>
+      <Link prefetch={false} href="/panel/ayuda" className="inline-flex min-h-10 items-center bg-accent px-4 text-sm font-semibold text-bg transition-colors hover:bg-ink/85">Ver guía</Link>
       <button
         type="button"
         aria-label="Cerrar bienvenida"

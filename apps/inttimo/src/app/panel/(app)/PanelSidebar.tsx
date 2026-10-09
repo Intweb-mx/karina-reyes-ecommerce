@@ -85,6 +85,7 @@ export function PanelSidebar({ campaigns, email, storeEnabled }: { campaigns: { 
               return (
                 <li key={item.href}>
                   <Link
+                    prefetch={false}
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={`group relative flex items-start gap-3 px-3 py-2.5 transition-colors ${active ? "bg-fg text-bg" : "text-fg hover:bg-sand/70"}`}
@@ -108,7 +109,7 @@ export function PanelSidebar({ campaigns, email, storeEnabled }: { campaigns: { 
     <div className="border-t border-border px-5 py-4">
       <p className="truncate text-xs text-muted" title={email}>Sesión: <span className="text-fg">{email}</span></p>
       <div className="mt-3 flex items-center gap-2">
-        <Link href="/" target="_blank" className="inline-flex min-h-9 flex-1 items-center justify-center border border-border px-3 text-sm transition-colors hover:border-fg/40">Ver sitio</Link>
+        <Link prefetch={false} href="/" target="_blank" className="inline-flex min-h-9 flex-1 items-center justify-center border border-border px-3 text-sm transition-colors hover:border-fg/40">Ver sitio</Link>
         <form action={signOut} className="flex-1">
           <button type="submit" className="inline-flex min-h-9 w-full items-center justify-center border border-border px-3 text-sm transition-colors hover:border-danger/50 hover:text-danger">Salir</button>
         </form>
@@ -117,7 +118,7 @@ export function PanelSidebar({ campaigns, email, storeEnabled }: { campaigns: { 
   );
 
   const brand = (
-    <Link href="/panel" className="flex items-baseline gap-2">
+    <Link prefetch={false} href="/panel" className="flex items-baseline gap-2">
       <span className="font-serif text-2xl font-medium">inttimo</span>
       <span className="text-[0.625rem] font-semibold tracking-[0.2em] text-muted uppercase">Administración</span>
     </Link>
