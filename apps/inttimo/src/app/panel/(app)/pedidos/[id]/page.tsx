@@ -6,7 +6,7 @@ import { INCIDENT_LABELS, type OrderDetail } from "@/server/admin/contract";
 import { getOrderDetail } from "@/server/admin/orders";
 import { audit, requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
-import { Alert, Badge, buttonClass, Card, DELIVERY_LABELS, EmptyState, EVENT_LABELS, FULFILLMENT_LABELS, FULFILLMENT_TONES, linkClass, PageHeader, secondaryButtonClass, STATUS_LABELS, STATUS_TONES } from "../../../ui";
+import { Alert, Badge, buttonClass, Card, DELIVERY_LABELS, EmptyState, EVENT_LABELS, FULFILLMENT_LABELS, FULFILLMENT_TONES, linkClass, PageHeader, secondaryButtonClass, STATUS_LABELS, STATUS_TONES, PAYMENT_METHOD_LABELS } from "../../../ui";
 import { addNote, createLabel, handToCarrierAction, resendEmail, retryBonus, updateDelivery } from "./actions";
 import { DeliveredForm, HandToCarrierForm, LabelForm, NoteForm, ReadyForPickupForm, ResendEmailForm, RetryBonusForm, ShippedForm } from "./DeliveryForms";
 
@@ -112,7 +112,10 @@ function NextStepCard({ order }: { order: OrderDetail }) {
     case "mark_picked_up":
       body = (
         <div className="space-y-2">
-          <p className="text-sm text-muted">El cliente ya fue avisado. Cuando lo recoja{order.bonus.configured ? " (al marcarlo, recibe su bonus por correo)" : ""}:</p>
+          <p className="text-sm text-muted">
+            {order.payment.method !== "stripe" ? "Venta en persona. Cuando le entregues el juego" : "El cliente ya fue avisado. Cuando lo recoja"}
+            {order.bonus.configured && order.customer.email ? " (al marcarlo, recibe su bonus por correo)" : ""}:
+          </p>
           <DeliveredForm action={deliver} />
         </div>
       );
@@ -149,7 +152,7 @@ export default async function OrderPage({ params }: PageProps<"/panel/pedidos/[i
           ["Dirección", delivery.address ? delivery.address.map((line) => <span key={line} className="block">{line}</span>) : "Sin dirección registrada"],
           ["Paquetería que eligió", delivery.selection ?? "—"],
         ] as [string, ReactNode][])
-      : ([["Punto de recolección", delivery.pickupPoint ? `${delivery.pickupPoint.name} · ${delivery.pickupPoint.schedule}` : "Sin punto elegido: confirma con el cliente"]] as [string, ReactNode][])),
+      : ([["Punto de recolección", payment.method !== "stripe" ? "Entrega en persona" : delivery.pickupPoint ? `${delivery.pickupPoint.name} · ${delivery.pickupPoint.schedule}` : "Sin punto elegido: confirma con el cliente"]] as [string, ReactNode][])),
     ...(delivery.trackingNumber ? ([["Guía", <Tracking key="t" delivery={delivery} />]] as [string, ReactNode][]) : []),
     ...(delivery.fulfilledAt ? ([[shipping ? "Enviado el" : "Avisado el", when(delivery.fulfilledAt)]] as [string, ReactNode][]) : []),
     ...(delivery.deliveredAt ? ([["Entregado el", when(delivery.deliveredAt)]] as [string, ReactNode][]) : []),
@@ -160,11 +163,14 @@ export default async function OrderPage({ params }: PageProps<"/panel/pedidos/[i
   const paymentRows: [string, ReactNode][] = [
     ["Producto", `${order.campaign?.productName ?? "—"} · ${pieces(payment.quantity)} × ${formatMoney(payment.unitAmount, payment.currency)}`],
     ["Envío", shipping ? (payment.shippingAmount ? formatMoney(payment.shippingAmount, payment.currency) : "No se cobró") : "Recolección (sin costo)"],
+    ...(payment.discountAmount ? ([["Descuento", formatMoney(payment.discountAmount, payment.currency)]] as [string, ReactNode][]) : []),
     ["Total pagado", formatMoney(payment.totalAmount, payment.currency)],
+    ["Forma de pago", PAYMENT_METHOD_LABELS[payment.method]],
+    ...(payment.recordedBy ? ([["Venta registrada por", payment.recordedBy]] as [string, ReactNode][]) : []),
     ...(payment.amountRefunded ? ([["Reembolsado", formatMoney(payment.amountRefunded, payment.currency)]] as [string, ReactNode][]) : []),
     ["Pedido", when(payment.createdAt)],
     ["Pago", when(payment.paidAt)],
-    ["Aceptó los términos", payment.termsVersion ? `Sí, versión ${payment.termsVersion}` : "—"],
+    ["Aceptó los términos", payment.termsVersion ? `Sí, versión ${payment.termsVersion}` : payment.method !== "stripe" ? "No aplica (venta en persona)" : "—"],
     ...(payment.stripeUrl
       ? ([[
           "Stripe",

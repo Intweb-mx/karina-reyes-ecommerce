@@ -184,6 +184,9 @@ export const presaleReservationStatus = pgEnum("presale_reservation_status", [
 
 export const presaleDeliveryMethod = pgEnum("presale_delivery_method", ["shipping", "pickup"]);
 
+/** stripe: pago en línea. cash / transfer: venta registrada a mano en el panel (presencial). */
+export const presalePaymentMethod = pgEnum("presale_payment_method", ["stripe", "cash", "transfer"]);
+
 export const presaleFulfillmentStatus = pgEnum("presale_fulfillment_status", [
   /** Pagado, en preparación. */
   "pending",
@@ -220,14 +223,18 @@ export const presaleReservations = pgTable(
     deliveryAddress: jsonb().$type<DeliveryAddress>(),
     /** Envío: tarifa elegida. */
     shippingSelection: jsonb().$type<ShippingSelection>(),
-    /** unitAmount * quantity + shippingAmount. */
+    /** Descuento sobre el producto (centavos); solo ventas registradas a mano. */
+    discountAmount: integer().notNull().default(0),
+    /** unitAmount * quantity + shippingAmount - discountAmount. */
     totalAmount: integer().notNull(),
+    paymentMethod: presalePaymentMethod().notNull().default("stripe"),
+    /** Correo del administrador que registró una venta a mano. */
+    recordedBy: text(),
     currency: text().notNull(),
     answers: jsonb().$type<Answers>().notNull(),
-    termsAcceptedAt: timestamp({ withTimezone: true }).notNull(),
-    termsId: uuid()
-      .notNull()
-      .references(() => presaleTerms.id, { onDelete: "restrict" }),
+    /** Nulos solo en ventas registradas a mano (el cliente no pasó por el checkout). */
+    termsAcceptedAt: timestamp({ withTimezone: true }),
+    termsId: uuid().references(() => presaleTerms.id, { onDelete: "restrict" }),
     marketingConsent: boolean().notNull().default(false),
     /** Clave opcional enviada por el cliente para no duplicar reservas por doble clic. */
     idempotencyKey: text().unique(),
@@ -261,7 +268,12 @@ export const presaleReservations = pgTable(
     index("presale_reservations_campaign_status_idx").on(table.campaignId, table.status),
     index("presale_reservations_email_idx").on(table.email),
     check("presale_reservations_quantity_check", sql`${table.quantity} >= 1`),
-    check("presale_reservations_total_check", sql`${table.totalAmount} = ${table.unitAmount} * ${table.quantity} + ${table.shippingAmount}`),
+    check("presale_reservations_total_check", sql`${table.totalAmount} = ${table.unitAmount} * ${table.quantity} + ${table.shippingAmount} - ${table.discountAmount}`),
+    check("presale_reservations_discount_check", sql`${table.discountAmount} between 0 and ${table.unitAmount} * ${table.quantity}`),
+    check(
+      "presale_reservations_terms_check",
+      sql`${table.paymentMethod} <> 'stripe' or (${table.termsId} is not null and ${table.termsAcceptedAt} is not null)`,
+    ),
     check("presale_reservations_shipping_check", sql`${table.shippingAmount} >= 0 and (${table.deliveryMethod} = 'shipping' or ${table.shippingAmount} = 0)`),
     check("presale_reservations_refund_check", sql`${table.amountRefunded} between 0 and ${table.totalAmount}`),
   ],
@@ -289,6 +301,7 @@ export type PresaleEventType =
   | "BONUS_SENT"
   | "BONUS_FAILED"
   | "POST_PURCHASE_ANSWERS_SUBMITTED"
+  | "MANUAL_SALE_RECORDED"
   | "RECONCILED";
 
 /** Timeline append-only de cada reserva. Nunca se borra ni se edita. */

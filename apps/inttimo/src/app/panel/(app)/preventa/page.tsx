@@ -4,7 +4,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { requireAdmin } from "@/server/auth/admin";
 import { getPhase } from "@/server/presale/campaign";
 import { getDb } from "@/server/presale/runtime";
-import { Badge, buttonClass, Card, EmptyState, PageHeader, secondaryButtonClass } from "../../ui";
+import { Badge, buttonClass, Card, EmptyState, PAYMENT_METHOD_LABELS, PageHeader, secondaryButtonClass } from "../../ui";
 
 export const metadata = { title: "Preventa" };
 
@@ -71,6 +71,14 @@ export default async function PresalePage() {
                 <dt className="text-muted">Ventas (sin reembolsos)</dt>
                 <dd className="mt-1 tabular-nums">{formatMoney(stats.netRevenue, campaign.currency)}</dd>
               </div>
+            </dl>
+            <dl className="mt-4 grid gap-4 border-t border-border pt-4 text-sm sm:grid-cols-3">
+              {(["stripe", "cash", "transfer"] as const).map((method) => (
+                <div key={method}>
+                  <dt className="text-muted">{PAYMENT_METHOD_LABELS[method]}</dt>
+                  <dd className="mt-1 tabular-nums">{formatMoney(stats.revenueByMethod[method], campaign.currency)}</dd>
+                </div>
+              ))}
             </dl>
           </Card>
         );

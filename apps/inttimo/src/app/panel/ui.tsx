@@ -164,10 +164,14 @@ export const EVENT_LABELS: Record<string, string> = {
   REFUNDED: "Reembolsado",
   PARTIALLY_REFUNDED: "Reembolso parcial",
   RECONCILED: "Estado del pago verificado",
+  MANUAL_SALE_RECORDED: "Venta registrada en el panel",
 };
+
+export const PAYMENT_METHOD_LABELS: Record<string, string> = { stripe: "Tarjeta (Stripe)", cash: "Efectivo", transfer: "Transferencia" };
 
 export const ACTION_LABELS: Record<string, string> = {
   "auth.login": "Entró al panel",
+  "reservation.manual_sale": "Registró una venta en persona",
   "auth.logout": "Salió del panel",
   "auth.mfa_enrolled": "Activó la verificación en dos pasos",
   "admin.create": "Se creó un usuario del panel",

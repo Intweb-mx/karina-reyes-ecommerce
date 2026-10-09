@@ -91,6 +91,10 @@ export type OrderDetail = {
     paidAt: Date | null;
     termsVersion: number | null;
     stripeUrl: string | null;
+    method: "stripe" | "cash" | "transfer";
+    discountAmount: number;
+    /** Administrador que registró una venta a mano. */
+    recordedBy: string | null;
   };
   delivery: {
     method: DeliveryMethod;

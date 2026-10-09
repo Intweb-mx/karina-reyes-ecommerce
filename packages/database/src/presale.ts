@@ -27,6 +27,7 @@ export type ReservationStatus = PresaleReservation["status"];
 export type EventSource = "api" | "stripe" | "cli" | "panel" | "skydropx";
 export type DeliveryMethod = PresaleReservation["deliveryMethod"];
 export type FulfillmentStatus = PresaleReservation["fulfillmentStatus"];
+export type PaymentMethod = PresaleReservation["paymentMethod"];
 
 /** Transacción o conexión: todas las funciones funcionan con ambas. */
 export type Executor = Pick<Database, "select" | "insert" | "update">;
@@ -198,6 +199,62 @@ export async function createReservation(db: Database, input: NewReservation, now
     await addReservationEvent(tx, row!.id, "RESERVATION_CREATED", "api", {
       metadata: { quantity: input.quantity, deliveryMethod: row!.deliveryMethod, shippingAmount: row!.shippingAmount, totalAmount: row!.totalAmount },
     });
+    return row!;
+  });
+}
+
+export type NewManualSale = {
+  campaignId: string;
+  fullName: string;
+  /** Vacío si el cliente no dio correo: entonces no se le manda ningún correo. */
+  email: string;
+  phone: string | null;
+  quantity: number;
+  /** Descuento sobre precio de campaña × cantidad (centavos). */
+  discountAmount: number;
+  paymentMethod: Exclude<PaymentMethod, "stripe">;
+  recordedBy: string;
+};
+
+/**
+ * Venta presencial registrada en el panel: queda pagada al instante, sin Stripe, con el precio de la campaña y aparta
+ * inventario con el mismo candado que una compra en línea (sin sobreventa). Se entrega en persona (recolección sin punto).
+ */
+export async function createManualSale(db: Database, input: NewManualSale, now: Date = new Date()): Promise<PresaleReservation> {
+  return db.transaction(async (tx) => {
+    const [campaign] = await tx.select().from(presaleCampaigns).where(eq(presaleCampaigns.id, input.campaignId)).for("update");
+    if (!campaign) throw new Error("Campaña no encontrada.");
+    if (campaign.totalUnits != null) {
+      const remaining = Math.max(0, campaign.totalUnits - (await countHeldUnits(tx, campaign.id, now)));
+      if (input.quantity > remaining) throw new InsufficientStockError(remaining);
+    }
+    const subtotal = campaign.unitAmount * input.quantity;
+    const [row] = await tx
+      .insert(presaleReservations)
+      .values({
+        campaignId: campaign.id,
+        code: generateReservationCode(),
+        status: "paid",
+        fullName: input.fullName.trim(),
+        email: input.email.trim().toLowerCase(),
+        phone: input.phone,
+        quantity: input.quantity,
+        unitAmount: campaign.unitAmount,
+        currency: campaign.currency,
+        deliveryMethod: "pickup",
+        discountAmount: input.discountAmount,
+        totalAmount: subtotal - input.discountAmount,
+        paymentMethod: input.paymentMethod,
+        recordedBy: input.recordedBy,
+        answers: {},
+        marketingConsent: false,
+        paidAt: now,
+      })
+      .returning();
+    const meta = { quantity: input.quantity, totalAmount: row!.totalAmount, discountAmount: input.discountAmount, paymentMethod: input.paymentMethod };
+    await addReservationEvent(tx, row!.id, "RESERVATION_CREATED", "panel", { metadata: { ...meta, manual: true } });
+    await addReservationEvent(tx, row!.id, "MANUAL_SALE_RECORDED", "panel", { metadata: { ...meta, recordedBy: input.recordedBy } });
+    await addReservationEvent(tx, row!.id, "PAYMENT_APPROVED", "panel", { metadata: { paymentMethod: input.paymentMethod } });
     return row!;
   });
 }
@@ -392,8 +449,13 @@ export function markShipped(db: Executor, reservationId: string, shipment: Shipm
   );
 }
 
-export function markDelivered(db: Executor, reservationId: string, ctx: FulfillmentContext) {
-  return fulfillmentTransition(db, reservationId, { from: ["ready_for_pickup", "shipped"] }, { fulfillmentStatus: "delivered", deliveredAt: new Date() }, "DELIVERED", ctx);
+/** Entregado: desde enviado o listo para recoger; en recolección también directo desde pendiente (entrega en persona). */
+export async function markDelivered(db: Executor, reservationId: string, ctx: FulfillmentContext) {
+  const set = { fulfillmentStatus: "delivered" as const, deliveredAt: new Date() };
+  return (
+    (await fulfillmentTransition(db, reservationId, { from: ["ready_for_pickup", "shipped"] }, set, "DELIVERED", ctx)) ??
+    (await fulfillmentTransition(db, reservationId, { method: "pickup", from: ["pending"] }, set, "DELIVERED", ctx))
+  );
 }
 
 // ---------- Cotizaciones de envío ----------
@@ -506,6 +568,7 @@ export async function claimConfirmationEmail(db: Executor, reservationId: string
         eq(presaleReservations.id, reservationId),
         eq(presaleReservations.status, "paid"),
         sql`${presaleReservations.confirmationEmailSentAt} is null`,
+        sql`${presaleReservations.email} <> ''`,
       ),
     )
     .returning();
@@ -545,7 +608,7 @@ export async function listPaidWithoutConfirmation(db: Executor): Promise<Presale
   return db
     .select()
     .from(presaleReservations)
-    .where(and(eq(presaleReservations.status, "paid"), sql`${presaleReservations.confirmationEmailSentAt} is null`))
+    .where(and(eq(presaleReservations.status, "paid"), sql`${presaleReservations.confirmationEmailSentAt} is null`, sql`${presaleReservations.email} <> ''`))
     .orderBy(asc(presaleReservations.paidAt));
 }
 
@@ -647,6 +710,8 @@ export type CampaignStats = {
   /** Cobrado menos reembolsado, en centavos. */
   netRevenue: number;
   refunded: number;
+  /** netRevenue separado por forma de pago. */
+  revenueByMethod: Record<PaymentMethod, number>;
 };
 
 export async function getCampaignStats(db: Executor, campaignId: string): Promise<CampaignStats> {
@@ -657,16 +722,19 @@ export async function getCampaignStats(db: Executor, campaignId: string): Promis
       units: sum(presaleReservations.quantity).mapWith(Number),
       amount: sum(presaleReservations.totalAmount).mapWith(Number),
       refunded: sum(presaleReservations.amountRefunded).mapWith(Number),
+      paymentMethod: presaleReservations.paymentMethod,
     })
     .from(presaleReservations)
     .where(eq(presaleReservations.campaignId, campaignId))
-    .groupBy(presaleReservations.status);
+    .groupBy(presaleReservations.status, presaleReservations.paymentMethod);
 
-  const stats: CampaignStats = { byStatus: {}, paidReservations: 0, paidUnits: 0, netRevenue: 0, refunded: 0 };
+  const stats: CampaignStats = { byStatus: {}, paidReservations: 0, paidUnits: 0, netRevenue: 0, refunded: 0, revenueByMethod: { stripe: 0, cash: 0, transfer: 0 } };
   for (const row of rows) {
-    stats.byStatus[row.status] = row.reservations;
+    stats.byStatus[row.status] = (stats.byStatus[row.status] ?? 0) + row.reservations;
     if (row.status === "paid" || row.status === "partially_refunded" || row.status === "refunded") {
-      stats.netRevenue += (row.amount ?? 0) - (row.refunded ?? 0);
+      const net = (row.amount ?? 0) - (row.refunded ?? 0);
+      stats.netRevenue += net;
+      stats.revenueByMethod[row.paymentMethod] += net;
       stats.refunded += row.refunded ?? 0;
     }
     if (row.status === "paid" || row.status === "partially_refunded") {

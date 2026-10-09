@@ -212,7 +212,7 @@ describe("crear reserva", () => {
     expect((await create()) as unknown).toMatchObject({ status: 409, body: { error: { code: "terms_outdated" } } });
     expect((await create({ termsVersion: 2 })).status).toBe(201);
     const reservation = (await db.query.presaleReservations.findFirst())!;
-    const terms = await db.query.presaleTerms.findFirst({ where: (t, { eq }) => eq(t.id, reservation.termsId) });
+    const terms = await db.query.presaleTerms.findFirst({ where: (t, { eq }) => eq(t.id, reservation.termsId!) });
     expect(terms?.version).toBe(2);
     const publicCampaign = await getPublicCampaign(deps, "uno-mas-uno");
     expect(publicCampaign.ok && publicCampaign.data.terms).toEqual({ version: 2, content: "Términos v2" });

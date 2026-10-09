@@ -39,7 +39,8 @@ function customerMail(reservation: PresaleReservation, productName: string, poin
     `Cantidad: ${reservation.quantity}`,
     `Producto: ${productName}`,
     `Total pagado: ${total}`,
-    `Método de entrega: ${reservation.deliveryMethod === "pickup" ? "RECOLECCIÓN" : "ENVÍO A DOMICILIO"}`,
+    ...(reservation.paymentMethod !== "stripe" ? [`Forma de pago: ${reservation.paymentMethod === "cash" ? "Efectivo" : "Transferencia"}`] : []),
+    `Método de entrega: ${reservation.paymentMethod !== "stripe" ? "ENTREGA EN PERSONA" : reservation.deliveryMethod === "pickup" ? "RECOLECCIÓN" : "ENVÍO A DOMICILIO"}`,
     ...(point ? [`Punto seleccionado: ${point.name}`] : []),
     ...(address && reservation.deliveryMethod === "shipping" ? [`Dirección de entrega: ${address}`] : []),
     "",
@@ -103,7 +104,7 @@ export async function sendConfirmationIfNeeded(
  */
 export async function resendConfirmation(db: Database, reservationId: string, deps: { send: MailSender }): Promise<"sent" | "failed" | "not_paid"> {
   const reservation = await findReservationById(db, reservationId);
-  if (!reservation || (reservation.status !== "paid" && reservation.status !== "partially_refunded")) return "not_paid";
+  if (!reservation?.email || (reservation.status !== "paid" && reservation.status !== "partially_refunded")) return "not_paid";
   const first = await sendConfirmationIfNeeded(db, reservationId, deps);
   if (first !== "skipped") return first;
 
