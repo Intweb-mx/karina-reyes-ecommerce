@@ -40,6 +40,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/panel/ped
       <nav aria-label="Estado de los pedidos" className="flex gap-2 overflow-x-auto pb-1">
         {ORDER_TABS.map((tab) => (
           <Link
+            prefetch={false}
             key={tab}
             href={hrefFor(query, { tab })}
             aria-current={tab === query.tab ? "page" : undefined}
@@ -83,7 +84,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/panel/ped
             Buscar
           </button>
           {(query.q || query.deliveryMethod || query.campaignId) && (
-            <Link href={hrefFor(query, { q: undefined, deliveryMethod: undefined, campaignId: undefined })} className="min-h-11 py-2.5 text-sm text-muted underline underline-offset-4">
+            <Link prefetch={false} href={hrefFor(query, { q: undefined, deliveryMethod: undefined, campaignId: undefined })} className="min-h-11 py-2.5 text-sm text-muted underline underline-offset-4">
               Limpiar
             </Link>
           )}
@@ -97,7 +98,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/panel/ped
               const paid = row.status === "paid" || row.status === "partially_refunded";
               return (
                 <li key={row.id}>
-                  <Link href={`/panel/pedidos/${row.id}`} className="-mx-2 grid gap-2 px-2 py-3 text-sm transition-colors hover:bg-surface sm:grid-cols-[1fr_auto] sm:items-center">
+                  <Link prefetch={false} href={`/panel/pedidos/${row.id}`} className="-mx-2 grid gap-2 px-2 py-3 text-sm transition-colors hover:bg-surface sm:grid-cols-[1fr_auto] sm:items-center">
                     <div className="min-w-0">
                       <p className="font-semibold">{row.fullName}</p>
                       <p className="mt-0.5 sm:truncate text-muted">
@@ -121,7 +122,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/panel/ped
           <span>{list.total} pedidos</span>
           <span className="flex items-center gap-2">
             {list.page > 1 && (
-              <Link href={hrefFor(query, { page: list.page - 1 })} className={secondaryButtonClass}>
+              <Link prefetch={false} href={hrefFor(query, { page: list.page - 1 })} className={secondaryButtonClass}>
                 ← Anterior
               </Link>
             )}
@@ -129,7 +130,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/panel/ped
               Página {list.page} de {list.pages}
             </span>
             {list.page < list.pages && (
-              <Link href={hrefFor(query, { page: list.page + 1 })} className={secondaryButtonClass}>
+              <Link prefetch={false} href={hrefFor(query, { page: list.page + 1 })} className={secondaryButtonClass}>
                 Siguiente →
               </Link>
             )}

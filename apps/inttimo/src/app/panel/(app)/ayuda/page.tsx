@@ -147,7 +147,7 @@ export default async function PanelHelpPage() {
             <li>Cada persona entra con su propia cuenta y su código de verificación en dos pasos. No compartas tu cuenta.</li>
             <li>Si perdiste tu código o necesitas dar acceso a alguien más, pídelo al equipo técnico.</li>
             <li>Al terminar en una computadora compartida, presiona <strong>Salir</strong> (abajo en la barra lateral).</li>
-            <li>Todo lo que haces queda registrado en <Link href="/panel/bitacora" className="underline underline-offset-4">Actividad</Link>.</li>
+            <li>Todo lo que haces queda registrado en <Link prefetch={false} href="/panel/bitacora" className="underline underline-offset-4">Actividad</Link>.</li>
           </ul>
         </Card>
       </section>
@@ -158,7 +158,7 @@ export default async function PanelHelpPage() {
 function Guide({ title, href, children }: { title: string; href?: string; children: ReactNode }) {
   return (
     <div className="border border-border bg-[#fffdf9] p-5">
-      <h3 className="font-semibold">{href ? <Link href={href} className="underline-offset-4 hover:underline">{title} →</Link> : title}</h3>
+      <h3 className="font-semibold">{href ? <Link prefetch={false} href={href} className="underline-offset-4 hover:underline">{title} →</Link> : title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-muted">{children}</p>
     </div>
   );

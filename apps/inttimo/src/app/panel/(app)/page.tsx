@@ -68,7 +68,7 @@ function InboxList({ rows, action, empty, now, ownBadgeOnly = false }: { rows: R
         const waiting = daysSince(paidAt, now);
         return (
           <li key={row.key}>
-            <Link href={`/panel/pedidos/${row.id}`} className="group -mx-2 flex flex-wrap items-center justify-between gap-3 px-2 py-3 text-sm transition-colors hover:bg-surface">
+            <Link prefetch={false} href={`/panel/pedidos/${row.id}`} className="group -mx-2 flex flex-wrap items-center justify-between gap-3 px-2 py-3 text-sm transition-colors hover:bg-surface">
               <div className="min-w-0">
                 <p className="flex flex-wrap items-center gap-2 font-semibold">
                   {row.fullName}

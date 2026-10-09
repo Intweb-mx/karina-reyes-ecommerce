@@ -37,10 +37,10 @@ export default async function PresalePage() {
                 <a href={`/panel/campanas/${campaign.slug}/export`} className={secondaryButtonClass}>
                   Descargar lista (Excel)
                 </a>
-                <Link href={`/panel/campanas/${campaign.slug}/editar`} className={secondaryButtonClass}>
+                <Link prefetch={false} href={`/panel/campanas/${campaign.slug}/editar`} className={secondaryButtonClass}>
                   Editar
                 </Link>
-                <Link href={`/panel/pedidos?tab=all&campana=${campaign.id}`} className={buttonClass}>
+                <Link prefetch={false} href={`/panel/pedidos?tab=all&campana=${campaign.id}`} className={buttonClass}>
                   Ver pedidos
                 </Link>
               </div>
