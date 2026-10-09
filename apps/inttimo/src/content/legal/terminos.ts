@@ -1,12 +1,14 @@
-import { business, LEGAL_UPDATED } from "./business.ts";
+import { business } from "./business.ts";
 import type { LegalDocument } from "./types.ts";
 
-/** Fuente: TERMINOS_UNO_UNO.pdf (30 de septiembre de 2026). Texto aprobado por el cliente; no editar sin su autorización. */
+const TERMS_UPDATED = "9 de octubre de 2026";
+
+/** Fuente: TERMINOS_UNO_UNO.pdf (30 de septiembre de 2026). Texto aprobado por el cliente; no editar sin su autorización. Cláusula 19 actualizada y aprobada el 9 de octubre de 2026 (bonus al entregar). */
 export const terminos: LegalDocument = {
   slug: "terminos-y-condiciones",
   shortTitle: "Términos y Condiciones",
   title: ["Términos y Condiciones", "Preventa UNO+UNO"],
-  updated: `inttimo · Última actualización: ${LEGAL_UPDATED}`,
+  updated: `inttimo · Última actualización: ${TERMS_UPDATED}`,
   facts: [
     { label: "Proveedor", value: `${business.legalName}, ${business.legalNature}.` },
     { label: "Domicilio", value: `${business.address}.` },
@@ -127,7 +129,7 @@ export const terminos: LegalDocument = {
     {
       title: "19. Entrega y vigencia del bonus",
       paragraphs: [
-        "El bonus no se entrega inmediatamente después del pago. Para pedidos enviados por paquetería, el acceso podrá liberarse cuando el pedido cambie a estado Enviado. Para recolección en Chihuahua, podrá liberarse cuando el producto esté Listo para recoger. El comprador recibirá por correo un enlace temporal y único para acceder al PDF y al video. La vigencia del enlace será informada en el correo correspondiente.",
+        "El bonus no se entrega inmediatamente después del pago. El acceso se libera cuando el pedido se registra como entregado: en pedidos enviados por paquetería, cuando la paquetería confirma la entrega; en recolección en Chihuahua, cuando el comprador recibe el producto en el punto acordado. El comprador recibirá por correo un enlace temporal y único para acceder al PDF y al video. La vigencia del enlace será informada en el correo correspondiente.",
       ],
     },
     {
