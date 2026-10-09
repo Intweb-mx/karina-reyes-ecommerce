@@ -1,9 +1,20 @@
 import { randomInt } from "node:crypto";
-import { and, asc, desc, eq, getTableColumns, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Database } from "./client.ts";
 import type { EventSource, Executor } from "./presale.ts";
 import type { DeliveryAddress, ShippingSelection } from "./schema/presale.ts";
-import { storeInventory, storeOrderEvents, storeOrderItems, storeOrderNotes, storeOrders, storeProducts, storeStockMovements, type StoreOrderEventType } from "./schema/store.ts";
+import {
+  storeInventory,
+  storeOrderEvents,
+  storeOrderItems,
+  storeOrderNotes,
+  storeOrders,
+  storeProducts,
+  storeSettings,
+  storeShippingQuotes,
+  storeStockMovements,
+  type StoreOrderEventType,
+} from "./schema/store.ts";
 
 export type StoreProduct = typeof storeProducts.$inferSelect;
 export type NewStoreProduct = typeof storeProducts.$inferInsert;
@@ -148,6 +159,8 @@ export type NewStoreOrder = {
   marketingConsent: boolean;
   idempotencyKey: string | null;
   attribution: Record<string, string> | null;
+  /** Hash de la IP de quien compra (nunca la IP en claro). */
+  clientIpHash?: string | null;
 };
 
 /** El pedido no es válido (sin productos, cantidad inválida, envío cobrado en recolección…). */
@@ -226,8 +239,13 @@ function mergeLines(lines: NewStoreOrderLine[]): NewStoreOrderLine[] {
  * Con una `idempotencyKey` ya usada devuelve el pedido existente (`reused: true`) sin apartar otra vez.
  */
 export async function createStoreOrder(db: Database, input: NewStoreOrder, now: Date = new Date()): Promise<{ order: StoreOrder; items: StoreOrderItem[]; reused: boolean }> {
-  // Libera lo que ya venció antes de contar lo disponible (transacciones separadas; siempre idempotente).
-  await releaseExpiredStoreOrders(db, now);
+  // Libera lo vencido antes de contar lo disponible: pocos pedidos, del que venció antes al más reciente. Un error de
+  // liberación nunca aborta la compra (la liberación en bloque la hacen el reintento del checkout y `store:reconcile`).
+  try {
+    await releaseExpiredStoreOrders(db, now, { limit: STORE_CHECKOUT_RELEASE_LIMIT });
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", msg: "store_release_before_order_failed", error: String(error).slice(0, 300) }));
+  }
   const lines = mergeLines(input.lines);
   if (!lines.length) throw new InvalidStoreOrderError("El pedido no tiene productos.");
   if (input.delivery.method === "pickup" && input.shippingAmount !== 0) throw new InvalidStoreOrderError("La recolección no tiene costo de envío.");
@@ -290,6 +308,7 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
         marketingConsent: input.marketingConsent,
         idempotencyKey: input.idempotencyKey,
         attribution: input.attribution,
+        clientIpHash: input.clientIpHash ?? null,
         inventoryReserved: true,
       })
       .returning();
@@ -346,6 +365,16 @@ export async function findStoreOrderBySessionId(db: Executor, sessionId: string)
   return row ?? null;
 }
 
+export async function findStoreOrderByPaymentIntent(db: Executor, paymentIntentId: string): Promise<StoreOrder | null> {
+  const [row] = await db.select().from(storeOrders).where(eq(storeOrders.stripePaymentIntentId, paymentIntentId)).limit(1);
+  return row ?? null;
+}
+
+export async function findStoreOrderByIdempotencyKey(db: Executor, key: string): Promise<StoreOrder | null> {
+  const [row] = await db.select().from(storeOrders).where(eq(storeOrders.idempotencyKey, key)).limit(1);
+  return row ?? null;
+}
+
 export async function listStoreOrderItems(db: Executor, orderId: string): Promise<StoreOrderItem[]> {
   return db.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, orderId)).orderBy(asc(storeOrderItems.productSlug));
 }
@@ -369,6 +398,62 @@ type StoreTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** Minutos extra después de que vence la sesión de Stripe antes de liberar el apartado (un webhook puede llegar tarde). */
 export const STORE_HOLD_GRACE_MINUTES = 5;
+
+/** Pedidos vencidos que libera, como máximo, la ruta caliente del checkout. */
+export const STORE_CHECKOUT_RELEASE_LIMIT = 10;
+
+const holdCutoff = (now: Date) => new Date(now.getTime() - STORE_HOLD_GRACE_MINUTES * 60_000);
+
+/**
+ * Pedido pendiente cuyo apartado venció (sesión vencida más la gracia, o 5 minutos sin sesión). Los marcados como
+ * excepción (p. ej. Stripe cobró otro monto) conservan su apartado hasta que una persona los resuelva.
+ */
+function expiredHoldWhere(cutoff: Date) {
+  return and(
+    eq(storeOrders.paymentStatus, "pending"),
+    eq(storeOrders.inventoryReserved, true),
+    ne(storeOrders.fulfillmentStatus, "exception"),
+    or(lt(storeOrders.checkoutExpiresAt, cutoff), and(isNull(storeOrders.checkoutExpiresAt), lt(storeOrders.createdAt, cutoff))),
+  );
+}
+
+/**
+ * Unidades apartadas por pedidos ya vencidos que aún no se liberan, por producto. Solo lee: catálogo y carrito suman
+ * esto a `existencias − apartado` en vez de liberar en cada consulta.
+ */
+export async function getExpiredHeldUnits(db: Executor, productIds: string[], now: Date = new Date()): Promise<Map<string, number>> {
+  if (!productIds.length) return new Map();
+  const rows = await db
+    .select({ productId: storeOrderItems.productId, units: sql<number>`sum(${storeOrderItems.quantity})::int` })
+    .from(storeOrderItems)
+    .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.orderId))
+    .where(and(inArray(storeOrderItems.productId, productIds), expiredHoldWhere(holdCutoff(now))))
+    .groupBy(storeOrderItems.productId);
+  return new Map(rows.map((row) => [row.productId, Number(row.units)]));
+}
+
+/**
+ * Piezas que un comprador (por correo o por hash de IP) tiene apartadas en pedidos pendientes cuyo apartado sigue vigente
+ * (misma regla de vencimiento que la liberación; los marcados como excepción conservan su apartado y cuentan). Solo lee.
+ */
+export async function getStoreHeldUnits(db: Executor, buyer: { email: string } | { clientIpHash: string }, now: Date = new Date()): Promise<number> {
+  const cutoff = holdCutoff(now);
+  const who = "email" in buyer ? eq(storeOrders.email, buyer.email.trim().toLowerCase()) : eq(storeOrders.clientIpHash, buyer.clientIpHash);
+  const [row] = await db
+    .select({ units: sql<number>`coalesce(sum(${storeOrderItems.quantity}), 0)::int` })
+    .from(storeOrderItems)
+    .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.orderId))
+    .where(
+      and(
+        who,
+        eq(storeOrders.paymentStatus, "pending"),
+        eq(storeOrders.inventoryReserved, true),
+        // Negación explícita de expiredHoldWhere sin NULL: coalesce(vence la sesión, creado) >= corte.
+        or(eq(storeOrders.fulfillmentStatus, "exception"), gte(sql`coalesce(${storeOrders.checkoutExpiresAt}, ${storeOrders.createdAt})`, cutoff)),
+      ),
+    );
+  return Number(row?.units ?? 0);
+}
 
 /**
  * Bloquea en el orden único del módulo: primero el inventario de los productos del pedido (por id) y después la fila del
@@ -469,12 +554,20 @@ async function closePendingOrder(
   orderId: string,
   close: { paymentStatus: "failed" | "cancelled"; event: StoreOrderEventType; source: EventSource; metadata?: Record<string, unknown>; onlyIfHoldExpiredBefore?: Date },
 ): Promise<{ order: StoreOrder; changed: boolean } | null> {
+  // Pre-chequeo sin bloqueo: un pedido que ya no está pendiente no toma candados de inventario.
+  const current = await findStoreOrderById(db, orderId);
+  if (!current) return null;
+  if (current.paymentStatus !== "pending" || current.fulfillmentStatus === "exception") return { order: current, changed: false };
   return db.transaction(async (tx) => {
     const locked = await lockOrderAndInventory(tx, orderId);
     if (!locked) return null;
     const { order, items } = locked;
-    const stillExpired = !close.onlyIfHoldExpiredBefore || (order.checkoutExpiresAt ?? order.createdAt) < close.onlyIfHoldExpiredBefore;
-    if (order.paymentStatus !== "pending" || !stillExpired) return { order, changed: false };
+    // Un pedido marcado como excepción (cobro distinto, dinero retenido) queda congelado para revisión manual: ningún camino automático lo cierra.
+    if (order.paymentStatus !== "pending" || order.fulfillmentStatus === "exception") return { order, changed: false };
+    // Con el cierre por vencimiento, revalida bajo candado.
+    const stillExpired =
+      !close.onlyIfHoldExpiredBefore || ((order.checkoutExpiresAt ?? order.createdAt) < close.onlyIfHoldExpiredBefore && order.inventoryReserved);
+    if (!stillExpired) return { order, changed: false };
     await tx.update(storeOrders).set({ paymentStatus: close.paymentStatus }).where(eq(storeOrders.id, orderId));
     await addStoreOrderEvent(tx, orderId, close.event, close.source, { metadata: close.metadata });
     if (order.inventoryReserved) await releaseReservedStock(tx, order, items, close.source);
@@ -493,27 +586,177 @@ export function markStoreCheckoutCreateFailed(db: Database, orderId: string, rea
   return closePendingOrder(db, orderId, { paymentStatus: "failed", event: "CHECKOUT_CREATE_FAILED", source: "api", metadata: { reason: reason.slice(0, 300) } });
 }
 
+/** Stripe venció la sesión sin pago: el pedido queda cancelado y se libera el apartado (una sola vez). */
+export function markStoreCheckoutExpired(db: Database, orderId: string, ctx: { source: EventSource }) {
+  return closePendingOrder(db, orderId, { paymentStatus: "cancelled", event: "CHECKOUT_EXPIRED", source: ctx.source });
+}
+
 /**
- * Libera los pedidos pendientes cuyo apartado venció (sesión vencida más la gracia, o 5 minutos sin sesión). Procesa hasta
- * 100 por llamada. Quien lea disponibilidad (catálogo, carrito) debe llamarla antes; `createStoreOrder` ya lo hace.
+ * Stripe informa un pago con monto o moneda distintos al pedido. No se marca pagado: queda pendiente como excepción, con
+ * su apartado (la liberación automática ignora excepciones) y el payment intent guardado, para que una persona lo revise.
+ * Idempotente. `changed` = el pedido pendiente quedó marcado ahora; `recorded` = se escribió un evento EXCEPTION nuevo
+ * (un cobro distinto que no se conocía, aunque el pedido ya no estuviera pendiente). Quien llama avisa al equipo solo
+ * cuando alguno de los dos es true.
  */
-export async function releaseExpiredStoreOrders(db: Database, now: Date = new Date()): Promise<number> {
-  const cutoff = new Date(now.getTime() - STORE_HOLD_GRACE_MINUTES * 60_000);
+export async function markStoreOrderPaymentMismatch(
+  db: Database,
+  orderId: string,
+  details: { paymentIntentId: string | null; expected: { amount: number; currency: string }; received: { amount: number | null; currency: string | null } },
+  ctx: { source: EventSource; externalRef?: string | null },
+): Promise<{ order: StoreOrder; changed: boolean; recorded: boolean } | null> {
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).for("update");
+    if (!order) return null;
+    const metadata = { reason: "amount_mismatch", paymentIntentId: details.paymentIntentId, expected: details.expected, received: details.received };
+    if (order.paymentStatus !== "pending" || order.fulfillmentStatus === "exception") {
+      // Sin cambiar estado, el cobro distinto queda registrado una sola vez: mismo payment intent (otro evento del mismo
+      // cobro) o mismo evento de Stripe ya conocidos no se vuelven a registrar.
+      const ref = ctx.externalRef ?? null;
+      const pi = details.paymentIntentId;
+      const known = await tx
+        .select({ metadata: storeOrderEvents.metadata, externalRef: storeOrderEvents.externalRef })
+        .from(storeOrderEvents)
+        .where(and(eq(storeOrderEvents.orderId, orderId), eq(storeOrderEvents.type, "EXCEPTION")));
+      const duplicate = known.some((event) => {
+        const meta = (event.metadata ?? {}) as Record<string, unknown>;
+        if (meta.reason !== "amount_mismatch") return false;
+        if (pi !== null && meta.paymentIntentId === pi) return true;
+        if (ref !== null && event.externalRef === ref) return true;
+        return pi === null && ref === null && meta.paymentIntentId == null;
+      });
+      if (duplicate) return { order, changed: false, recorded: false };
+      await addStoreOrderEvent(tx, orderId, "EXCEPTION", ctx.source, { externalRef: ref, metadata });
+      return { order, changed: false, recorded: true };
+    }
+    const [updated] = await tx
+      .update(storeOrders)
+      .set({ fulfillmentStatus: "exception", stripePaymentIntentId: details.paymentIntentId ?? order.stripePaymentIntentId })
+      .where(eq(storeOrders.id, orderId))
+      .returning();
+    await addStoreOrderEvent(tx, orderId, "EXCEPTION", ctx.source, {
+      externalRef: ctx.externalRef ?? null,
+      metadata,
+    });
+    return { order: updated!, changed: true, recorded: true };
+  });
+}
+
+/**
+ * Reembolso informado por Stripe (`amountRefunded` es el acumulado; nunca baja). Solo pedidos pagados. Devolver piezas
+ * al inventario depende de si el pedido ya salió y se decide en el panel (PR B).
+ */
+export async function applyStoreRefund(
+  db: Database,
+  orderId: string,
+  amountRefunded: number,
+  ctx: { source: EventSource; externalRef?: string | null },
+): Promise<{ order: StoreOrder; changed: boolean } | null> {
+  if (!Number.isInteger(amountRefunded) || amountRefunded < 0) throw new Error("amountRefunded debe ser un entero no negativo (centavos).");
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).for("update");
+    if (!order) return null;
+    if (order.paymentStatus !== "paid" && order.paymentStatus !== "partially_refunded") return { order, changed: false };
+    const amount = Math.min(Math.max(amountRefunded, order.amountRefunded), order.totalAmount);
+    if (amount <= order.amountRefunded) return { order, changed: false };
+    const full = amount >= order.totalAmount;
+    const [updated] = await tx
+      .update(storeOrders)
+      .set({ paymentStatus: full ? "refunded" : "partially_refunded", amountRefunded: amount })
+      .where(eq(storeOrders.id, orderId))
+      .returning();
+    await addStoreOrderEvent(tx, orderId, full ? "REFUNDED" : "PARTIALLY_REFUNDED", ctx.source, { externalRef: ctx.externalRef ?? null, metadata: { amountRefunded: amount } });
+    return { order: updated!, changed: true };
+  });
+}
+
+// ---------- Correo de confirmación y reconciliación ----------
+
+/** Reserva el correo de pedido pagado; solo una llamada gana aunque lleguen webhook y confirmación en paralelo. */
+export async function claimStoreConfirmationEmail(db: Executor, orderId: string): Promise<StoreOrder | null> {
+  const [row] = await db
+    .update(storeOrders)
+    .set({ confirmationEmailSentAt: new Date() })
+    .where(and(eq(storeOrders.id, orderId), eq(storeOrders.paymentStatus, "paid"), isNull(storeOrders.confirmationEmailSentAt)))
+    .returning();
+  return row ?? null;
+}
+
+export async function releaseStoreConfirmationEmail(db: Executor, orderId: string): Promise<void> {
+  await db.update(storeOrders).set({ confirmationEmailSentAt: null }).where(eq(storeOrders.id, orderId));
+}
+
+export async function listStorePaidWithoutConfirmation(db: Executor): Promise<StoreOrder[]> {
+  return db
+    .select()
+    .from(storeOrders)
+    .where(and(eq(storeOrders.paymentStatus, "paid"), isNull(storeOrders.confirmationEmailSentAt)))
+    .orderBy(asc(storeOrders.paidAt), asc(storeOrders.id));
+}
+
+/** Pedidos pendientes con sesión de Stripe creados antes de `olderThan` (red de seguridad si un webhook no llegó). */
+export async function listUnsettledStoreOrders(db: Executor, olderThan: Date): Promise<StoreOrder[]> {
+  return db
+    .select()
+    .from(storeOrders)
+    .where(and(eq(storeOrders.paymentStatus, "pending"), ne(storeOrders.fulfillmentStatus, "exception"), sql`${storeOrders.stripeCheckoutSessionId} is not null`, lt(storeOrders.createdAt, olderThan)))
+    .orderBy(asc(storeOrders.createdAt), asc(storeOrders.id));
+}
+
+/**
+ * Libera los pedidos pendientes cuyo apartado venció, del que venció antes al más reciente, hasta `limit` (100 por
+ * defecto; la ruta caliente del checkout usa STORE_CHECKOUT_RELEASE_LIMIT). Un pedido que falla se registra y no detiene
+ * a los demás. Leer disponibilidad NO debe llamarla: usar `getExpiredHeldUnits`.
+ */
+export async function releaseExpiredStoreOrders(db: Database, now: Date = new Date(), options: { limit?: number; source?: EventSource } = {}): Promise<number> {
+  const cutoff = holdCutoff(now);
   const expired = await db
     .select({ id: storeOrders.id })
     .from(storeOrders)
-    .where(
-      and(
-        eq(storeOrders.paymentStatus, "pending"),
-        eq(storeOrders.inventoryReserved, true),
-        or(lt(storeOrders.checkoutExpiresAt, cutoff), and(isNull(storeOrders.checkoutExpiresAt), lt(storeOrders.createdAt, cutoff))),
-      ),
-    )
-    .limit(100);
+    .where(expiredHoldWhere(cutoff))
+    .orderBy(asc(sql`coalesce(${storeOrders.checkoutExpiresAt}, ${storeOrders.createdAt})`), asc(storeOrders.id))
+    .limit(options.limit ?? 100);
   let released = 0;
   for (const { id } of expired) {
-    const result = await closePendingOrder(db, id, { paymentStatus: "cancelled", event: "CHECKOUT_EXPIRED", source: "api", onlyIfHoldExpiredBefore: cutoff });
-    if (result?.changed) released++;
+    try {
+      const result = await closePendingOrder(db, id, { paymentStatus: "cancelled", event: "CHECKOUT_EXPIRED", source: options.source ?? "api", onlyIfHoldExpiredBefore: cutoff });
+      if (result?.changed) released++;
+    } catch (error) {
+      console.error(JSON.stringify({ level: "error", msg: "store_release_failed", orderId: id, error: String(error).slice(0, 300) }));
+    }
   }
   return released;
+}
+
+// ---------- Configuración de entrega y cotizaciones de envío ----------
+
+export type StoreSettings = typeof storeSettings.$inferSelect;
+export type StoreSettingsInput = Pick<typeof storeSettings.$inferInsert, "pickupEnabled" | "pickupPoints" | "shippingEnabled" | "shippingProfile">;
+
+const SETTINGS_ID = "default";
+
+export async function getStoreSettings(db: Executor): Promise<StoreSettings | null> {
+  const [row] = await db.select().from(storeSettings).where(eq(storeSettings.id, SETTINGS_ID)).limit(1);
+  return row ?? null;
+}
+
+/** Crea la configuración si no existe; con `overwrite` la reemplaza (lo usará el panel). Devuelve la vigente. */
+export async function saveStoreSettings(db: Executor, input: StoreSettingsInput, options: { overwrite?: boolean } = {}): Promise<StoreSettings> {
+  const insert = db.insert(storeSettings).values({ id: SETTINGS_ID, ...input });
+  const [row] = options.overwrite
+    ? await insert.onConflictDoUpdate({ target: storeSettings.id, set: { ...input, updatedAt: new Date() } }).returning()
+    : await insert.onConflictDoNothing().returning();
+  return row ?? (await getStoreSettings(db))!;
+}
+
+export type StoreShippingQuote = typeof storeShippingQuotes.$inferSelect;
+
+export async function saveStoreShippingQuote(db: Executor, input: typeof storeShippingQuotes.$inferInsert): Promise<StoreShippingQuote> {
+  const [row] = await db.insert(storeShippingQuotes).values(input).returning();
+  return row!;
+}
+
+export async function getStoreShippingQuote(db: Executor, id: string): Promise<StoreShippingQuote | null> {
+  if (!UUID_PATTERN.test(id)) return null;
+  const [row] = await db.select().from(storeShippingQuotes).where(eq(storeShippingQuotes.id, id)).limit(1);
+  return row ?? null;
 }
