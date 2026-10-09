@@ -209,7 +209,7 @@ El envío solo se ofrece si están las tres cosas: `shippingEnabled`, `shippingP
 
 El cliente SkyDropX (`apps/inttimo/src/server/shipping/skydropx.ts`) sigue la documentación pública de SkyDropX Pro; el formato exacto del cuerpo se valida contra **sandbox** antes de pasar a producción.
 
-Bonus: al pasar a ENVIADO o LISTO PARA RECOGER se manda un enlace personal `/bonus/<token>` que vence en `linkDays` días (solo compras pagadas dentro del periodo). Botón **Reintentar bonus** si falla el correo.
+Bonus: al pasar a ENTREGADO se manda un enlace personal `/bonus/<token>` que vence en `linkDays` días (solo compras pagadas dentro del periodo). Botón **Reintentar bonus** si falla el correo.
 
 ## Avisos de rastreo de SkyDropX (webhook)
 
