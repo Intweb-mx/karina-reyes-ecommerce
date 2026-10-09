@@ -75,8 +75,8 @@ export default async function PanelHelpPage() {
                 <>Abre <strong>Hoy</strong> y entra al pedido más antiguo de la tarjeta &quot;Generar guía&quot;. En el pedido, el bloque <strong>Siguiente paso</strong> te dice qué botón presionar.</>,
                 <>Presiona <strong>Generar guía</strong>. Esto compra la guía; al cliente todavía no se le avisa nada.</>,
                 <>Presiona <strong>Imprimir guía</strong> y pégala en la caja.</>,
-                <>Entrega el paquete a la paquetería y presiona <strong>Entregué el paquete a la paquetería</strong>. Ahí el pedido pasa a ENVIADO y el cliente recibe por correo su número de guía y el bonus.</>,
-                <>Cuando la paquetería lo entregue, regresa al pedido y presiona <strong>Marcar como ENTREGADO</strong>.</>,
+                <>Entrega el paquete a la paquetería y presiona <strong>Entregué el paquete a la paquetería</strong>. Ahí el pedido pasa a ENVIADO y el cliente recibe por correo su número de guía.</>,
+                <>Cuando la paquetería lo entregue, regresa al pedido y presiona <strong>Marcar como ENTREGADO</strong>. Ahí el cliente recibe por correo el acceso a su bonus.</>,
               ]}
             />
           </Card>

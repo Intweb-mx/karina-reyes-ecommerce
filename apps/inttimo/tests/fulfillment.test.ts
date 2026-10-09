@@ -63,23 +63,34 @@ afterEach(() => close());
 const tokenFrom = (mail: Mail) => mail.text.match(/\/bonus\/([\w-]{43})/)![1]!;
 
 describe("entrega de pedidos", () => {
-  it("recolección: listo para recoger avisa con la nota y libera el bonus una sola vez", async () => {
+  it("recolección: listo para recoger avisa con la nota y NO libera el bonus; la entrega lo libera una sola vez", async () => {
     const id = await paidReservation("pickup");
     const result = await fulfillReservation(deps, id, { type: "ready_for_pickup", note: "Costco Juventud, sábado 10:00–13:00" }, "admin@inttimo.test");
-    expect(result).toMatchObject({ ok: true, email: "sent", bonus: "sent" });
-    // El bonus va DENTRO del mismo correo de LISTO PARA RECOGER, nunca aparte (§3 "Especificaciones finales postcompra UNO+UNO").
+    expect(result).toMatchObject({ ok: true, email: "sent", bonus: "skipped" });
     expect(sent).toHaveLength(1);
     expect(sent[0]!.subject).toContain("listo para recoger");
     expect(sent[0]!.text).toContain("Costco Juventud");
     expect(sent[0]!.text).toContain("Punto seleccionado: Costco Chihuahua");
-    expect(sent[0]!.text).toContain("BONUS DE PREVENTA");
+    expect(sent[0]!.text).not.toContain("BONUS DE PREVENTA");
+    expect(sent[0]!.text).not.toContain("/bonus/");
+    expect((await findReservationById(db, id))?.bonusSentAt).toBeNull();
     expect(await sendBonusIfEligible(deps, id)).toBe("skipped");
 
-    const access = await resolveBonusAccess(db, tokenFrom(sent[0]!), NOW);
+    const delivered = await fulfillReservation(deps, id, { type: "delivered" }, "admin@inttimo.test");
+    expect(delivered).toMatchObject({ ok: true, email: "sent", bonus: "sent" });
+    expect(sent).toHaveLength(2);
+    const mail = sent[1]!;
+    expect(mail.to).toBe("ana@ejemplo.com");
+    expect(mail.subject).toContain("entregado");
+    expect(mail.text).toContain("BONUS DE PREVENTA");
+    expect(mail.html).toContain("Abrir mi bonus");
+    expect(await sendBonusIfEligible(deps, id)).toBe("skipped");
+
+    const access = await resolveBonusAccess(db, tokenFrom(mail), NOW);
     expect(access).toMatchObject({ status: "ok", bonus: BONUS });
-    expect(await resolveBonusAccess(db, tokenFrom(sent[0]!), new Date(NOW.getTime() + 31 * 86_400_000))).toMatchObject({ status: "expired" });
+    expect(await resolveBonusAccess(db, tokenFrom(mail), new Date(NOW.getTime() + 31 * 86_400_000))).toMatchObject({ status: "expired" });
     expect(await resolveBonusAccess(db, "x".repeat(43), NOW)).toEqual({ status: "invalid" });
-    const emailEvent = (await listReservationEvents(db, id)).find((e) => e.type === "FULFILLMENT_EMAIL_SENT");
+    const emailEvent = (await listReservationEvents(db, id)).find((e) => e.type === "FULFILLMENT_EMAIL_SENT" && e.metadata.note);
     expect(emailEvent?.metadata).toMatchObject({ note: "Costco Juventud, sábado 10:00–13:00" });
   });
 
@@ -90,25 +101,48 @@ describe("entrega de pedidos", () => {
     expect((await fulfillReservation(deps, id, { type: "shipped", shipment }, "admin")).ok).toBe(true);
     expect(sent[0]!.text).toContain("ABC123");
     expect(await findReservationById(db, id)).toMatchObject({ fulfillmentStatus: "shipped", ...shipment });
-    expect((await fulfillReservation(deps, id, { type: "delivered" }, "admin")).ok).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).not.toContain("BONUS DE PREVENTA");
+    expect(await fulfillReservation(deps, id, { type: "delivered" }, "admin")).toMatchObject({ ok: true, email: "sent", bonus: "sent" });
+    expect(sent).toHaveLength(2);
+    expect(sent[1]!.text).toContain("BONUS DE PREVENTA");
+    expect(await fulfillReservation(deps, id, { type: "delivered" }, "admin")).toEqual({ ok: false, error: "El pedido ya cambió de estado. Recarga la página." });
+    expect(sent).toHaveLength(2);
   });
 
   it("compras pagadas después del cierre no reciben bonus; sin bonus configurado tampoco", async () => {
     const late = await paidReservation("pickup", new Date("2026-10-20T12:00:00Z"));
-    expect(await fulfillReservation(deps, late, { type: "ready_for_pickup" }, "admin")).toMatchObject({ ok: true, bonus: "not_eligible" });
+    await fulfillReservation(deps, late, { type: "ready_for_pickup" }, "admin");
+    sent = [];
+    expect(await fulfillReservation(deps, late, { type: "delivered" }, "admin")).toMatchObject({ ok: true, email: "skipped", bonus: "not_eligible" });
+    expect(sent).toHaveLength(0);
 
     await updateCampaign(db, campaignId, { bonus: null });
     const other = await paidReservation("pickup");
-    expect(await fulfillReservation(deps, other, { type: "ready_for_pickup" }, "admin")).toMatchObject({ ok: true, bonus: "not_configured" });
+    await fulfillReservation(deps, other, { type: "ready_for_pickup" }, "admin");
+    expect(await fulfillReservation(deps, other, { type: "delivered" }, "admin")).toMatchObject({ ok: true, email: "skipped", bonus: "not_configured" });
+    expect(sent).toHaveLength(1);
+  });
+
+  it("un bonus sin PDF ni video cargados no manda correo de entrega", async () => {
+    await updateCampaign(db, campaignId, { bonus: { ...BONUS, pdfUrl: null, videoUrl: null } });
+    const id = await paidReservation("pickup");
+    await fulfillReservation(deps, id, { type: "ready_for_pickup" }, "admin");
+    sent = [];
+    expect(await fulfillReservation(deps, id, { type: "delivered" }, "admin")).toMatchObject({ ok: true, email: "skipped", bonus: "not_configured" });
+    expect(sent).toHaveLength(0);
+    expect(await sendBonusIfEligible(deps, id)).toBe("not_configured");
+    expect((await findReservationById(db, id))?.bonusSentAt).toBeNull();
   });
 
   it("si el correo falla, el estado se conserva y el bonus se puede reintentar", async () => {
     const id = await paidReservation("pickup");
+    await fulfillReservation(deps, id, { type: "ready_for_pickup" }, "admin");
     failMail = true;
-    expect(await fulfillReservation(deps, id, { type: "ready_for_pickup" }, "admin")).toMatchObject({ ok: true, email: "failed", bonus: "failed" });
-    expect((await findReservationById(db, id))?.bonusSentAt).toBeNull();
+    expect(await fulfillReservation(deps, id, { type: "delivered" }, "admin")).toMatchObject({ ok: true, email: "failed", bonus: "failed" });
+    expect((await findReservationById(db, id))).toMatchObject({ fulfillmentStatus: "delivered", bonusSentAt: null });
     const types = (await listReservationEvents(db, id)).map((e) => e.type);
-    expect(types).toEqual(expect.arrayContaining(["READY_FOR_PICKUP", "FULFILLMENT_EMAIL_FAILED", "BONUS_FAILED"]));
+    expect(types).toEqual(expect.arrayContaining(["READY_FOR_PICKUP", "DELIVERED", "FULFILLMENT_EMAIL_FAILED", "BONUS_FAILED"]));
     failMail = false;
     expect(await sendBonusIfEligible(deps, id)).toBe("sent");
   });
@@ -116,8 +150,9 @@ describe("entrega de pedidos", () => {
   it("un pedido reembolsado no da acceso al bonus", async () => {
     const id = await paidReservation("pickup");
     await fulfillReservation(deps, id, { type: "ready_for_pickup" }, "admin");
+    await fulfillReservation(deps, id, { type: "delivered" }, "admin");
     await db.execute(`update presale_reservations set status = 'refunded', amount_refunded = total_amount where id = '${id}'`);
-    expect(await resolveBonusAccess(db, tokenFrom(sent[0]!), NOW)).toEqual({ status: "invalid" });
+    expect(await resolveBonusAccess(db, tokenFrom(sent.at(-1)!), NOW)).toEqual({ status: "invalid" });
   });
 });
 
@@ -142,17 +177,17 @@ describe("guía de SkyDropX", () => {
     expect(shipping.shipments).toHaveLength(1);
   });
 
-  it("Entregué a la paquetería: marca ENVIADO y manda guía y bonus en un solo correo, una vez", async () => {
+  it("Entregué a la paquetería: marca ENVIADO y manda la guía sin bonus, una vez", async () => {
     const id = await paidReservation("shipping");
     expect(await handToCarrier(deps, id, "admin")).toEqual({ ok: false, error: "Primero genera la guía." });
     await generateLabel(labelDeps(), id, "admin");
 
     const result = await handToCarrier(deps, id, "admin@inttimo.test");
-    expect(result).toMatchObject({ ok: true, email: "sent", bonus: "sent" });
-    expect(await findReservationById(db, id)).toMatchObject({ fulfillmentStatus: "shipped", trackingNumber: "GUIA123" });
+    expect(result).toMatchObject({ ok: true, email: "sent", bonus: "skipped" });
+    expect(await findReservationById(db, id)).toMatchObject({ fulfillmentStatus: "shipped", trackingNumber: "GUIA123", bonusSentAt: null });
     expect(sent).toHaveLength(1);
     expect(sent[0]!.text).toContain("GUIA123");
-    expect(sent[0]!.text).toContain("BONUS DE PREVENTA");
+    expect(sent[0]!.text).not.toContain("BONUS DE PREVENTA");
     expect(await handToCarrier(deps, id, "admin")).toEqual({ ok: false, error: "El pedido ya cambió de estado. Recarga la página." });
     expect(sent).toHaveLength(1);
   });

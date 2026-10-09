@@ -92,7 +92,7 @@ function NextStepCard({ order }: { order: OrderDetail }) {
           </li>
           <li>
             <p className="font-semibold">2. Cuando entregues el paquete a {order.delivery.carrier ?? "la paquetería"}, avísalo aquí</p>
-            <p className="mt-1 mb-2 text-muted">El cliente recibe su número de guía{order.bonus.configured ? " y el bonus" : ""} por correo.</p>
+            <p className="mt-1 mb-2 text-muted">El cliente recibe su número de guía por correo.</p>
             <HandToCarrierForm action={handToCarrierAction.bind(null, order.id)} />
           </li>
         </ol>
@@ -101,7 +101,7 @@ function NextStepCard({ order }: { order: OrderDetail }) {
     case "mark_delivered":
       body = (
         <div className="space-y-2 text-sm">
-          <p>Enviado. Cuando la paquetería lo entregue:</p>
+          <p>Enviado. Cuando la paquetería lo entregue{order.bonus.configured ? " (al marcarlo, el cliente recibe su bonus por correo)" : ""}:</p>
           <DeliveredForm action={deliver} />
         </div>
       );
@@ -112,7 +112,7 @@ function NextStepCard({ order }: { order: OrderDetail }) {
     case "mark_picked_up":
       body = (
         <div className="space-y-2">
-          <p className="text-sm text-muted">El cliente ya fue avisado. Cuando lo recoja:</p>
+          <p className="text-sm text-muted">El cliente ya fue avisado. Cuando lo recoja{order.bonus.configured ? " (al marcarlo, recibe su bonus por correo)" : ""}:</p>
           <DeliveredForm action={deliver} />
         </div>
       );
@@ -176,7 +176,7 @@ export default async function OrderPage({ params }: PageProps<"/panel/pedidos/[i
   ];
 
   const canResendFulfillment = delivery.status === "shipped" || delivery.status === "ready_for_pickup";
-  const canRetryBonus = paid && order.bonus.configured && !order.bonus.sentAt && delivery.status !== "pending";
+  const canRetryBonus = paid && order.bonus.configured && !order.bonus.sentAt && delivery.status === "delivered";
 
   return (
     <div className="space-y-6">

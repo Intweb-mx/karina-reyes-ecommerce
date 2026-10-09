@@ -80,7 +80,7 @@ export async function retryBonus(reservationId: string): Promise<DeliveryState> 
   await audit(state.admin, { action: "reservation.bonus_retry", targetType: "reservation", targetId: reservationId, metadata: { outcome } });
   refresh(reservationId);
   if (outcome === "sent") return { ok: BONUS.sent };
-  if (outcome === "skipped") return { error: "No aplica: el bonus ya se envió o el pedido aún no está enviado / listo para recoger." };
+  if (outcome === "skipped") return { error: "No aplica: el bonus ya se envió o el pedido aún no está entregado." };
   return { error: BONUS[outcome] };
 }
 
