@@ -75,10 +75,15 @@ export async function fulfillReservation(deps: FulfillmentDeps, reservationId: s
   return { ok: true, reservation: updated, email, bonus: "skipped" };
 }
 
+/** Sin ningún archivo cargado no hay nada que entregar: se trata como bonus sin configurar. */
+function hasBonusFiles(config: { pdfUrl: string | null; videoUrl: string | null }): boolean {
+  return !!(config.pdfUrl || config.videoUrl);
+}
+
 /** ENTREGADO: reclama el bonus (idempotente), crea el enlace personal y lo manda en el correo de entrega. */
 async function deliverWithBonus(deps: FulfillmentDeps, updated: PresaleReservation, campaign: Awaited<ReturnType<typeof getCampaignById>>): Promise<FulfillmentResult> {
   const config = campaign?.bonus;
-  if (!campaign || !config) return { ok: true, reservation: updated, email: "skipped", bonus: "not_configured" };
+  if (!campaign || !config || !hasBonusFiles(config)) return { ok: true, reservation: updated, email: "skipped", bonus: "not_configured" };
   if (!updated.paidAt || updated.paidAt > campaign.endsAt) return { ok: true, reservation: updated, email: "skipped", bonus: "not_eligible" };
 
   const claimed = await claimBonusSend(deps.db, updated.id);
@@ -155,7 +160,7 @@ export async function sendBonusIfEligible(deps: FulfillmentDeps, reservationId: 
   const reservation = await findReservationById(deps.db, reservationId);
   if (!reservation || reservation.fulfillmentStatus !== "delivered") return "skipped";
   const campaign = await getCampaignById(deps.db, reservation.campaignId);
-  if (!campaign?.bonus) return "not_configured";
+  if (!campaign?.bonus || !hasBonusFiles(campaign.bonus)) return "not_configured";
   if (!reservation.paidAt || reservation.paidAt > campaign.endsAt) return "not_eligible";
 
   const claimed = await claimBonusSend(deps.db, reservation.id);

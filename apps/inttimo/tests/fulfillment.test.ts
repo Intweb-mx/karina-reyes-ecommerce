@@ -124,6 +124,17 @@ describe("entrega de pedidos", () => {
     expect(sent).toHaveLength(1);
   });
 
+  it("un bonus sin PDF ni video cargados no manda correo de entrega", async () => {
+    await updateCampaign(db, campaignId, { bonus: { ...BONUS, pdfUrl: null, videoUrl: null } });
+    const id = await paidReservation("pickup");
+    await fulfillReservation(deps, id, { type: "ready_for_pickup" }, "admin");
+    sent = [];
+    expect(await fulfillReservation(deps, id, { type: "delivered" }, "admin")).toMatchObject({ ok: true, email: "skipped", bonus: "not_configured" });
+    expect(sent).toHaveLength(0);
+    expect(await sendBonusIfEligible(deps, id)).toBe("not_configured");
+    expect((await findReservationById(db, id))?.bonusSentAt).toBeNull();
+  });
+
   it("si el correo falla, el estado se conserva y el bonus se puede reintentar", async () => {
     const id = await paidReservation("pickup");
     await fulfillReservation(deps, id, { type: "ready_for_pickup" }, "admin");
