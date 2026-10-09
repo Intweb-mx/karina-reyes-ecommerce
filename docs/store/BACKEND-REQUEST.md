@@ -52,7 +52,7 @@ Reglas para **todas** estas rutas:
 | A5 | `POST /api/panel/tienda/pedidos/[folio]/acciones` (`Idempotency-Key`) | Detalle | Acciones: generar guía (SkyDropX, igual que en la preventa), marcar enviado, listo para recoger (con correo al cliente), entregado, reportar incidencia con nota, reenviar confirmación y cancelar (reembolso en Stripe si ya se pagó). Devuelve el pedido actualizado. |
 | A6 | `POST /api/panel/tienda/pedidos/[folio]/notas` | Detalle | Nota interna que el cliente nunca ve. |
 | A7 | `GET /api/panel/tienda/productos` · `PATCH /api/panel/tienda/productos/[id]` | Productos | Lista con inventario (`onHand`, `reserved`, `available`, `lowStockThreshold`). El PATCH edita precio (en centavos), publicar u ocultar, aviso de poco inventario y máximo por pedido. |
-| A8 | `POST /api/panel/tienda/productos/[id]/inventario` · `GET …/movimientos` | Productos | Entradas y salidas con motivo (recepción, ajuste, merma, devolución, corrección). Es un **movimiento auditable**, nunca se sobrescribe el número. Las existencias no pueden quedar debajo de lo apartado. |
+| A8 | `POST /api/panel/tienda/productos/[id]/inventario` · `GET …/movimientos` | Productos | Entradas y salidas con motivo (recepción, ajuste, merma, devolución, corrección). Es un **movimiento auditable**, nunca se sobrescribe el número. Las existencias no pueden quedar debajo de lo apartado. Cada movimiento guarda dos cambios: `deltaOnHand` (existencias) y `deltaReserved` (apartado en pedidos). |
 | A9 | `GET /api/panel/tienda/solicitudes` · `PATCH /api/panel/tienda/solicitudes/[id]` | Solicitudes | Contacto y cotizaciones de iglesias, con estado (`new`, `contacted`, `quoted`, `won`, `closed`) y notas del equipo. |
 
 ## Modelo de datos necesario (brief §11–§21)

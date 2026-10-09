@@ -12,6 +12,7 @@
     "presale:upsert": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/presale-upsert.ts",
     "presale:export": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/presale-export.ts",
     "presale:reconcile": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/presale-reconcile.ts",
+    "store:seed": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/store-seed.ts",
     "admin": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/admin.ts"
   },
   "dependencies": {

@@ -98,7 +98,20 @@ export type StockMovementReason = "reception" | "adjustment" | "damage" | "retur
 /** POST /api/panel/tienda/productos/[id]/inventario — movimiento auditable, nunca sobrescribir el número. */
 export type StockAdjustmentRequest = { delta: number; reason: StockMovementReason; note?: string };
 
-export type StockMovement = { id: string; at: string; delta: number; reason: StockMovementReason | "sale" | "reservation" | "release"; actor: string | null; orderNumber: string | null; note: string | null };
+/**
+ * `deltaOnHand` cambia las existencias y `deltaReserved` lo apartado en pedidos: una reserva no cambia las existencias,
+ * una venta cambia las dos. Sin los dos números no se distingue una reserva de una recepción.
+ */
+export type StockMovement = {
+  id: string;
+  at: string;
+  deltaOnHand: number;
+  deltaReserved: number;
+  reason: StockMovementReason | "sale" | "reservation" | "release";
+  actor: string | null;
+  orderNumber: string | null;
+  note: string | null;
+};
 
 /** GET /api/panel/tienda/productos/[id]/movimientos */
 export type StockMovementsResponse = { movements: StockMovement[] };

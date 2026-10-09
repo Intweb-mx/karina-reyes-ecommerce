@@ -130,9 +130,9 @@ const products: AdminProduct[] = [
 
 const movements: Record<string, StockMovement[]> = {
   prod_uno_mas_uno: [
-    { id: "mov_1", at: ago(240), delta: 50, reason: "reception", actor: "equipo@ejemplo.com", orderNumber: null, note: "Recepción de EJEMPLO" },
-    { id: "mov_2", at: ago(72), delta: -3, reason: "sale", actor: null, orderNumber: "INT-EJEMPLO-0005", note: null },
-    { id: "mov_3", at: ago(26), delta: -2, reason: "sale", actor: null, orderNumber: "INT-EJEMPLO-0002", note: null },
+    { id: "mov_1", at: ago(240), deltaOnHand: 50, deltaReserved: 0, reason: "reception", actor: "equipo@ejemplo.com", orderNumber: null, note: "Recepción de EJEMPLO" },
+    { id: "mov_2", at: ago(72), deltaOnHand: -3, deltaReserved: -3, reason: "sale", actor: null, orderNumber: "INT-EJEMPLO-0005", note: null },
+    { id: "mov_3", at: ago(26), deltaOnHand: -2, deltaReserved: -2, reason: "sale", actor: null, orderNumber: "INT-EJEMPLO-0002", note: null },
   ],
 };
 
@@ -264,7 +264,7 @@ export const mockStoreAdminApi: StoreAdminApi = {
     product.inventory.available = product.inventory.onHand - product.inventory.reserved;
     product.status = product.inventory.available <= 0 ? "sold_out" : product.inventory.available <= product.inventory.lowStockThreshold ? "low_stock" : "available";
     product.updatedAt = now();
-    (movements[id] ??= []).push({ id: `mov_${Date.now()}`, at: now(), delta, reason, actor: "tú (simulación)", orderNumber: null, note: note ?? null });
+    (movements[id] ??= []).push({ id: `mov_${Date.now()}`, at: now(), deltaOnHand: delta, deltaReserved: 0, reason, actor: "tú (simulación)", orderNumber: null, note: note ?? null });
     return ok(clone(product));
   },
   async stockMovements(id) {
