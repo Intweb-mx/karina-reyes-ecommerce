@@ -126,31 +126,13 @@ const toHtml = (lines: string[]) => lines.map((line) => (line ? `<p>${escapeHtml
 export type BonusEmailInfo = { title: string; url: string; expiresAt: Date };
 
 /**
- * Bloque de bonus dentro del correo de ENVIADO / LISTO PARA RECOGER (nunca un correo aparte, §3).
- * Vacío si la campaña no tiene bonus configurado o el pedido no es elegible: no se menciona el bonus en absoluto.
- */
-function bonusBlock(productName: string, statusLead: string, bonus: BonusEmailInfo | null): string[] {
-  if (!bonus) return [];
-  const until = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" }).format(bonus.expiresAt);
-  return [
-    "",
-    `Y ahora que tu ${productName} ${statusLead}, también queremos entregarte algo más por haber sido parte de la preventa.`,
-    "",
-    "BONUS DE PREVENTA",
-    bonus.title,
-    `Accede aquí: ${bonus.url}`,
-    `Disponible hasta el ${until}.`,
-  ];
-}
-
-/**
  * Correo LISTO PARA RECOGER / ENVIADO: textos exactos de "Especificaciones finales postcompra UNO+UNO"
- * (1 oct 2026, §5–6). El bonus, si aplica, va dentro de este mismo correo, nunca aparte.
+ * (1 oct 2026, §5–6). Estos correos no llevan bonus: se libera al marcar ENTREGADO (`deliveredMail`).
  * Las instrucciones de recolección distinguen Sophos·Baluarte de Costco Chihuahua: son los dos únicos puntos de la campaña.
  */
-export function fulfillmentMail(reservation: PresaleReservation, productName: string, note: string | null, point: Point, bonus: BonusEmailInfo | null): Mail {
+export function fulfillmentMail(reservation: PresaleReservation, productName: string, note: string | null, point: Point): Mail {
   const pickup = reservation.fulfillmentStatus === "ready_for_pickup";
-  const closing = [...(note ? ["", note] : []), ...bonusBlock(productName, pickup ? "está listo" : "va en camino", bonus), "", `Gracias por ser parte de esta primera etapa de ${productName}.`, "", "— inttimo —"];
+  const closing = [...(note ? ["", note] : []), "", `Gracias por ser parte de esta primera etapa de ${productName}.`, "", "— inttimo —"];
 
   if (pickup) {
     const costco = point?.id === "costco";
@@ -185,7 +167,39 @@ export function fulfillmentMail(reservation: PresaleReservation, productName: st
   return { to: reservation.email, subject: `Tu ${productName} ya va en camino · ${reservation.code}`, text: lines.join("\n"), html: toHtml(lines) };
 }
 
-/** Reenvío manual del bonus (p. ej. el cliente reporta que no le llegó el correo de ENVIADO/LISTO), sin tocar el estado del pedido. */
+/** Correo de ENTREGADO: confirma la entrega y trae el acceso personal al bonus (enlace temporal). */
+export function deliveredMail(reservation: PresaleReservation, productName: string, bonus: BonusEmailInfo): Mail {
+  const until = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" }).format(bonus.expiresAt);
+  const intro = [
+    `Hola ${reservation.fullName}: Tu ${productName} ya fue entregado.`,
+    "",
+    `Folio: ${reservation.code}`,
+    "",
+    "Gracias por ser parte de esta primera etapa. Por haber comprado en la preventa, queremos entregarte algo más:",
+    "",
+    "BONUS DE PREVENTA",
+    bonus.title,
+    `Abrir mi bonus: ${bonus.url}`,
+  ];
+  const outro = [
+    "",
+    `Este enlace es personal y estará disponible hasta el ${until}. El contenido es para tu uso personal; no lo compartas ni lo publiques.`,
+    "",
+    `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · ${business.hours}.`,
+    "",
+    "— inttimo —",
+  ];
+  const button = `<p><a href="${escapeHtml(bonus.url)}" style="display:inline-block;padding:12px 24px;background:#221c17;color:#ffffff;text-decoration:none">Abrir mi bonus</a></p>`;
+  const htmlIntro = toHtml(intro.slice(0, -1));
+  return {
+    to: reservation.email,
+    subject: `Tu ${productName} fue entregado · tu bonus de preventa · ${reservation.code}`,
+    text: [...intro, ...outro].join("\n"),
+    html: htmlIntro + button + toHtml(outro),
+  };
+}
+
+/** Reenvío manual del bonus (p. ej. el cliente reporta que no le llegó el correo de ENTREGADO), sin tocar el estado del pedido. */
 export function bonusMail(reservation: PresaleReservation, productName: string, bonusTitle: string, url: string, expiresAt: Date): Mail {
   const until = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" }).format(expiresAt);
   const lines = [

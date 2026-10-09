@@ -124,9 +124,9 @@ export const statusCopy: Record<PublicReservationStatus, { eyebrow: string; titl
 
 /** Encabezado de la confirmación cuando el pedido pagado ya avanzó en la entrega (fulfillmentStatus). */
 export const fulfillmentCopy = {
-  ready_for_pickup: { eyebrow: "Listo para recoger", title: "Tu UNO+UNO está listo para recoger.", body: "Te enviamos por correo el punto de entrega y las instrucciones, junto con el acceso a tu bonus. Presenta tu nombre y número de pedido al recogerlo." },
-  shipped: { eyebrow: "Enviado", title: "Tu pedido va en camino.", body: "Puedes seguir tu envío con la guía de rastreo. Te enviamos por correo el acceso a tu bonus." },
-  delivered: { eyebrow: "Entregado", title: "Tu pedido fue entregado.", body: "Gracias por ser parte de esta preventa." },
+  ready_for_pickup: { eyebrow: "Listo para recoger", title: "Tu UNO+UNO está listo para recoger.", body: "Te enviamos por correo el punto de entrega y las instrucciones. Presenta tu nombre y número de pedido al recogerlo." },
+  shipped: { eyebrow: "Enviado", title: "Tu pedido va en camino.", body: "Puedes seguir tu envío con la guía de rastreo. Te enviamos el número de guía por correo." },
+  delivered: { eyebrow: "Entregado", title: "Tu pedido fue entregado.", body: "Gracias por ser parte de esta preventa. Te enviamos por correo el acceso a tu bonus." },
 } as const;
 
 /**

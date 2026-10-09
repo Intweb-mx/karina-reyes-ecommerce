@@ -167,7 +167,7 @@ export type LabelResult = { ok: true; status: "ready" | "pending"; message: stri
 
 /**
  * Compra la guía en SkyDropX para un pedido pagado con envío y guarda paquetería y número de guía. El pedido sigue
- * EN PREPARACIÓN: pasa a ENVIADO (correo + bonus) solo con `handToCarrier`, cuando el paquete se entrega a la paquetería.
+ * EN PREPARACIÓN: pasa a ENVIADO (correo con la guía) solo con `handToCarrier`, cuando el paquete se entrega a la paquetería.
  * Si la cotización tiene más de 23 h se vuelve a cotizar y se elige la misma paquetería y servicio (o la más económica);
  * la diferencia la absorbe inttimo, el cliente ya pagó.
  */
