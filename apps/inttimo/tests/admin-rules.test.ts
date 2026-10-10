@@ -9,6 +9,8 @@ const ADDRESS = { name: "Ana", phone: "6141234567", street: "Calle 1", neighborh
 
 const base: Order = {
   status: "paid",
+  email: "ana@ejemplo.com",
+  paymentMethod: "stripe",
   deliveryMethod: "shipping",
   fulfillmentStatus: "pending",
   trackingNumber: null,
@@ -24,6 +26,17 @@ const base: Order = {
 const order = (overrides: Partial<Order> = {}): Order => ({ ...base, ...overrides });
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
 const ev = (type: string, minutes: number) => ({ type, createdAt: at(minutes) });
+
+describe("venta registrada a mano", () => {
+  it("pendiente en persona: el siguiente paso es marcar entregado, sin avisar que está listo", () => {
+    expect(nextStepFor(order({ paymentMethod: "cash", deliveryMethod: "pickup", deliveryAddress: null }))).toEqual({ type: "mark_picked_up" });
+  });
+
+  it("sin correo no cuenta como confirmación fallida", () => {
+    expect(incidentsFor(order({ email: "", confirmationEmailSentAt: null, paymentMethod: "cash" }), [], at(60))).toEqual([]);
+    expect(incidentsFor(order({ confirmationEmailSentAt: null }), [], at(60))).toContain("confirmation_email_failed");
+  });
+});
 
 describe("siguiente paso", () => {
   it.each([

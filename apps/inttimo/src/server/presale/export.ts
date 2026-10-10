@@ -11,7 +11,7 @@ function escape(value: unknown): string {
 export function buildReservationsCsv(campaign: PresaleCampaign, rows: PresaleReservation[]): string {
   const questionIds = campaign.questions.map((q) => q.id);
   const header = [
-    "folio", "estado", "nombre", "email", "telefono", "cantidad", "metodo_entrega", "punto_recoleccion", "paqueteria_tarifa", "envio_centavos", "total_centavos", "moneda", "reembolsado_centavos",
+    "folio", "estado", "nombre", "email", "telefono", "cantidad", "metodo_entrega", "punto_recoleccion", "paqueteria_tarifa", "envio_centavos", "total_centavos", "moneda", "reembolsado_centavos", "descuento_centavos", "forma_pago", "registrada_por",
     "estado_entrega", "paqueteria", "guia", "enviado_o_listo_en", "entregado_en", "bonus_enviado_en",
     "pagada_en", "creada_en", "acepta_marketing",
     "envio_nombre", "envio_calle", "envio_calle2", "envio_ciudad", "envio_estado", "envio_cp", "envio_pais",
@@ -19,7 +19,7 @@ export function buildReservationsCsv(campaign: PresaleCampaign, rows: PresaleRes
   ];
   const lines = rows.map((r) =>
     [
-      r.code, r.status, r.fullName, r.email, r.phone, r.quantity, r.deliveryMethod, r.pickupPointId, r.shippingSelection ? `${r.shippingSelection.carrier} ${r.shippingSelection.service}` : null, r.shippingAmount, r.totalAmount, r.currency, r.amountRefunded,
+      r.code, r.status, r.fullName, r.email, r.phone, r.quantity, r.deliveryMethod, r.pickupPointId, r.shippingSelection ? `${r.shippingSelection.carrier} ${r.shippingSelection.service}` : null, r.shippingAmount, r.totalAmount, r.currency, r.amountRefunded, r.discountAmount, r.paymentMethod, r.recordedBy,
       r.fulfillmentStatus, r.carrier, r.trackingNumber, r.fulfilledAt?.toISOString(), r.deliveredAt?.toISOString(), r.bonusSentAt?.toISOString(),
       r.paidAt?.toISOString(), r.createdAt.toISOString(), r.marketingConsent ? "si" : "no",
       r.deliveryAddress?.name ?? r.shippingAddress?.name,

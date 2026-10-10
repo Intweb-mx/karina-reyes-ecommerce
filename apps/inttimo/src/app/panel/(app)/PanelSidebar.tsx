@@ -35,7 +35,8 @@ export function PanelSidebar({ campaigns, email, storeEnabled }: { campaigns: { 
     {
       title: "Preventa",
       items: [
-        { href: "/panel/pedidos", label: "Pedidos", hint: "Buscar, filtrar y descargar compras", icon: BoxIcon, active: (p) => p.startsWith("/panel/pedidos") || p.startsWith("/panel/reservas") },
+        { href: "/panel/pedidos", label: "Pedidos", hint: "Buscar, filtrar y descargar compras", icon: BoxIcon, active: (p) => (p.startsWith("/panel/pedidos") && p !== "/panel/pedidos/nueva") || p.startsWith("/panel/reservas") },
+        { href: "/panel/pedidos/nueva", label: "Registrar venta", hint: "Ventas en persona: efectivo o transferencia", icon: BagIcon, active: (p) => p === "/panel/pedidos/nueva" },
         { href: "/panel/preventa", label: "Resumen de la preventa", hint: "Ventas, piezas disponibles y cierre", icon: FileIcon, active: (p) => p === "/panel/preventa" },
         ...campaigns.map((campaign) => ({
           href: `/panel/campanas/${campaign.slug}/editar`,

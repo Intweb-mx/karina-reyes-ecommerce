@@ -110,7 +110,7 @@ export async function getOrderDetail(db: Database, id: string, now: Date = new D
   if (!r) return null;
   const [campaign, terms, events, postPurchase, notes] = await Promise.all([
     getCampaignById(db, r.campaignId),
-    getTermsById(db, r.termsId),
+    r.termsId ? getTermsById(db, r.termsId) : null,
     listReservationEvents(db, r.id),
     getPostPurchaseAnswers(db, r.id),
     listOrderNotes(db, r.id),
@@ -139,6 +139,9 @@ export async function getOrderDetail(db: Database, id: string, now: Date = new D
       paidAt: r.paidAt,
       termsVersion: terms?.version ?? null,
       stripeUrl: r.stripePaymentIntentId ? stripePaymentUrl(r.stripePaymentIntentId) : null,
+      method: r.paymentMethod,
+      discountAmount: r.discountAmount,
+      recordedBy: r.recordedBy,
     },
     delivery: {
       method: r.deliveryMethod,

@@ -99,6 +99,13 @@
       "when": 1791496876721,
       "tag": "0013_store_orders_client_ip_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791528814465,
+      "tag": "0014_manual_sales",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,7 @@ import { ORDER_TAB_LABELS, ORDER_TABS, type OrderQuery } from "@/server/admin/co
 import { parseOrderQuery, searchOrders } from "@/server/admin/orders";
 import { requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
-import { Badge, Card, DELIVERY_LABELS, EmptyState, FULFILLMENT_LABELS, FULFILLMENT_TONES, inputClass, PageHeader, secondaryButtonClass, STATUS_LABELS, STATUS_TONES } from "../../ui";
+import { Badge, buttonClass, Card, DELIVERY_LABELS, EmptyState, FULFILLMENT_LABELS, FULFILLMENT_TONES, inputClass, PageHeader, secondaryButtonClass, STATUS_LABELS, STATUS_TONES } from "../../ui";
 
 export const metadata = { title: "Pedidos" };
 
@@ -29,11 +29,16 @@ export default async function OrdersPage({ searchParams }: PageProps<"/panel/ped
         title="Pedidos"
         subtitle={campaign ? `Solo ${campaign.productName}` : "Todas las preventas"}
         actions={
-          campaign && (
-            <a href={`/panel/campanas/${campaign.slug}/export`} className={secondaryButtonClass}>
-              Descargar lista (Excel)
-            </a>
-          )
+          <div className="flex flex-wrap gap-2">
+            {campaign && (
+              <a href={`/panel/campanas/${campaign.slug}/export`} className={secondaryButtonClass}>
+                Descargar lista (Excel)
+              </a>
+            )}
+            <Link prefetch={false} href="/panel/pedidos/nueva" className={buttonClass}>
+              Registrar venta
+            </Link>
+          </div>
         }
       />
 

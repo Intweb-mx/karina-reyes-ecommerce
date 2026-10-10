@@ -63,6 +63,7 @@ export async function fulfillReservation(deps: FulfillmentDeps, reservationId: s
   if (action.type === "delivered") return deliverWithBonus(deps, updated, campaign, source);
 
   const note = action.note?.trim() || null;
+  if (!updated.email) return { ok: true, reservation: updated, email: "skipped", bonus: "skipped" };
   const point = campaign?.pickupPoints.find((p) => p.id === updated.pickupPointId);
   let email: Outcome = "sent";
   try {
@@ -87,6 +88,8 @@ async function deliverWithBonus(deps: FulfillmentDeps, updated: PresaleReservati
   if (!campaign || !config || !hasBonusFiles(config)) return { ok: true, reservation: updated, email: "skipped", bonus: "not_configured" };
   if (!updated.paidAt || updated.paidAt > campaign.endsAt) return { ok: true, reservation: updated, email: "skipped", bonus: "not_eligible" };
 
+  // Sin correo no hay a dónde mandar el enlace: el bonus queda sin reclamar por si luego se captura uno.
+  if (!updated.email) return { ok: true, reservation: updated, email: "skipped", bonus: "skipped" };
   const claimed = await claimBonusSend(deps.db, updated.id);
   if (!claimed) return { ok: true, reservation: updated, email: "skipped", bonus: "skipped" };
 
@@ -137,7 +140,7 @@ export async function handToCarrier(deps: FulfillmentDeps, reservationId: string
 /** Reenvío manual del aviso de ENVIADO / LISTO PARA RECOGER, con la misma nota (el bonus tiene su propio reintento). */
 export async function resendFulfillmentEmail(deps: FulfillmentDeps, reservationId: string): Promise<"sent" | "failed" | "not_applicable"> {
   const reservation = await findReservationById(deps.db, reservationId);
-  if (!reservation || (reservation.fulfillmentStatus !== "shipped" && reservation.fulfillmentStatus !== "ready_for_pickup")) return "not_applicable";
+  if (!reservation?.email || (reservation.fulfillmentStatus !== "shipped" && reservation.fulfillmentStatus !== "ready_for_pickup")) return "not_applicable";
   const campaign = await getCampaignById(deps.db, reservation.campaignId);
   const point = campaign?.pickupPoints.find((p) => p.id === reservation.pickupPointId);
   const events = await listReservationEvents(deps.db, reservation.id);
@@ -160,7 +163,7 @@ export async function resendFulfillmentEmail(deps: FulfillmentDeps, reservationI
  */
 export async function sendBonusIfEligible(deps: FulfillmentDeps, reservationId: string): Promise<BonusOutcome> {
   const reservation = await findReservationById(deps.db, reservationId);
-  if (!reservation || reservation.fulfillmentStatus !== "delivered") return "skipped";
+  if (!reservation?.email || reservation.fulfillmentStatus !== "delivered") return "skipped";
   const campaign = await getCampaignById(deps.db, reservation.campaignId);
   if (!campaign?.bonus || !hasBonusFiles(campaign.bonus)) return "not_configured";
   if (!reservation.paidAt || reservation.paidAt > campaign.endsAt) return "not_eligible";
