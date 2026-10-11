@@ -41,7 +41,14 @@
     "consignmentNote": "60141102",
     "packageType": "4G"
   },
-  "bonus": null,
+  "bonus": {
+    "title": "Después de la pregunta · Bonus de preventa",
+    "pdfUrl": null,
+    "videoUrl": null,
+    "pdfKey": "bonus/2026/10/53da8fe1-f92d-4ff5-864e-bcdcc8825352-despues-de-la-pregunta-uno-uno.pdf",
+    "videoKey": "bonus/2026/10/107c923f-1910-4b87-b0b6-9b91020ff578-bonus-video.mp4",
+    "linkDays": 60
+  },
   "deliveryNote": null,
   "questions": []
 }
