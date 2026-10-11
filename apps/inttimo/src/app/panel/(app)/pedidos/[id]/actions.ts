@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { addOrderNote } from "@inttimo/database";
 import { audit, getAdminState } from "@/server/auth/admin";
-import { fulfillReservation, handToCarrier, resendFulfillmentEmail, sendBonusIfEligible, type BonusOutcome, type FulfillmentAction, type Outcome } from "@/server/presale/fulfillment";
+import { fulfillReservation, handToCarrier, reissueBonus, resendFulfillmentEmail, sendBonusIfEligible, type BonusOutcome, type FulfillmentAction, type Outcome } from "@/server/presale/fulfillment";
 import { resendConfirmation } from "@/server/presale/notifications";
 import { getDb, getFulfillmentDeps, getShippingDeps } from "@/server/presale/runtime";
 import { generateLabel } from "@/server/presale/shipping";
@@ -70,6 +70,30 @@ export async function updateDelivery(reservationId: string, _state: DeliveryStat
   refresh(reservationId);
   const messages = ["Estado actualizado.", EMAIL[result.email], BONUS[result.bonus]].filter(Boolean);
   return result.email === "failed" || result.bonus === "failed" ? { error: messages.join(" ") } : { ok: messages.join(" ") };
+}
+
+/** El cliente ya recibió su bonus pero el enlace venció o lo perdió: se le manda uno nuevo (conserva las reproducciones usadas). */
+export async function reissueBonusAction(reservationId: string): Promise<DeliveryState> {
+  const state = await getAdminState();
+  if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
+  if (!z.string().uuid().safeParse(reservationId).success) return { error: "Pedido no válido." };
+  const outcome = await reissueBonus(getFulfillmentDeps(), reservationId, state.admin.email);
+  await audit(state.admin, { action: "reservation.bonus_reissue", targetType: "reservation", targetId: reservationId, metadata: { outcome } });
+  refresh(reservationId);
+  switch (outcome) {
+    case "sent":
+      return { ok: "Se mandó un enlace nuevo. El anterior ya no funciona y las reproducciones del video ya usadas se conservan." };
+    case "failed":
+      return { error: "No se pudo enviar el correo. El cliente conserva su enlace anterior; inténtalo de nuevo." };
+    case "never_sent":
+      return { error: "A este pedido aún no se le ha enviado el bonus: usa “Reintentar bonus”." };
+    case "not_configured":
+      return { error: BONUS.not_configured };
+    case "not_eligible":
+      return { error: BONUS.not_eligible };
+    default:
+      return { error: "No aplica: el pedido debe estar pagado, entregado y con correo." };
+  }
 }
 
 export async function retryBonus(reservationId: string): Promise<DeliveryState> {

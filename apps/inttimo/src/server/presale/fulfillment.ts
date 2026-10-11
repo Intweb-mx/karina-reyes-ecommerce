@@ -3,11 +3,14 @@ import {
   addReservationEvent,
   claimBonusSend,
   createBonusLink,
+  deleteBonusLink,
+  expireOtherBonusLinks,
   findReservationById,
   getCampaignById,
   listReservationEvents,
   markDelivered,
   markReadyForPickup,
+  maxBonusVideoPlays,
   markShipped,
   releaseBonusSend,
   type Database,
@@ -26,6 +29,8 @@ export type FulfillmentAction =
 
 export type Outcome = "sent" | "failed" | "skipped";
 export type BonusOutcome = Outcome | "not_configured" | "not_eligible";
+/** `never_sent`: el bonus nunca salió, así que no hay enlace que renovar (corresponde "Reintentar bonus"). */
+export type ReissueOutcome = BonusOutcome | "never_sent";
 
 export type FulfillmentResult =
   | { ok: true; reservation: PresaleReservation; email: Outcome; bonus: BonusOutcome }
@@ -185,4 +190,40 @@ export async function sendBonusIfEligible(deps: FulfillmentDeps, reservationId: 
     await addReservationEvent(deps.db, reservation.id, "BONUS_FAILED", "api", { metadata: { error: String(error).slice(0, 300) } });
     return "failed";
   }
+}
+
+/**
+ * Manda un enlace NUEVO del bonus a quien ya lo recibió (p. ej. el anterior venció). Renueva la vigencia, no las
+ * reproducciones: el contador del video se hereda, y el enlace anterior deja de servir para que quede una sola liga viva.
+ * El enlace viejo solo se retira cuando el correo salió: si falla, el cliente conserva el que tenía.
+ */
+export async function reissueBonus(deps: FulfillmentDeps, reservationId: string, actor: string): Promise<ReissueOutcome> {
+  const reservation = await findReservationById(deps.db, reservationId);
+  if (!reservation?.email || reservation.fulfillmentStatus !== "delivered") return "skipped";
+  if (reservation.status !== "paid" && reservation.status !== "partially_refunded") return "skipped";
+  const campaign = await getCampaignById(deps.db, reservation.campaignId);
+  if (!campaign?.bonus || !hasBonusFiles(campaign.bonus)) return "not_configured";
+  if (!reservation.paidAt || reservation.paidAt > campaign.endsAt) return "not_eligible";
+  if (!reservation.bonusSentAt) return "never_sent";
+
+  const now = deps.now?.() ?? new Date();
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(now.getTime() + campaign.bonus.linkDays * 86_400_000);
+  const link = await createBonusLink(deps.db, {
+    reservationId: reservation.id,
+    tokenHash: hashBonusToken(token),
+    expiresAt,
+    videoPlays: await maxBonusVideoPlays(deps.db, reservation.id),
+  });
+  try {
+    const url = `${deps.siteUrl.replace(/\/$/, "")}/bonus/${token}`;
+    await deps.send(bonusMail(reservation, campaign.productName, campaign.bonus.title, url, expiresAt));
+  } catch (error) {
+    await deleteBonusLink(deps.db, link.id);
+    await addReservationEvent(deps.db, reservation.id, "BONUS_FAILED", "panel", { metadata: { actor, reissued: true, error: String(error).slice(0, 300) } });
+    return "failed";
+  }
+  await expireOtherBonusLinks(deps.db, reservation.id, link.id, now);
+  await addReservationEvent(deps.db, reservation.id, "BONUS_SENT", "panel", { metadata: { actor, reissued: true, expiresAt: expiresAt.toISOString() } });
+  return "sent";
 }
