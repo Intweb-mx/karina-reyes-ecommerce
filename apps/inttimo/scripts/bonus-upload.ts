@@ -45,4 +45,9 @@ const field = kind === "pdf" ? "pdfKey" : "videoKey";
 console.log(`Subido (${(body.byteLength / 1_048_576).toFixed(1)} MB, almacenamiento ${storage.driver}).`);
 console.log(`\n  "${field}": "${key}"\n`);
 console.log("Pégalo dentro de `bonus` en el JSON de la campaña y cárgalo con `pnpm presale:upsert`.");
+
+// Comprobación: una URL firmada de 10 min para abrirla en el navegador y ver que el almacenamiento la acepta.
+// Es una liga que da acceso al archivo: solo se imprime en tu terminal, no la compartas.
+const check = await storage.getSignedUrl(key, { expiresInSeconds: 600, downloadName: kind === "pdf" ? "prueba.pdf" : undefined });
+console.log(`\nPrueba (vale 10 min, ábrela en el navegador):\n${check}`);
 process.exit(0);
