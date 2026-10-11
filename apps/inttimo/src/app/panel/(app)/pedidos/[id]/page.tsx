@@ -7,7 +7,7 @@ import { getOrderDetail } from "@/server/admin/orders";
 import { audit, requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
 import { Alert, Badge, buttonClass, Card, DELIVERY_LABELS, EmptyState, EVENT_LABELS, FULFILLMENT_LABELS, FULFILLMENT_TONES, linkClass, PageHeader, secondaryButtonClass, STATUS_LABELS, STATUS_TONES, PAYMENT_METHOD_LABELS } from "../../../ui";
-import { addNote, createLabel, handToCarrierAction, resendEmail, retryBonus, updateDelivery } from "./actions";
+import { addNote, createLabel, handToCarrierAction, reissueBonusAction, resendEmail, retryBonus, updateDelivery } from "./actions";
 import { DeliveredForm, HandToCarrierForm, LabelForm, NoteForm, ReadyForPickupForm, ResendEmailForm, RetryBonusForm, ShippedForm } from "./DeliveryForms";
 
 export const metadata = { title: "Pedido" };
@@ -183,6 +183,7 @@ export default async function OrderPage({ params }: PageProps<"/panel/pedidos/[i
 
   const canResendFulfillment = delivery.status === "shipped" || delivery.status === "ready_for_pickup";
   const canRetryBonus = paid && order.bonus.configured && !order.bonus.sentAt && delivery.status === "delivered";
+  const canReissueBonus = paid && order.bonus.configured && !!order.bonus.sentAt && delivery.status === "delivered";
 
   return (
     <div className="space-y-6">
@@ -237,6 +238,7 @@ export default async function OrderPage({ params }: PageProps<"/panel/pedidos/[i
                   <ResendEmailForm action={resendEmail.bind(null, order.id, "fulfillment")} label={shipping ? "Reenviar aviso de envío" : "Reenviar aviso de recolección"} />
                 )}
                 {canRetryBonus && <RetryBonusForm action={retryBonus.bind(null, order.id)} />}
+                {canReissueBonus && <ResendEmailForm action={reissueBonusAction.bind(null, order.id)} label="Reenviar bonus con enlace nuevo" />}
               </div>
             )}
           </Card>
