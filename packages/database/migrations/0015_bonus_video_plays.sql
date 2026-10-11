@@ -1,0 +1,2 @@
+ALTER TABLE "presale_bonus_links" ADD COLUMN "video_plays" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "presale_bonus_links" ADD CONSTRAINT "presale_bonus_links_video_plays_check" CHECK ("presale_bonus_links"."video_plays" >= 0);

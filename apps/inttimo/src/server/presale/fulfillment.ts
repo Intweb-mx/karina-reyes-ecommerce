@@ -78,8 +78,8 @@ export async function fulfillReservation(deps: FulfillmentDeps, reservationId: s
 }
 
 /** Sin ningún archivo cargado no hay nada que entregar: se trata como bonus sin configurar. */
-function hasBonusFiles(config: { pdfUrl: string | null; videoUrl: string | null }): boolean {
-  return !!(config.pdfUrl || config.videoUrl);
+function hasBonusFiles(config: { pdfUrl: string | null; videoUrl: string | null; pdfKey?: string | null; videoKey?: string | null }): boolean {
+  return !!(config.pdfUrl || config.videoUrl || config.pdfKey || config.videoKey);
 }
 
 /** ENTREGADO: reclama el bonus (idempotente), crea el enlace personal y lo manda en el correo de entrega. */

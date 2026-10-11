@@ -17,6 +17,13 @@ export type ObjectMetadata = {
   lastModified: Date | null;
 };
 
+export type SignedUrlOptions = {
+  /** Vigencia de la URL; pasado ese tiempo deja de funcionar sola. */
+  expiresInSeconds: number;
+  /** Si se indica, el navegador descarga el archivo con este nombre en vez de abrirlo. */
+  downloadName?: string;
+};
+
 /**
  * Contrato de almacenamiento de archivos (imágenes, PDFs). El CMS solo
  * depende de esta interfaz; el proveedor se elige por variables de
@@ -30,6 +37,8 @@ export interface StorageAdapter {
   getUrl(key: string): string;
   exists(key: string): Promise<boolean>;
   getMetadata(key: string): Promise<ObjectMetadata | null>;
+  /** URL temporal para un objeto privado (el bucket no es público). */
+  getSignedUrl(key: string, options: SignedUrlOptions): Promise<string>;
 }
 
 /** Solo el almacenamiento local sirve archivos a través de la app. */

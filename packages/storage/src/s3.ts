@@ -1,6 +1,7 @@
-import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { assertSafeKey } from "./keys.ts";
-import type { ObjectMetadata, StorageAdapter, StoredObject, UploadOptions } from "./types.ts";
+import type { ObjectMetadata, SignedUrlOptions, StorageAdapter, StoredObject, UploadOptions } from "./types.ts";
 
 export type S3StorageConfig = {
   bucket: string;
@@ -10,8 +11,8 @@ export type S3StorageConfig = {
   /** Endpoint del proveedor compatible (R2, MinIO, Spaces…); vacío = AWS. */
   endpoint?: string;
   forcePathStyle?: boolean;
-  /** Base pública (dominio del bucket o CDN). */
-  publicBaseUrl: string;
+  /** Base pública (dominio del bucket o CDN). Un bucket privado no la tiene: solo entrega URLs firmadas. */
+  publicBaseUrl?: string;
 };
 
 /**
@@ -21,8 +22,11 @@ export type S3StorageConfig = {
 export class S3StorageAdapter implements StorageAdapter {
   readonly driver = "s3";
   private readonly client: S3Client;
+  private readonly config: S3StorageConfig;
 
-  constructor(private readonly config: S3StorageConfig) {
+  // Sin "parameter properties": los scripts de operación corren con Node (strip-types), que no los soporta.
+  constructor(config: S3StorageConfig) {
+    this.config = config;
     this.client = new S3Client({
       region: config.region,
       endpoint: config.endpoint,
@@ -43,7 +47,7 @@ export class S3StorageAdapter implements StorageAdapter {
         CacheControl: options.cacheControl ?? "public, max-age=31536000, immutable",
       }),
     );
-    return { key, url: this.getUrl(key), size: body.byteLength, contentType: options.contentType };
+    return { key, url: this.config.publicBaseUrl ? this.getUrl(key) : "", size: body.byteLength, contentType: options.contentType };
   }
 
   async delete(key: string): Promise<void> {
@@ -53,7 +57,20 @@ export class S3StorageAdapter implements StorageAdapter {
 
   getUrl(key: string): string {
     assertSafeKey(key);
+    if (!this.config.publicBaseUrl) throw new Error("Este almacenamiento es privado: usa getSignedUrl.");
     return `${this.config.publicBaseUrl.replace(/\/$/, "")}/${key}`;
+  }
+
+  async getSignedUrl(key: string, options: SignedUrlOptions): Promise<string> {
+    assertSafeKey(key);
+    const command = new GetObjectCommand({
+      Bucket: this.config.bucket,
+      Key: key,
+      // Con `downloadName` el navegador guarda el archivo; sin él lo reproduce o abre en línea.
+      ResponseContentDisposition: options.downloadName ? `attachment; filename="${options.downloadName.replace(/[^\w.-]+/g, "_")}"` : undefined,
+    });
+    // El firmador y el cliente traen copias distintas de @smithy/types (solo difieren en tipos, no en ejecución).
+    return getSignedUrl(this.client as unknown as Parameters<typeof getSignedUrl>[0], command as unknown as Parameters<typeof getSignedUrl>[1], { expiresIn: options.expiresInSeconds });
   }
 
   async exists(key: string): Promise<boolean> {

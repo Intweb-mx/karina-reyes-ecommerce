@@ -511,6 +511,27 @@ export async function createBonusLink(db: Executor, input: { reservationId: stri
 
 export type BonusLink = typeof presaleBonusLinks.$inferSelect;
 
+/**
+ * Aparta una reproducción del video para un enlace: sube el contador solo si queda alguna. Un solo UPDATE condicional,
+ * así dos solicitudes simultáneas no pasan del tope. Devuelve las reproducciones usadas, o `null` si ya no quedan.
+ */
+export async function takeBonusVideoPlay(db: Executor, linkId: string, max: number): Promise<number | null> {
+  const [row] = await db
+    .update(presaleBonusLinks)
+    .set({ videoPlays: sql`${presaleBonusLinks.videoPlays} + 1` })
+    .where(and(eq(presaleBonusLinks.id, linkId), lt(presaleBonusLinks.videoPlays, max)))
+    .returning({ videoPlays: presaleBonusLinks.videoPlays });
+  return row ? row.videoPlays : null;
+}
+
+/** Devuelve una reproducción apartada cuando no se pudo entregar (p. ej. falló el almacenamiento): el cliente no la pierde. */
+export async function refundBonusVideoPlay(db: Executor, linkId: string): Promise<void> {
+  await db
+    .update(presaleBonusLinks)
+    .set({ videoPlays: sql`${presaleBonusLinks.videoPlays} - 1` })
+    .where(and(eq(presaleBonusLinks.id, linkId), gt(presaleBonusLinks.videoPlays, 0)));
+}
+
 /** Enlace por hash del token con su reserva. Registra la primera apertura. */
 export async function openBonusLink(db: Executor, tokenHash: string): Promise<{ link: BonusLink; reservation: PresaleReservation } | null> {
   const [row] = await db

@@ -20,7 +20,7 @@ export {
   type ValidatedFile,
   type ValidationResult,
 } from "./validation.ts";
-export type { ObjectMetadata, ReadableStorage, StorageAdapter, StoredObject, UploadOptions } from "./types.ts";
+export type { ObjectMetadata, ReadableStorage, SignedUrlOptions, StorageAdapter, StoredObject, UploadOptions } from "./types.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -28,6 +28,24 @@ function required(env: Env, name: string): string {
   const value = env[name];
   if (!value) throw new Error(`Falta la variable de entorno ${name} para el almacenamiento.`);
   return value;
+}
+
+/**
+ * Almacenamiento PRIVADO (bonus de preventa): bucket aparte, sin lectura pública, solo URLs firmadas que vencen.
+ * Mismo proveedor y credenciales que `createStorage`; cambia el bucket (STORAGE_PRIVATE_BUCKET). En local es la misma carpeta.
+ */
+export function createPrivateStorage(env: Env = process.env): StorageAdapter {
+  if (storageDriver(env) === "s3") {
+    return new S3StorageAdapter({
+      bucket: required(env, "STORAGE_PRIVATE_BUCKET"),
+      region: env.STORAGE_REGION || "auto",
+      accessKeyId: required(env, "STORAGE_ACCESS_KEY"),
+      secretAccessKey: required(env, "STORAGE_SECRET_KEY"),
+      endpoint: env.STORAGE_ENDPOINT || undefined,
+      forcePathStyle: env.STORAGE_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return new LocalStorageAdapter(localStorageDir(env), LOCAL_MEDIA_PREFIX);
 }
 
 /** Crea el adaptador según STORAGE_DRIVER (local | s3). Requiere credenciales para s3. */

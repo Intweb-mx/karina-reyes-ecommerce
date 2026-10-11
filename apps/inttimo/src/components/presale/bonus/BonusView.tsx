@@ -3,9 +3,20 @@ import type { ReactNode } from "react";
 import { business } from "@/content/legal";
 import { getProductContent } from "@/content/products";
 import { AlertIcon, ArrowRightIcon, ChatIcon, ClockIcon, FileIcon, GiftIcon, MailIcon, PlayIcon } from "@/components/ui/icons";
+import { BonusVideo } from "./BonusVideo";
 
 export type BonusViewState =
-  | { status: "ok"; productName: string; bonus: { title: string; pdfUrl: string | null; videoUrl: string | null }; expiresAt: Date; now: Date }
+  | {
+      status: "ok";
+      productName: string;
+      bonus: { title: string; pdfUrl: string | null; videoUrl: string | null; pdfKey?: string | null; videoKey?: string | null };
+      expiresAt: Date;
+      now: Date;
+      /** Enlace personal: las descargas y el video protegidos pasan por rutas que lo validan. */
+      token: string;
+      videoPlaysLeft: number;
+      videoMaxPlays: number;
+    }
   | { status: "expired"; productName: string }
   | { status: "invalid" };
 
@@ -35,7 +46,8 @@ export function BonusView({ state }: { state: BonusViewState }) {
     );
   }
 
-  const { bonus, productName, expiresAt, now } = state;
+  const { bonus, productName, expiresAt, now, token, videoPlaysLeft, videoMaxPlays } = state;
+  const pdfHref = bonus.pdfKey ? `/bonus/${encodeURIComponent(token)}/pdf` : bonus.pdfUrl;
   const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 86_400_000));
   const image = getProductContent("uno-mas-uno")?.bonus?.image;
 
@@ -48,7 +60,7 @@ export function BonusView({ state }: { state: BonusViewState }) {
             Bonus exclusivo de preventa · {productName}
           </p>
           <h1 className="mt-5 font-serif text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-medium text-balance">{bonus.title}</h1>
-          <p className="mt-4 leading-relaxed text-muted">Gracias por ser parte de la preventa. Este contenido es para ustedes: descárguenlo y disfrútenlo juntos.</p>
+          <p className="mt-4 leading-relaxed text-muted">Gracias por ser parte de la preventa. Este contenido es para ustedes: descarguen la guía y disfruten el video juntos.</p>
 
           <p className="mt-6 inline-flex items-center gap-2 border border-border bg-surface px-3 py-2 text-sm">
             <ClockIcon className="size-4 text-fg/60" />
@@ -65,16 +77,20 @@ export function BonusView({ state }: { state: BonusViewState }) {
       </section>
 
       <ul className="mt-8 grid gap-4 sm:grid-cols-2">
-        {bonus.pdfUrl && (
-          <Resource href={bonus.pdfUrl} icon={<FileIcon className="size-6" />} kind="Guía en PDF · Después de la pregunta" action="Descargar la guía" note="Ábrela en tu teléfono o imprímela." />
+        {pdfHref && (
+          <Resource href={pdfHref} icon={<FileIcon className="size-6" />} kind="Guía en PDF · Después de la pregunta" action="Descargar la guía" note="Ábrela en tu teléfono o imprímela." />
         )}
-        {bonus.videoUrl && (
-          <Resource href={bonus.videoUrl} icon={<PlayIcon className="size-6" />} kind="Video" action="Ver el video especial" note="Mejor con audífonos o en un momento tranquilo." />
+        {bonus.videoKey ? (
+          <li className="sm:col-span-2">
+            <BonusVideo token={token} playsLeft={videoPlaysLeft} maxPlays={videoMaxPlays} helpHref={`mailto:${business.email}`} />
+          </li>
+        ) : (
+          bonus.videoUrl && <Resource href={bonus.videoUrl} icon={<PlayIcon className="size-6" />} kind="Video" action="Ver el video especial" note="Mejor con audífonos o en un momento tranquilo." />
         )}
       </ul>
 
       <p className="mt-8 text-center text-xs leading-relaxed text-muted">
-        Enlace personal. El contenido es para tu uso personal; no está permitida su reproducción ni distribución.
+        Enlace personal e intransferible. El contenido es para tu uso personal; no está permitida su reproducción ni distribución.
       </p>
     </div>
   );
