@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { contentTypeFor } from "./content-types.ts";
 import { assertSafeKey } from "./keys.ts";
-import type { ObjectMetadata, ReadableStorage, StoredObject, UploadOptions } from "./types.ts";
+import type { ObjectMetadata, ReadableStorage, SignedUrlOptions, StoredObject, UploadOptions } from "./types.ts";
 
 /** Raíz del monorepo (donde está pnpm-workspace.yaml), para compartir la carpeta entre apps. */
 export function findRepoRoot(start = process.cwd()): string {
@@ -25,12 +25,12 @@ export function findRepoRoot(start = process.cwd()): string {
 export class LocalStorageAdapter implements ReadableStorage {
   readonly driver = "local";
   private readonly root: string;
+  private readonly publicBaseUrl: string;
 
-  constructor(
-    root: string,
-    private readonly publicBaseUrl = "/local-media",
-  ) {
+  // Sin "parameter properties": los scripts de operación corren con Node (strip-types), que no los soporta.
+  constructor(root: string, publicBaseUrl = "/local-media") {
     this.root = resolve(root);
+    this.publicBaseUrl = publicBaseUrl;
   }
 
   private pathFor(key: string): string {
@@ -54,6 +54,11 @@ export class LocalStorageAdapter implements ReadableStorage {
   getUrl(key: string): string {
     assertSafeKey(key);
     return `${this.publicBaseUrl.replace(/\/$/, "")}/${key}`;
+  }
+
+  /** Desarrollo: no hay firma, la app sirve el archivo local tal cual. */
+  async getSignedUrl(key: string, _options: SignedUrlOptions): Promise<string> {
+    return this.getUrl(key);
   }
 
   async exists(key: string): Promise<boolean> {

@@ -1,6 +1,7 @@
 import "server-only";
 import { createDatabase, type Database } from "@inttimo/database";
 import { sendMail } from "@inttimo/shared-utils/mail";
+import { createPrivateStorage, type StorageAdapter } from "@inttimo/storage";
 import Stripe from "stripe";
 import type { ApiError } from "./contract.ts";
 import { createStripeGateway, type PaymentGateway } from "./gateway.ts";
@@ -24,6 +25,13 @@ function requireEnv(name: string): string {
 
 export function getDb(): Database {
   return (cache.__inttimoDb ??= createDatabase());
+}
+
+let privateStorage: StorageAdapter | undefined;
+
+/** Almacenamiento privado del bonus (STORAGE_PRIVATE_BUCKET). Se crea al usarse: sin variables, el resto de la app sigue. */
+export function getPrivateStorage(): StorageAdapter {
+  return (privateStorage ??= createPrivateStorage());
 }
 
 export function getStripe(): Stripe {

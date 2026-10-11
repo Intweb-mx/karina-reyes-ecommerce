@@ -32,6 +32,10 @@ export type BonusConfig = {
   title: string;
   pdfUrl: string | null;
   videoUrl: string | null;
+  /** Archivo en el almacenamiento privado: se entrega con URL temporal y el enlace real nunca llega al cliente. Tiene prioridad sobre `pdfUrl`. */
+  pdfKey?: string | null;
+  /** Igual que `pdfKey`, y además con tope de reproducciones por enlace. Tiene prioridad sobre `videoUrl`. */
+  videoKey?: string | null;
   /** Días que dura el enlace personal desde que se envía. */
   linkDays: number;
 };
@@ -336,9 +340,11 @@ export const presaleBonusLinks = pgTable(
     tokenHash: text().notNull().unique(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
     firstOpenedAt: timestamp({ withTimezone: true }),
+    /** Reproducciones del video ya entregadas a este enlace. El tope se aplica en el servidor; solo baja si la entrega falló. */
+    videoPlays: integer().notNull().default(0),
     createdAt: createdAt(),
   },
-  (table) => [index("presale_bonus_links_reservation_idx").on(table.reservationId)],
+  (table) => [index("presale_bonus_links_reservation_idx").on(table.reservationId), check("presale_bonus_links_video_plays_check", sql`${table.videoPlays} >= 0`)],
 );
 
 /**

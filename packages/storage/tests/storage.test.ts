@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { assertSafeKey, createObjectKey, createStorage, createUrlResolver, LocalStorageAdapter, slugifyFilename, storageDriver } from "../src/index.ts";
+import { assertSafeKey, createObjectKey, createPrivateStorage, createStorage, createUrlResolver, LocalStorageAdapter, S3StorageAdapter, slugifyFilename, storageDriver } from "../src/index.ts";
 
 describe("claves", () => {
   it("nombres seguros sin acentos ni extensión original", () => {
@@ -67,5 +67,33 @@ describe("configuración por variables", () => {
   it("el resolvedor de URL no necesita credenciales", () => {
     expect(createUrlResolver({})("media/a.png")).toBe("/local-media/media/a.png");
     expect(createUrlResolver({ STORAGE_DRIVER: "s3", STORAGE_PUBLIC_URL: "https://cdn.example.com" })("media/a.png")).toBe("https://cdn.example.com/media/a.png");
+  });
+});
+
+describe("almacenamiento privado (URLs firmadas)", () => {
+  const privateS3 = new S3StorageAdapter({ bucket: "inttimo-privado", region: "us-east-1", accessKeyId: "AKIATEST", secretAccessKey: "secreto-de-prueba" });
+
+  it("firma localmente una URL que vence y no depende de una base pública", async () => {
+    const url = new URL(await privateS3.getSignedUrl("bonus/video.mp4", { expiresInSeconds: 600 }));
+    expect(url.pathname).toContain("bonus/video.mp4");
+    expect(url.searchParams.get("X-Amz-Expires")).toBe("600");
+    expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
+    expect(() => privateS3.getUrl("bonus/video.mp4")).toThrow(/privado/);
+  });
+
+  it("con downloadName fuerza la descarga con un nombre seguro", async () => {
+    const url = new URL(await privateS3.getSignedUrl("bonus/guia.pdf", { expiresInSeconds: 60, downloadName: 'Después "de" la pregunta.pdf' }));
+    expect(url.searchParams.get("response-content-disposition")).toMatch(/^attachment; filename="[\w.-]+"$/);
+  });
+
+  it("no firma claves peligrosas", async () => {
+    await expect(privateS3.getSignedUrl("../secreto", { expiresInSeconds: 60 })).rejects.toThrow();
+  });
+
+  it("exige el bucket privado en s3 y funciona sin variables en local", () => {
+    const base = { STORAGE_DRIVER: "s3", STORAGE_ACCESS_KEY: "k", STORAGE_SECRET_KEY: "s", STORAGE_BUCKET: "publico", STORAGE_PUBLIC_URL: "https://cdn.test" };
+    expect(() => createPrivateStorage(base)).toThrow(/STORAGE_PRIVATE_BUCKET/);
+    expect(createPrivateStorage({ ...base, STORAGE_PRIVATE_BUCKET: "privado" }).driver).toBe("s3");
+    expect(createPrivateStorage({ STORAGE_DRIVER: "local" }).driver).toBe("local");
   });
 });

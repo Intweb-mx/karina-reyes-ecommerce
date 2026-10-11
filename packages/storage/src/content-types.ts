@@ -5,6 +5,9 @@ export const contentTypeByExtension: Record<string, string> = {
   webp: "image/webp",
   avif: "image/avif",
   pdf: "application/pdf",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
 };
 
 export function contentTypeFor(key: string): string {
