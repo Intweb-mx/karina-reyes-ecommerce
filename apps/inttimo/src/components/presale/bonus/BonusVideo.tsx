@@ -72,7 +72,7 @@ export function BonusVideo({ token, playsLeft: initialLeft, maxPlays, helpHref }
           preload="metadata"
           controlsList="nodownload noplaybackrate"
           disablePictureInPicture
-          className="aspect-video w-full bg-ink"
+          className="mx-auto max-h-[75vh] w-full bg-ink object-contain"
         >
           Tu navegador no puede reproducir este video.
         </video>
