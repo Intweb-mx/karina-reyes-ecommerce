@@ -17,6 +17,7 @@
     "db:migrate": "pnpm --filter @inttimo/database db:migrate",
     "presale:upsert": "pnpm --filter inttimo presale:upsert",
     "presale:export": "pnpm --silent --filter inttimo presale:export",
+    "bonus:upload": "pnpm --filter inttimo bonus:upload",
     "presale:reconcile": "pnpm --filter inttimo presale:reconcile",
     "store:seed": "pnpm --filter inttimo store:seed",
     "store:reconcile": "pnpm --filter inttimo store:reconcile",
