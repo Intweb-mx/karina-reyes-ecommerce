@@ -229,7 +229,9 @@ pnpm bonus:upload --file=ruta/guia.pdf  --kind=pdf
 
 Imprime `"videoKey": "bonus/…"` / `"pdfKey": "bonus/…"`: se pega dentro de `bonus` en el JSON de la campaña y se carga con `pnpm presale:upsert` (desde `main`, con `DATABASE_URL` de producción).
 
-Soporte: si un cliente agotó sus reproducciones por un fallo, se le devuelven con `update presale_bonus_links set video_plays = 0 where id = '…'` (el enlace se ubica por su reserva).
+Soporte:
+- **Enlace vencido o perdido:** en el pedido, botón **Reenviar bonus con enlace nuevo** (solo si el bonus ya se envió). Renueva la vigencia (`linkDays`), retira el enlace anterior y **conserva las reproducciones ya usadas**: renueva el tiempo, no da más vistas. Si el correo falla, el cliente conserva el enlace que tenía.
+- **Reproducciones agotadas por un fallo:** se devuelven a mano con `update presale_bonus_links set video_plays = 0 where id = '…'` (el enlace se ubica por su reserva).
 
 ## Avisos de rastreo de SkyDropX (webhook)
 

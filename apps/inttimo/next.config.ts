@@ -1,6 +1,7 @@
 import { loadEnvConfig } from "@next/env";
 import { resolve } from "node:path";
 import type { NextConfig } from "next";
+import { buildContentSecurityPolicy } from "./security-headers.ts";
 
 // El .env vive en la raíz del monorepo (lo comparten la app y los scripts). En Vercel no existe: usa sus variables.
 // forceReload: Next ya cargó (y cacheó) el .env de apps/inttimo antes de leer esta config.
@@ -9,21 +10,10 @@ loadEnvConfig(resolve(process.cwd(), "../.."), process.env.NODE_ENV !== "product
 const isDev = process.env.NODE_ENV !== "production";
 
 /**
- * CSP base sin nonce. Ampliar connect-src / script-src / frame-src cuando se
+ * CSP base sin nonce (ver security-headers.ts). Ampliar connect-src / script-src / frame-src cuando se
  * integren CMS, analítica, Mercado Pago o video aprobados (ver CLAUDE.md).
  */
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self'",
-  `connect-src 'self'${isDev ? " ws:" : ""}`,
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join("; ");
+const contentSecurityPolicy = buildContentSecurityPolicy({ isDev, storageEndpoint: process.env.STORAGE_ENDPOINT });
 
 const securityHeaders = [
   { key: "Content-Security-Policy", value: contentSecurityPolicy },

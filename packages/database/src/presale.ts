@@ -504,9 +504,27 @@ export async function releaseBonusSend(db: Executor, reservationId: string): Pro
   await db.update(presaleReservations).set({ bonusSentAt: null }).where(eq(presaleReservations.id, reservationId));
 }
 
-export async function createBonusLink(db: Executor, input: { reservationId: string; tokenHash: string; expiresAt: Date }) {
+export async function createBonusLink(db: Executor, input: { reservationId: string; tokenHash: string; expiresAt: Date; videoPlays?: number }) {
   const [row] = await db.insert(presaleBonusLinks).values(input).returning();
   return row!;
+}
+
+/** Reproducciones del video ya usadas en cualquiera de los enlaces de la reserva (0 si no hay). */
+export async function maxBonusVideoPlays(db: Executor, reservationId: string): Promise<number> {
+  const rows = await db.select({ plays: presaleBonusLinks.videoPlays }).from(presaleBonusLinks).where(eq(presaleBonusLinks.reservationId, reservationId));
+  return rows.reduce((max, row) => Math.max(max, row.plays), 0);
+}
+
+/** Vence de inmediato los enlaces vigentes de la reserva salvo `keepLinkId`: queda una sola liga viva y un solo contador. */
+export async function expireOtherBonusLinks(db: Executor, reservationId: string, keepLinkId: string, now: Date): Promise<void> {
+  await db
+    .update(presaleBonusLinks)
+    .set({ expiresAt: now })
+    .where(and(eq(presaleBonusLinks.reservationId, reservationId), sql`${presaleBonusLinks.id} <> ${keepLinkId}`, gt(presaleBonusLinks.expiresAt, now)));
+}
+
+export async function deleteBonusLink(db: Pick<Database, "delete">, linkId: string): Promise<void> {
+  await db.delete(presaleBonusLinks).where(eq(presaleBonusLinks.id, linkId));
 }
 
 export type BonusLink = typeof presaleBonusLinks.$inferSelect;
