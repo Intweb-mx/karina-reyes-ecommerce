@@ -208,8 +208,10 @@ export async function generateLabel(deps: ShippingDeps, reservationId: string, a
       labelLogged = true;
     }
   } catch (error) {
-    await addReservationEvent(deps.db, reservation.id, "LABEL_FAILED", "panel", { metadata: { actor, error: String(error).slice(0, 300) } });
-    return { ok: false, error: "SkyDropX no pudo generar la guía. Revisa el saldo y los datos, o inténtalo de nuevo." };
+    const detail = String(error).slice(0, 300);
+    console.error(JSON.stringify({ level: "error", msg: "shipping_label_failed", reservationId: reservation.id, error: detail }));
+    await addReservationEvent(deps.db, reservation.id, "LABEL_FAILED", "panel", { metadata: { actor, error: detail } });
+    return { ok: false, error: `SkyDropX no pudo generar la guía. Revisa el saldo y los datos, o inténtalo de nuevo. Detalle: ${detail}` };
   }
 
   if (!shipment.trackingNumber) {
