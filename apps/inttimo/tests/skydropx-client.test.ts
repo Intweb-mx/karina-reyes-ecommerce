@@ -61,6 +61,15 @@ describe("SkyDropX createShipment", () => {
     expect(sent.address_to!.company!.length).toBeLessThanOrEqual(60);
   });
 
+  it("manda una referencia no vacía cuando el cliente no escribió ninguna (SkyDropX responde 422 si va en blanco)", async () => {
+    const { provider, calls } = client(() => json(200, shipmentBody));
+    await provider.createShipment({ quotationId: "q", rateId: "r", from: origin, to: { ...customer, reference: null }, consignmentNote: "60141102", packageType: "4G" });
+    await provider.createShipment({ quotationId: "q", rateId: "r", from: origin, to: { ...customer, reference: "   " }, consignmentNote: "60141102", packageType: "4G" });
+    const sent = calls.filter((c) => c.path === "/api/v1/shipments").map((c) => (c.body as { shipment: Record<string, Record<string, string>> }).shipment.address_to!.reference!);
+    expect(sent).toHaveLength(2);
+    for (const reference of sent) expect(reference.trim().length).toBeGreaterThan(0);
+  });
+
   it("si SkyDropX rechaza el envío, el error conserva el motivo real y no el del reintento plano", async () => {
     const { provider } = client((call) => {
       const nested = typeof call.body === "object" && call.body !== null && "shipment" in call.body;
