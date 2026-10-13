@@ -79,6 +79,8 @@ const area = (a: AreaAddress) => ({ country_code: "MX", postal_code: a.postalCod
 const MAX = { name: 30, company: 60, referenceFrom: 30, referenceTo: 40 };
 
 const clip = (value: string, max: number) => value.trim().slice(0, max).trim();
+/** SkyDropX responde 422 ("no puede estar en blanco") si la referencia va vacía, y en el formulario es opcional. */
+const NO_REFERENCE = "Sin referencia";
 
 const contact = (a: ContactAddress, referenceMax: number) => ({
   ...area(a),
@@ -87,7 +89,7 @@ const contact = (a: ContactAddress, referenceMax: number) => ({
   street1: a.street,
   phone: a.phone,
   email: a.email,
-  reference: clip(a.reference ?? "", referenceMax),
+  reference: clip(a.reference ?? "", referenceMax) || NO_REFERENCE,
 });
 
 export function createSkydropx(config: Config): ShippingProvider {
