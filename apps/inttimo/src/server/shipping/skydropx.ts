@@ -75,14 +75,19 @@ function parseShipment(body: unknown): Shipment {
 
 const area = (a: AreaAddress) => ({ country_code: "MX", postal_code: a.postalCode, area_level1: a.state, area_level2: a.city, area_level3: a.neighborhood });
 
-const contact = (a: ContactAddress) => ({
+/** SkyDropX rechaza (422) nombres y referencias más largos que estos máximos; el cliente puede escribir más. */
+const MAX = { name: 30, company: 60, referenceFrom: 30, referenceTo: 40 };
+
+const clip = (value: string, max: number) => value.trim().slice(0, max).trim();
+
+const contact = (a: ContactAddress, referenceMax: number) => ({
   ...area(a),
-  name: a.name,
-  company: a.company ?? a.name,
+  name: clip(a.name, MAX.name),
+  company: clip(a.company ?? a.name, MAX.company),
   street1: a.street,
   phone: a.phone,
   email: a.email,
-  reference: a.reference ?? "",
+  reference: clip(a.reference ?? "", referenceMax),
 });
 
 export function createSkydropx(config: Config): ShippingProvider {
@@ -113,12 +118,18 @@ export function createSkydropx(config: Config): ShippingProvider {
     return { status: response.status, body: await response.json().catch(() => null) };
   }
 
-  /** POST anidado bajo `wrapper`; si SkyDropX lo rechaza por formato (400/422), se reintenta plano. */
+  /**
+   * POST anidado bajo `wrapper` (el formato documentado); si SkyDropX lo rechaza (400/422), se reintenta plano.
+   * Si el plano también falla se informa el error del primer intento: es el que describe el problema real.
+   */
   async function post(path: string, wrapper: string, payload: Json): Promise<unknown> {
-    let result = await request("POST", path, { [wrapper]: payload });
-    if (result.status === 400 || result.status === 422) result = await request("POST", path, payload);
-    if (result.status >= 300) throw new ShippingUnavailableError(`SkyDropX ${path} respondió ${result.status}: ${JSON.stringify(result.body).slice(0, 300)}`);
-    return result.body;
+    const fail = (status: number, body: unknown) => new ShippingUnavailableError(`SkyDropX ${path} respondió ${status}: ${JSON.stringify(body).slice(0, 300)}`);
+    const nested = await request("POST", path, { [wrapper]: payload });
+    if (nested.status < 300) return nested.body;
+    if (nested.status !== 400 && nested.status !== 422) throw fail(nested.status, nested.body);
+    const flat = await request("POST", path, payload);
+    if (flat.status < 300) return flat.body;
+    throw fail(nested.status, nested.body);
   }
 
   return {
@@ -146,8 +157,8 @@ export function createSkydropx(config: Config): ShippingProvider {
       const created = await post("/api/v1/shipments", "shipment", {
         quotation_id: quotationId,
         rate_id: rateId,
-        address_from: contact(from),
-        address_to: contact(to),
+        address_from: contact(from, MAX.referenceFrom),
+        address_to: contact(to, MAX.referenceTo),
         packages: [{ package_number: "1", package_protected: false, consignment_note: consignmentNote, package_type: packageType }],
       });
       let shipment = parseShipment(created);
