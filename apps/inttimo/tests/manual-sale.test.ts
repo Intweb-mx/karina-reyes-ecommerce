@@ -7,7 +7,7 @@ import type { FulfillmentDeps } from "../src/server/presale/fulfillment.ts";
 import { manualSaleSchema, recordManualSale, type ManualSaleInput } from "../src/server/presale/manual-sale.ts";
 import { seedCampaign } from "./helpers.ts";
 
-const BONUS = { title: "Después de la pregunta", pdfUrl: "https://archivos.test/guia.pdf", videoUrl: "https://archivos.test/video", linkDays: 30 };
+const BONUS = { title: "Después de la pregunta", pdfUrl: "https://archivos.test/guia.pdf", videoUrl: "https://archivos.test/video" };
 
 let db: Database;
 let close: () => Promise<void>;

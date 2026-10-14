@@ -10,7 +10,7 @@ import { handleSkydropxWebhook, verifySkydropxSignature } from "../src/server/pr
 import { ADDRESS, FakeGateway, FakeShipping, NOW, seedCampaign, VALID_ANSWERS } from "./helpers.ts";
 
 const SECRET = "clave-secreta-de-prueba";
-const BONUS = { title: "Guía y video de preventa", pdfUrl: "https://archivos.test/guia.pdf", videoUrl: "https://archivos.test/video", linkDays: 30 };
+const BONUS = { title: "Guía y video de preventa", pdfUrl: "https://archivos.test/guia.pdf", videoUrl: "https://archivos.test/video" };
 
 let db: Database;
 let close: () => Promise<void>;

@@ -1,0 +1,1 @@
+ALTER TABLE "presale_bonus_links" ALTER COLUMN "expires_at" DROP NOT NULL;

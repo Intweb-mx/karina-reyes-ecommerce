@@ -9,7 +9,7 @@ const storageKey = z
   .regex(/^[a-z0-9][a-z0-9/._-]*$/i, "clave de almacenamiento no válida")
   .refine((key) => !key.includes(".."), "clave de almacenamiento no válida");
 
-/** Bonus digital. Archivos y vigencia los define el negocio: no hay valores por defecto. */
+/** Bonus digital. Los archivos los define el negocio: no hay valores por defecto. El enlace personal no vence. */
 export const bonusSchema = z
   .object({
     title: z.string().trim().min(1).max(120),
@@ -18,7 +18,6 @@ export const bonusSchema = z
     /** Archivos en el almacenamiento privado (se suben con `pnpm bonus:upload`). Tienen prioridad sobre las ligas directas. */
     pdfKey: storageKey.nullable().optional(),
     videoKey: storageKey.nullable().optional(),
-    linkDays: z.number().int().min(1).max(365),
   })
   .refine((bonus) => bonus.pdfUrl || bonus.videoUrl || bonus.pdfKey || bonus.videoKey, "bonus: indica un archivo (pdfKey/videoKey) o una liga (pdfUrl/videoUrl)");
 

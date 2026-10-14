@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { business } from "@/content/legal";
 import { getProductContent } from "@/content/products";
 import { AlertIcon, ArrowRightIcon, ChatIcon, ClockIcon, FileIcon, GiftIcon, MailIcon, PlayIcon } from "@/components/ui/icons";
+import { BonusResend } from "./BonusResend";
 import { BonusVideo } from "./BonusVideo";
 
 export type BonusViewState =
@@ -10,17 +11,11 @@ export type BonusViewState =
       status: "ok";
       productName: string;
       bonus: { title: string; pdfUrl: string | null; videoUrl: string | null; pdfKey?: string | null; videoKey?: string | null };
-      expiresAt: Date;
-      now: Date;
       /** Enlace personal: las descargas y el video protegidos pasan por rutas que lo validan. */
       token: string;
-      videoPlaysLeft: number;
-      videoMaxPlays: number;
     }
-  | { status: "expired"; productName: string }
+  | { status: "expired"; productName: string; token: string }
   | { status: "invalid" };
-
-const until = (date: Date) => new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" }).format(date);
 
 /**
  * Página personal del bonus digital de preventa (enlace temporal enviado por correo).
@@ -35,20 +30,20 @@ export function BonusView({ state }: { state: BonusViewState }) {
           {expired ? <ClockIcon className="size-6" /> : <AlertIcon className="size-6" />}
         </span>
         <p className="eyebrow mt-6 text-muted">{expired ? `Bonus · ${state.productName}` : "Bonus de preventa"}</p>
-        <h1 className="mt-3 font-serif text-[clamp(2.25rem,5vw,3rem)] leading-[1.05] font-medium text-balance">{expired ? "Este enlace ya expiró." : "Este enlace no es válido."}</h1>
+        <h1 className="mt-3 font-serif text-[clamp(2.25rem,5vw,3rem)] leading-[1.05] font-medium text-balance">{expired ? "Este enlace ya no está activo." : "Este enlace no es válido."}</h1>
         <p className="mx-auto mt-4 max-w-md leading-relaxed text-muted">
           {expired
-            ? "El acceso a tu bonus era temporal. Si aún no lo descargaste, escríbenos con tu número de pedido y lo revisamos."
+            ? "Este enlace dejó de servir porque se envió uno más reciente. Pide uno nuevo y te lo mandamos al correo de tu compra."
             : "Revisa que hayas abierto el enlace completo desde tu correo. Si crees que es un error, escríbenos con tu número de pedido."}
         </p>
+        {state.status === "expired" && <BonusResend token={state.token} />}
         <HelpButtons />
       </div>
     );
   }
 
-  const { bonus, productName, expiresAt, now, token, videoPlaysLeft, videoMaxPlays } = state;
+  const { bonus, productName, token } = state;
   const pdfHref = bonus.pdfKey ? `/bonus/${encodeURIComponent(token)}/pdf` : bonus.pdfUrl;
-  const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 86_400_000));
   const image = getProductContent("uno-mas-uno")?.bonus?.image;
 
   return (
@@ -61,13 +56,6 @@ export function BonusView({ state }: { state: BonusViewState }) {
           </p>
           <h1 className="mt-5 font-serif text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-medium text-balance">{bonus.title}</h1>
           <p className="mt-4 leading-relaxed text-muted">Gracias por ser parte de la preventa. Este contenido es para ustedes: descarguen la guía y disfruten el video juntos.</p>
-
-          <p className="mt-6 inline-flex items-center gap-2 border border-border bg-surface px-3 py-2 text-sm">
-            <ClockIcon className="size-4 text-fg/60" />
-            <span>
-              {daysLeft <= 1 ? "Disponible hasta hoy" : `Disponible ${daysLeft} días más`} · <span className="text-muted lining-nums">hasta el {until(expiresAt)}</span>
-            </span>
-          </p>
         </div>
         {image && (
           <div className="relative min-h-56 bg-sand max-md:aspect-[16/10]">
@@ -82,7 +70,7 @@ export function BonusView({ state }: { state: BonusViewState }) {
         )}
         {bonus.videoKey ? (
           <li className="sm:col-span-2">
-            <BonusVideo token={token} playsLeft={videoPlaysLeft} maxPlays={videoMaxPlays} helpHref={`mailto:${business.email}`} />
+            <BonusVideo token={token} />
           </li>
         ) : (
           bonus.videoUrl && <Resource href={bonus.videoUrl} icon={<PlayIcon className="size-6" />} kind="Video" action="Ver el video especial" note="Mejor con audífonos o en un momento tranquilo." />
