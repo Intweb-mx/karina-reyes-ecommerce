@@ -20,7 +20,7 @@ let presale: PresaleDeps;
 let campaignId: string;
 let shipping: FakeShipping;
 
-const BONUS = { title: "Guía y video de preventa", pdfUrl: "https://archivos.test/guia.pdf", videoUrl: "https://archivos.test/video", linkDays: 30 };
+const BONUS = { title: "Guía y video de preventa", pdfUrl: "https://archivos.test/guia.pdf", videoUrl: "https://archivos.test/video" };
 
 async function paidReservation(deliveryMethod: "shipping" | "pickup", paidAt = NOW) {
   const ip = `10.0.0.${Math.floor(Math.random() * 250)}`;
@@ -88,7 +88,7 @@ describe("entrega de pedidos", () => {
 
     const access = await resolveBonusAccess(db, tokenFrom(mail), NOW);
     expect(access).toMatchObject({ status: "ok", bonus: BONUS });
-    expect(await resolveBonusAccess(db, tokenFrom(mail), new Date(NOW.getTime() + 31 * 86_400_000))).toMatchObject({ status: "expired" });
+    expect(await resolveBonusAccess(db, tokenFrom(mail), new Date(NOW.getTime() + 400 * 86_400_000))).toMatchObject({ status: "ok" }); // no vence
     expect(await resolveBonusAccess(db, "x".repeat(43), NOW)).toEqual({ status: "invalid" });
     const emailEvent = (await listReservationEvents(db, id)).find((e) => e.type === "FULFILLMENT_EMAIL_SENT" && e.metadata.note);
     expect(emailEvent?.metadata).toMatchObject({ note: "Costco Juventud, sábado 10:00–13:00" });

@@ -504,23 +504,28 @@ export async function releaseBonusSend(db: Executor, reservationId: string): Pro
   await db.update(presaleReservations).set({ bonusSentAt: null }).where(eq(presaleReservations.id, reservationId));
 }
 
-export async function createBonusLink(db: Executor, input: { reservationId: string; tokenHash: string; expiresAt: Date; videoPlays?: number }) {
+export async function createBonusLink(db: Executor, input: { reservationId: string; tokenHash: string; expiresAt?: Date | null; createdAt?: Date }) {
   const [row] = await db.insert(presaleBonusLinks).values(input).returning();
   return row!;
 }
 
-/** Reproducciones del video ya usadas en cualquiera de los enlaces de la reserva (0 si no hay). */
-export async function maxBonusVideoPlays(db: Executor, reservationId: string): Promise<number> {
-  const rows = await db.select({ plays: presaleBonusLinks.videoPlays }).from(presaleBonusLinks).where(eq(presaleBonusLinks.reservationId, reservationId));
-  return rows.reduce((max, row) => Math.max(max, row.plays), 0);
+/** Cuándo se creó el enlace más reciente de la reserva (null si no hay): base del intervalo mínimo entre reenvíos. */
+export async function lastBonusLinkAt(db: Executor, reservationId: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ createdAt: presaleBonusLinks.createdAt })
+    .from(presaleBonusLinks)
+    .where(eq(presaleBonusLinks.reservationId, reservationId))
+    .orderBy(desc(presaleBonusLinks.createdAt))
+    .limit(1);
+  return row?.createdAt ?? null;
 }
 
-/** Vence de inmediato los enlaces vigentes de la reserva salvo `keepLinkId`: queda una sola liga viva y un solo contador. */
+/** Retira de inmediato los enlaces vigentes de la reserva salvo `keepLinkId`: queda una sola liga viva. */
 export async function expireOtherBonusLinks(db: Executor, reservationId: string, keepLinkId: string, now: Date): Promise<void> {
   await db
     .update(presaleBonusLinks)
     .set({ expiresAt: now })
-    .where(and(eq(presaleBonusLinks.reservationId, reservationId), sql`${presaleBonusLinks.id} <> ${keepLinkId}`, gt(presaleBonusLinks.expiresAt, now)));
+    .where(and(eq(presaleBonusLinks.reservationId, reservationId), sql`${presaleBonusLinks.id} <> ${keepLinkId}`, or(isNull(presaleBonusLinks.expiresAt), gt(presaleBonusLinks.expiresAt, now))));
 }
 
 export async function deleteBonusLink(db: Pick<Database, "delete">, linkId: string): Promise<void> {
@@ -528,27 +533,6 @@ export async function deleteBonusLink(db: Pick<Database, "delete">, linkId: stri
 }
 
 export type BonusLink = typeof presaleBonusLinks.$inferSelect;
-
-/**
- * Aparta una reproducción del video para un enlace: sube el contador solo si queda alguna. Un solo UPDATE condicional,
- * así dos solicitudes simultáneas no pasan del tope. Devuelve las reproducciones usadas, o `null` si ya no quedan.
- */
-export async function takeBonusVideoPlay(db: Executor, linkId: string, max: number): Promise<number | null> {
-  const [row] = await db
-    .update(presaleBonusLinks)
-    .set({ videoPlays: sql`${presaleBonusLinks.videoPlays} + 1` })
-    .where(and(eq(presaleBonusLinks.id, linkId), lt(presaleBonusLinks.videoPlays, max)))
-    .returning({ videoPlays: presaleBonusLinks.videoPlays });
-  return row ? row.videoPlays : null;
-}
-
-/** Devuelve una reproducción apartada cuando no se pudo entregar (p. ej. falló el almacenamiento): el cliente no la pierde. */
-export async function refundBonusVideoPlay(db: Executor, linkId: string): Promise<void> {
-  await db
-    .update(presaleBonusLinks)
-    .set({ videoPlays: sql`${presaleBonusLinks.videoPlays} - 1` })
-    .where(and(eq(presaleBonusLinks.id, linkId), gt(presaleBonusLinks.videoPlays, 0)));
-}
 
 /** Enlace por hash del token con su reserva. Registra la primera apertura. */
 export async function openBonusLink(db: Executor, tokenHash: string): Promise<{ link: BonusLink; reservation: PresaleReservation } | null> {

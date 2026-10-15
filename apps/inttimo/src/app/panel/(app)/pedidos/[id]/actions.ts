@@ -72,7 +72,7 @@ export async function updateDelivery(reservationId: string, _state: DeliveryStat
   return result.email === "failed" || result.bonus === "failed" ? { error: messages.join(" ") } : { ok: messages.join(" ") };
 }
 
-/** El cliente ya recibió su bonus pero el enlace venció o lo perdió: se le manda uno nuevo (conserva las reproducciones usadas). */
+/** El cliente ya recibió su bonus pero perdió el enlace o circuló: se le manda uno nuevo y el anterior deja de servir. */
 export async function reissueBonusAction(reservationId: string): Promise<DeliveryState> {
   const state = await getAdminState();
   if (state.status !== "ok") return { error: "Sesión vencida. Vuelve a entrar." };
@@ -82,7 +82,7 @@ export async function reissueBonusAction(reservationId: string): Promise<Deliver
   refresh(reservationId);
   switch (outcome) {
     case "sent":
-      return { ok: "Se mandó un enlace nuevo. El anterior ya no funciona y las reproducciones del video ya usadas se conservan." };
+      return { ok: "Se mandó un enlace nuevo. El anterior ya no funciona." };
     case "failed":
       return { error: "No se pudo enviar el correo. El cliente conserva su enlace anterior; inténtalo de nuevo." };
     case "never_sent":

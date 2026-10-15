@@ -2,13 +2,12 @@ import { createManualSale, findReservationById, listReservationEvents, updateCam
 import { createTestDatabase } from "@inttimo/database/testing";
 import type { Mail } from "@inttimo/shared-utils/mail";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { grantBonusVideo, resolveBonusAccess, type BonusStorage } from "../src/server/presale/bonus.ts";
+import { BONUS_RESEND_COOLDOWN_MS, resendBonusByToken, resolveBonusAccess } from "../src/server/presale/bonus.ts";
 import { fulfillReservation, reissueBonus, type FulfillmentDeps } from "../src/server/presale/fulfillment.ts";
 import { NOW, seedCampaign } from "./helpers.ts";
 
 const DAY = 86_400_000;
-const BONUS = { title: "Guía y video", pdfUrl: null, videoUrl: null, pdfKey: "bonus/guia.pdf", videoKey: "bonus/video.mp4", linkDays: 2 };
-const storage: BonusStorage = { getSignedUrl: async (key) => `https://privado.test/${key}` };
+const BONUS = { title: "Guía y video", pdfUrl: null, videoUrl: null, pdfKey: "bonus/guia.pdf", videoKey: "bonus/video.mp4" };
 
 let db: Database;
 let close: () => Promise<void>;
@@ -48,27 +47,25 @@ afterEach(async () => {
 });
 
 describe("reenviar bonus con enlace nuevo", () => {
-  it("renueva la vigencia, retira el enlace anterior y conserva las reproducciones usadas", async () => {
+  it("el enlace no vence por el paso del tiempo", async () => {
+    const { token } = await deliveredSale();
+    now = new Date(NOW.getTime() + 400 * DAY);
+    expect(await resolveBonusAccess(db, token, now)).toMatchObject({ status: "ok" });
+  });
+
+  it("manda un enlace nuevo al correo de la compra y deja el historial", async () => {
     const { id, token: first } = await deliveredSale();
-    await grantBonusVideo({ db, storage }, first, now);
-    await grantBonusVideo({ db, storage }, first, now);
-
-    now = new Date(NOW.getTime() + 3 * DAY); // el enlace de 2 días ya venció
-    expect(await resolveBonusAccess(db, first, now)).toMatchObject({ status: "expired" });
-
     expect(await reissueBonus(deps, id, "karina@inttimo.test")).toBe("sent");
     const mail = sent.at(-1)!;
     expect(mail.to).toBe("ana@ejemplo.com");
     expect(mail.text).toContain("de nuevo");
     const second = tokenFrom(mail);
     expect(second).not.toBe(first);
-
-    expect(await resolveBonusAccess(db, second, now)).toMatchObject({ status: "ok", videoPlaysLeft: 1 });
-    expect((await resolveBonusAccess(db, second, now)) as { expiresAt: Date }).toMatchObject({ expiresAt: new Date(now.getTime() + 2 * DAY) });
+    expect(await resolveBonusAccess(db, second, now)).toMatchObject({ status: "ok" });
     expect((await listReservationEvents(db, id)).filter((e) => e.type === "BONUS_SENT")).toHaveLength(2);
   });
 
-  it("un enlace todavía vigente deja de funcionar al emitir el nuevo (una sola liga viva, un solo contador)", async () => {
+  it("el enlace anterior deja de funcionar al emitir el nuevo (una sola liga viva)", async () => {
     const { id, token: first } = await deliveredSale();
     expect(await reissueBonus(deps, id, "karina@inttimo.test")).toBe("sent");
     expect(await resolveBonusAccess(db, first, now)).toMatchObject({ status: "expired" });
@@ -106,5 +103,55 @@ describe("reenviar bonus con enlace nuevo", () => {
     await updateCampaign(db, campaignId, { bonus: BONUS });
     expect(await reissueBonus(deps, sale.id, "karina@inttimo.test")).toBe("never_sent");
     expect(sent.filter((m) => m.text.includes("/bonus/"))).toHaveLength(0);
+  });
+
+  describe("el cliente lo pide desde un enlace que ya no sirve", () => {
+    it("manda un enlace nuevo al correo de la compra y muestra el correo enmascarado", async () => {
+      const { id, token: first } = await deliveredSale();
+      expect(await reissueBonus(deps, id, "karina@inttimo.test")).toBe("sent"); // el equipo emitió otro: `first` quedó retirado
+      now = new Date(NOW.getTime() + BONUS_RESEND_COOLDOWN_MS + 1);
+
+      expect(await resendBonusByToken(deps, first)).toEqual({ status: "sent", emailHint: "an•••@ejemplo.com" });
+      const mail = sent.at(-1)!;
+      expect(mail.to).toBe("ana@ejemplo.com");
+      expect(await resolveBonusAccess(db, tokenFrom(mail), now)).toMatchObject({ status: "ok" });
+      const event = (await listReservationEvents(db, id)).filter((e) => e.type === "BONUS_SENT").at(-1)!;
+      expect(event).toMatchObject({ source: "api", metadata: { actor: "cliente", reissued: true } });
+    });
+
+    it("no manda nada si el enlace sigue sirviendo", async () => {
+      const { token } = await deliveredSale();
+      expect(await resendBonusByToken(deps, token)).toEqual({ status: "still_valid" });
+      expect(sent).toHaveLength(1);
+    });
+
+    it("respeta el intervalo mínimo: un segundo clic no retira el enlace recién enviado", async () => {
+      const { id, token: first } = await deliveredSale();
+      await reissueBonus(deps, id, "karina@inttimo.test");
+      const second = tokenFrom(sent.at(-1)!);
+
+      expect(await resendBonusByToken(deps, first)).toEqual({ status: "too_soon" });
+      expect(sent).toHaveLength(2);
+      expect(await resolveBonusAccess(db, second, now)).toMatchObject({ status: "ok" });
+
+      now = new Date(now.getTime() + BONUS_RESEND_COOLDOWN_MS + 1);
+      expect(await resendBonusByToken(deps, first)).toMatchObject({ status: "sent" });
+    });
+
+    it("token desconocido o mal formado no manda nada", async () => {
+      expect(await resendBonusByToken(deps, "x".repeat(43))).toEqual({ status: "invalid" });
+      expect(await resendBonusByToken(deps, "corto")).toEqual({ status: "invalid" });
+      expect(sent).toHaveLength(0);
+    });
+
+    it("si el correo falla avisa y se puede volver a pedir", async () => {
+      const { id, token: first } = await deliveredSale();
+      await reissueBonus(deps, id, "karina@inttimo.test");
+      now = new Date(NOW.getTime() + BONUS_RESEND_COOLDOWN_MS + 1);
+      failMail = true;
+      expect(await resendBonusByToken(deps, first)).toEqual({ status: "failed" });
+      failMail = false;
+      expect(await resendBonusByToken(deps, first)).toMatchObject({ status: "sent" });
+    });
   });
 });

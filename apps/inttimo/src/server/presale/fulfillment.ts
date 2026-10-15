@@ -10,7 +10,6 @@ import {
   listReservationEvents,
   markDelivered,
   markReadyForPickup,
-  maxBonusVideoPlays,
   markShipped,
   releaseBonusSend,
   type Database,
@@ -99,14 +98,13 @@ async function deliverWithBonus(deps: FulfillmentDeps, updated: PresaleReservati
   if (!claimed) return { ok: true, reservation: updated, email: "skipped", bonus: "skipped" };
 
   const now = deps.now?.() ?? new Date();
-  const expiresAt = new Date(now.getTime() + config.linkDays * 86_400_000);
   const token = randomBytes(32).toString("base64url");
   try {
-    await createBonusLink(deps.db, { reservationId: updated.id, tokenHash: hashBonusToken(token), expiresAt });
-    const bonusInfo: BonusEmailInfo = { title: config.title, url: `${deps.siteUrl.replace(/\/$/, "")}/bonus/${token}`, expiresAt };
+    await createBonusLink(deps.db, { reservationId: updated.id, tokenHash: hashBonusToken(token), createdAt: now });
+    const bonusInfo: BonusEmailInfo = { title: config.title, url: `${deps.siteUrl.replace(/\/$/, "")}/bonus/${token}` };
     await deps.send(deliveredMail(updated, campaign.productName, bonusInfo));
     await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", source, { metadata: { status: updated.fulfillmentStatus, bonusIncluded: true } });
-    await addReservationEvent(deps.db, updated.id, "BONUS_SENT", "api", { metadata: { expiresAt: expiresAt.toISOString() } });
+    await addReservationEvent(deps.db, updated.id, "BONUS_SENT", "api");
     return { ok: true, reservation: updated, email: "sent", bonus: "sent" };
   } catch (error) {
     await releaseBonusSend(deps.db, updated.id);
@@ -178,12 +176,11 @@ export async function sendBonusIfEligible(deps: FulfillmentDeps, reservationId: 
 
   const now = deps.now?.() ?? new Date();
   const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(now.getTime() + campaign.bonus.linkDays * 86_400_000);
   try {
-    await createBonusLink(deps.db, { reservationId: reservation.id, tokenHash: hashBonusToken(token), expiresAt });
+    await createBonusLink(deps.db, { reservationId: reservation.id, tokenHash: hashBonusToken(token), createdAt: now });
     const url = `${deps.siteUrl.replace(/\/$/, "")}/bonus/${token}`;
-    await deps.send(bonusMail(claimed, campaign.productName, campaign.bonus.title, url, expiresAt));
-    await addReservationEvent(deps.db, reservation.id, "BONUS_SENT", "api", { metadata: { expiresAt: expiresAt.toISOString() } });
+    await deps.send(bonusMail(claimed, campaign.productName, campaign.bonus.title, url));
+    await addReservationEvent(deps.db, reservation.id, "BONUS_SENT", "api");
     return "sent";
   } catch (error) {
     await releaseBonusSend(deps.db, reservation.id);
@@ -193,11 +190,11 @@ export async function sendBonusIfEligible(deps: FulfillmentDeps, reservationId: 
 }
 
 /**
- * Manda un enlace NUEVO del bonus a quien ya lo recibió (p. ej. el anterior venció). Renueva la vigencia, no las
- * reproducciones: el contador del video se hereda, y el enlace anterior deja de servir para que quede una sola liga viva.
- * El enlace viejo solo se retira cuando el correo salió: si falla, el cliente conserva el que tenía.
+ * Manda un enlace NUEVO del bonus a quien ya lo recibió (p. ej. perdió el correo). El enlace anterior deja de servir
+ * para que quede una sola liga viva (así también se retira un enlace que circuló). El enlace viejo solo se retira cuando el correo salió:
+ * si falla, el cliente conserva el que tenía. `source`: "panel" (lo pide el equipo) o "api" (lo pide el cliente).
  */
-export async function reissueBonus(deps: FulfillmentDeps, reservationId: string, actor: string): Promise<ReissueOutcome> {
+export async function reissueBonus(deps: FulfillmentDeps, reservationId: string, actor: string, source: EventSource = "panel"): Promise<ReissueOutcome> {
   const reservation = await findReservationById(deps.db, reservationId);
   if (!reservation?.email || reservation.fulfillmentStatus !== "delivered") return "skipped";
   if (reservation.status !== "paid" && reservation.status !== "partially_refunded") return "skipped";
@@ -208,22 +205,16 @@ export async function reissueBonus(deps: FulfillmentDeps, reservationId: string,
 
   const now = deps.now?.() ?? new Date();
   const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(now.getTime() + campaign.bonus.linkDays * 86_400_000);
-  const link = await createBonusLink(deps.db, {
-    reservationId: reservation.id,
-    tokenHash: hashBonusToken(token),
-    expiresAt,
-    videoPlays: await maxBonusVideoPlays(deps.db, reservation.id),
-  });
+  const link = await createBonusLink(deps.db, { reservationId: reservation.id, tokenHash: hashBonusToken(token), createdAt: now });
   try {
     const url = `${deps.siteUrl.replace(/\/$/, "")}/bonus/${token}`;
-    await deps.send(bonusMail(reservation, campaign.productName, campaign.bonus.title, url, expiresAt));
+    await deps.send(bonusMail(reservation, campaign.productName, campaign.bonus.title, url));
   } catch (error) {
     await deleteBonusLink(deps.db, link.id);
-    await addReservationEvent(deps.db, reservation.id, "BONUS_FAILED", "panel", { metadata: { actor, reissued: true, error: String(error).slice(0, 300) } });
+    await addReservationEvent(deps.db, reservation.id, "BONUS_FAILED", source, { metadata: { actor, reissued: true, error: String(error).slice(0, 300) } });
     return "failed";
   }
   await expireOtherBonusLinks(deps.db, reservation.id, link.id, now);
-  await addReservationEvent(deps.db, reservation.id, "BONUS_SENT", "panel", { metadata: { actor, reissued: true, expiresAt: expiresAt.toISOString() } });
+  await addReservationEvent(deps.db, reservation.id, "BONUS_SENT", source, { metadata: { actor, reissued: true } });
   return "sent";
 }

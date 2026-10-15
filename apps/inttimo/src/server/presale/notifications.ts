@@ -124,7 +124,7 @@ export async function resendConfirmation(db: Database, reservationId: string, de
 
 const toHtml = (lines: string[]) => lines.map((line) => (line ? `<p>${escapeHtml(line)}</p>` : "")).join("");
 
-export type BonusEmailInfo = { title: string; url: string; expiresAt: Date };
+export type BonusEmailInfo = { title: string; url: string };
 
 /**
  * Correo LISTO PARA RECOGER / ENVIADO: textos exactos de "Especificaciones finales postcompra UNO+UNO"
@@ -168,9 +168,8 @@ export function fulfillmentMail(reservation: PresaleReservation, productName: st
   return { to: reservation.email, subject: `Tu ${productName} ya va en camino · ${reservation.code}`, text: lines.join("\n"), html: toHtml(lines) };
 }
 
-/** Correo de ENTREGADO: confirma la entrega y trae el acceso personal al bonus (enlace temporal). */
+/** Correo de ENTREGADO: confirma la entrega y trae el acceso personal al bonus (enlace que no vence). */
 export function deliveredMail(reservation: PresaleReservation, productName: string, bonus: BonusEmailInfo): Mail {
-  const until = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" }).format(bonus.expiresAt);
   const intro = [
     `Hola ${reservation.fullName}: Tu ${productName} ya fue entregado.`,
     "",
@@ -184,7 +183,7 @@ export function deliveredMail(reservation: PresaleReservation, productName: stri
   ];
   const outro = [
     "",
-    `Este enlace es personal y estará disponible hasta el ${until}. El contenido es para tu uso personal; no lo compartas ni lo publiques.`,
+    `Este enlace es personal y puedes abrirlo cuando quieras. El contenido es para tu uso personal; no lo compartas ni lo publiques.`,
     "",
     `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · ${business.hours}.`,
     "",
@@ -201,8 +200,7 @@ export function deliveredMail(reservation: PresaleReservation, productName: stri
 }
 
 /** Reenvío manual del bonus (p. ej. el cliente reporta que no le llegó el correo de ENTREGADO), sin tocar el estado del pedido. */
-export function bonusMail(reservation: PresaleReservation, productName: string, bonusTitle: string, url: string, expiresAt: Date): Mail {
-  const until = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" }).format(expiresAt);
+export function bonusMail(reservation: PresaleReservation, productName: string, bonusTitle: string, url: string): Mail {
   const lines = [
     `Hola ${reservation.fullName}:`,
     "",
@@ -210,7 +208,7 @@ export function bonusMail(reservation: PresaleReservation, productName: string, 
     "",
     `Accede aquí: ${url}`,
     "",
-    `Este enlace es personal y estará disponible hasta el ${until}. El contenido es para tu uso personal; no lo compartas ni lo publiques.`,
+    `Este enlace es personal y puedes abrirlo cuando quieras. El contenido es para tu uso personal; no lo compartas ni lo publiques.`,
     "",
     `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · ${business.hours}.`,
     "",

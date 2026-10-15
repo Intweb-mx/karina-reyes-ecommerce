@@ -27,17 +27,15 @@ export type ShippingAddress = {
   country: string | null;
 };
 
-/** Bonus digital de la campaña. URLs de los archivos y vigencia del enlace las define el negocio (no hay valores por defecto). */
+/** Bonus digital de la campaña. URLs de los archivos las define el negocio (no hay valores por defecto). El enlace personal no vence. */
 export type BonusConfig = {
   title: string;
   pdfUrl: string | null;
   videoUrl: string | null;
   /** Archivo en el almacenamiento privado: se entrega con URL temporal y el enlace real nunca llega al cliente. Tiene prioridad sobre `pdfUrl`. */
   pdfKey?: string | null;
-  /** Igual que `pdfKey`, y además con tope de reproducciones por enlace. Tiene prioridad sobre `videoUrl`. */
+  /** Igual que `pdfKey` (sin tope de reproducciones). Tiene prioridad sobre `videoUrl`. */
   videoKey?: string | null;
-  /** Días que dura el enlace personal desde que se envía. */
-  linkDays: number;
 };
 
 /** Punto de recolección configurado en la campaña (datos del negocio). */
@@ -338,9 +336,10 @@ export const presaleBonusLinks = pgTable(
       .notNull()
       .references(() => presaleReservations.id, { onDelete: "restrict" }),
     tokenHash: text().notNull().unique(),
-    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    /** null = no vence. Una fecha pasada significa enlace retirado (lo reemplazó uno nuevo). */
+    expiresAt: timestamp({ withTimezone: true }),
     firstOpenedAt: timestamp({ withTimezone: true }),
-    /** Reproducciones del video ya entregadas a este enlace. El tope se aplica en el servidor; solo baja si la entrega falló. */
+    /** En desuso: el video ya no tiene tope de reproducciones (2026-10-14). Se conserva para no migrar producción; nada la lee ni la escribe. */
     videoPlays: integer().notNull().default(0),
     createdAt: createdAt(),
   },
