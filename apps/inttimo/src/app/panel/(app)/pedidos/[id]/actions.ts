@@ -46,7 +46,6 @@ const BONUS: Record<BonusOutcome, string> = {
   failed: "El bonus no se pudo enviar: usa “Reintentar bonus”.",
   skipped: "",
   not_configured: "La campaña aún no tiene bonus configurado.",
-  not_eligible: "Compra fuera del periodo de preventa: sin bonus.",
 };
 
 export async function updateDelivery(reservationId: string, _state: DeliveryState, form: FormData): Promise<DeliveryState> {
@@ -89,8 +88,6 @@ export async function reissueBonusAction(reservationId: string): Promise<Deliver
       return { error: "A este pedido aún no se le ha enviado el bonus: usa “Reintentar bonus”." };
     case "not_configured":
       return { error: BONUS.not_configured };
-    case "not_eligible":
-      return { error: BONUS.not_eligible };
     default:
       return { error: "No aplica: el pedido debe estar pagado, entregado y con correo." };
   }

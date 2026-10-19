@@ -110,18 +110,18 @@ describe("entrega de pedidos", () => {
     expect(sent).toHaveLength(2);
   });
 
-  it("compras pagadas después del cierre no reciben bonus; sin bonus configurado tampoco", async () => {
+  it("compras pagadas después del cierre también reciben bonus; sin bonus configurado no", async () => {
     const late = await paidReservation("pickup", new Date("2026-10-20T12:00:00Z"));
     await fulfillReservation(deps, late, { type: "ready_for_pickup" }, "admin");
     sent = [];
-    expect(await fulfillReservation(deps, late, { type: "delivered" }, "admin")).toMatchObject({ ok: true, email: "skipped", bonus: "not_eligible" });
-    expect(sent).toHaveLength(0);
+    expect(await fulfillReservation(deps, late, { type: "delivered" }, "admin")).toMatchObject({ ok: true, email: "sent", bonus: "sent" });
+    expect(sent).toHaveLength(1);
 
     await updateCampaign(db, campaignId, { bonus: null });
     const other = await paidReservation("pickup");
     await fulfillReservation(deps, other, { type: "ready_for_pickup" }, "admin");
     expect(await fulfillReservation(deps, other, { type: "delivered" }, "admin")).toMatchObject({ ok: true, email: "skipped", bonus: "not_configured" });
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
   });
 
   it("un bonus sin PDF ni video cargados no manda correo de entrega", async () => {

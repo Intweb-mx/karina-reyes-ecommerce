@@ -1,12 +1,16 @@
-import { getCampaignStats, getRemainingUnits, listCampaigns } from "@inttimo/database";
+import { getCampaignStats, getRemainingUnits, listCampaigns, listReservations } from "@inttimo/database";
 import Link from "next/link";
 import { formatDate, formatMoney } from "@/lib/format";
 import { requireAdmin } from "@/server/auth/admin";
 import { getPhase } from "@/server/presale/campaign";
 import { getDb } from "@/server/presale/runtime";
 import { Badge, buttonClass, Card, EmptyState, PAYMENT_METHOD_LABELS, PageHeader, secondaryButtonClass } from "../../ui";
+import { sendBonusToAllAction } from "./actions";
+import { BulkBonusForm } from "./BulkBonusForm";
 
 export const metadata = { title: "Preventa" };
+/** El envío masivo del bonus manda los correos uno por uno. */
+export const maxDuration = 300;
 
 const PHASE = { upcoming: "Por abrir", open: "Abierta", closed: "Cerrada" } as const;
 const ORDER = { active: 0, draft: 1, closed: 2 } as const;
@@ -16,13 +20,20 @@ export default async function PresalePage() {
   const db = getDb();
   const now = new Date();
   const campaigns = (await listCampaigns(db)).sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.startsAt.getTime() - a.startsAt.getTime());
-  const rows = await Promise.all(campaigns.map(async (campaign) => ({ campaign, stats: await getCampaignStats(db, campaign.id), remaining: await getRemainingUnits(db, campaign, now) })));
+  const rows = await Promise.all(
+    campaigns.map(async (campaign) => ({
+      campaign,
+      stats: await getCampaignStats(db, campaign.id),
+      remaining: await getRemainingUnits(db, campaign, now),
+      bonusRecipients: campaign.bonus ? (await listReservations(db, campaign.id, ["paid", "partially_refunded"])).filter((r) => r.email?.trim()) : null,
+    })),
+  );
 
   return (
     <div className="space-y-6">
       <PageHeader title="Preventa" subtitle="Ventas, piezas disponibles y datos de cada preventa." />
       {rows.length === 0 && <EmptyState title="Todavía no hay preventas." />}
-      {rows.map(({ campaign, stats, remaining }) => {
+      {rows.map(({ campaign, stats, remaining, bonusRecipients }) => {
         const phase = campaign.status === "draft" ? null : getPhase(campaign, now);
         return (
           <Card
@@ -80,6 +91,16 @@ export default async function PresalePage() {
                 </div>
               ))}
             </dl>
+            {bonusRecipients && (
+              <div className="mt-4 border-t border-border pt-4">
+                <h3 className="mb-2 text-sm font-medium">Bonus de preventa</h3>
+                <BulkBonusForm
+                  action={sendBonusToAllAction.bind(null, campaign.id)}
+                  pending={bonusRecipients.filter((r) => !r.bonusSentAt).length}
+                  total={bonusRecipients.length}
+                />
+              </div>
+            )}
           </Card>
         );
       })}
