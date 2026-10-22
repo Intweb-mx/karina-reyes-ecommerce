@@ -86,10 +86,9 @@ describe("entrega de pedidos", () => {
     expect(mail.html).toContain("Abrir mi bonus");
     expect(await sendBonusIfEligible(deps, id)).toBe("skipped");
 
-    const access = await resolveBonusAccess(db, tokenFrom(mail), NOW);
+    const access = await resolveBonusAccess(db, tokenFrom(mail));
     expect(access).toMatchObject({ status: "ok", bonus: BONUS });
-    expect(await resolveBonusAccess(db, tokenFrom(mail), new Date(NOW.getTime() + 400 * 86_400_000))).toMatchObject({ status: "ok" }); // no vence
-    expect(await resolveBonusAccess(db, "x".repeat(43), NOW)).toEqual({ status: "invalid" });
+    expect(await resolveBonusAccess(db, "x".repeat(43))).toEqual({ status: "invalid" });
     const emailEvent = (await listReservationEvents(db, id)).find((e) => e.type === "FULFILLMENT_EMAIL_SENT" && e.metadata.note);
     expect(emailEvent?.metadata).toMatchObject({ note: "Costco Juventud, sábado 10:00–13:00" });
   });
@@ -152,7 +151,7 @@ describe("entrega de pedidos", () => {
     await fulfillReservation(deps, id, { type: "ready_for_pickup" }, "admin");
     await fulfillReservation(deps, id, { type: "delivered" }, "admin");
     await db.execute(`update presale_reservations set status = 'refunded', amount_refunded = total_amount where id = '${id}'`);
-    expect(await resolveBonusAccess(db, tokenFrom(sent.at(-1)!), NOW)).toEqual({ status: "invalid" });
+    expect(await resolveBonusAccess(db, tokenFrom(sent.at(-1)!))).toEqual({ status: "invalid" });
   });
 });
 

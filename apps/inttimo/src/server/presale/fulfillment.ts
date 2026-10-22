@@ -4,7 +4,6 @@ import {
   claimBonusSend,
   createBonusLink,
   deleteBonusLink,
-  expireOtherBonusLinks,
   findReservationById,
   getCampaignById,
   listReservationEvents,
@@ -190,9 +189,9 @@ export async function sendBonusIfEligible(deps: FulfillmentDeps, reservationId: 
 }
 
 /**
- * Manda un enlace NUEVO del bonus a quien ya lo recibió (p. ej. perdió el correo). El enlace anterior deja de servir
- * para que quede una sola liga viva (así también se retira un enlace que circuló). El enlace viejo solo se retira cuando el correo salió:
- * si falla, el cliente conserva el que tenía. `source`: "panel" (lo pide el equipo) o "api" (lo pide el cliente).
+ * Manda un enlace NUEVO del bonus a quien ya lo recibió (p. ej. perdió el correo). Los enlaces anteriores siguen
+ * sirviendo: ningún enlace del bonus se retira ni vence. Si el correo falla no queda un enlace huérfano.
+ * `source`: "panel" (lo pide el equipo) o "api".
  */
 export async function reissueBonus(deps: FulfillmentDeps, reservationId: string, actor: string, source: EventSource = "panel"): Promise<ReissueOutcome> {
   const reservation = await findReservationById(deps.db, reservationId);
@@ -214,7 +213,6 @@ export async function reissueBonus(deps: FulfillmentDeps, reservationId: string,
     await addReservationEvent(deps.db, reservation.id, "BONUS_FAILED", source, { metadata: { actor, reissued: true, error: String(error).slice(0, 300) } });
     return "failed";
   }
-  await expireOtherBonusLinks(deps.db, reservation.id, link.id, now);
   await addReservationEvent(deps.db, reservation.id, "BONUS_SENT", source, { metadata: { actor, reissued: true } });
   return "sent";
 }

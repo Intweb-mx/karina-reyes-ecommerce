@@ -2,8 +2,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { business } from "@/content/legal";
 import { getProductContent } from "@/content/products";
-import { AlertIcon, ArrowRightIcon, ChatIcon, ClockIcon, FileIcon, GiftIcon, MailIcon, PlayIcon } from "@/components/ui/icons";
-import { BonusResend } from "./BonusResend";
+import { AlertIcon, ArrowRightIcon, ChatIcon, FileIcon, GiftIcon, MailIcon, PlayIcon } from "@/components/ui/icons";
 import { BonusVideo } from "./BonusVideo";
 
 export type BonusViewState =
@@ -14,29 +13,24 @@ export type BonusViewState =
       /** Enlace personal: las descargas y el video protegidos pasan por rutas que lo validan. */
       token: string;
     }
-  | { status: "expired"; productName: string; token: string }
   | { status: "invalid" };
 
 /**
- * Página personal del bonus digital de preventa (enlace temporal enviado por correo).
- * Válido: recursos como tarjetas grandes y vigencia visible. Expirado o inválido: explicación + canales de ayuda.
+ * Página personal del bonus digital de preventa (enlace enviado por correo, sin vencimiento).
+ * Válido: recursos como tarjetas grandes. Inválido: explicación + canales de ayuda.
  */
 export function BonusView({ state }: { state: BonusViewState }) {
   if (state.status !== "ok") {
-    const expired = state.status === "expired";
     return (
       <div className="mx-auto max-w-xl border border-border bg-[#fffdf9] px-6 py-10 text-center shadow-[0_24px_48px_-32px_rgb(34_28_23/0.35)] max-sm:-mx-4 max-sm:border-x-0 sm:px-10 sm:py-12">
-        <span aria-hidden="true" className={`mx-auto grid size-14 place-items-center rounded-full ${expired ? "bg-sand text-warning" : "bg-danger/10 text-danger"}`}>
-          {expired ? <ClockIcon className="size-6" /> : <AlertIcon className="size-6" />}
+        <span aria-hidden="true" className="mx-auto grid size-14 place-items-center rounded-full bg-danger/10 text-danger">
+          <AlertIcon className="size-6" />
         </span>
-        <p className="eyebrow mt-6 text-muted">{expired ? `Bonus · ${state.productName}` : "Bonus de preventa"}</p>
-        <h1 className="mt-3 font-serif text-[clamp(2.25rem,5vw,3rem)] leading-[1.05] font-medium text-balance">{expired ? "Este enlace ya no está activo." : "Este enlace no es válido."}</h1>
+        <p className="eyebrow mt-6 text-muted">Bonus de preventa</p>
+        <h1 className="mt-3 font-serif text-[clamp(2.25rem,5vw,3rem)] leading-[1.05] font-medium text-balance">Este enlace no es válido.</h1>
         <p className="mx-auto mt-4 max-w-md leading-relaxed text-muted">
-          {expired
-            ? "Este enlace dejó de servir porque se envió uno más reciente. Pide uno nuevo y te lo mandamos al correo de tu compra."
-            : "Revisa que hayas abierto el enlace completo desde tu correo. Si crees que es un error, escríbenos con tu número de pedido."}
+          Revisa que hayas abierto el enlace completo desde tu correo. Si crees que es un error, escríbenos con tu número de pedido.
         </p>
-        {state.status === "expired" && <BonusResend token={state.token} />}
         <HelpButtons />
       </div>
     );

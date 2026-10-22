@@ -215,10 +215,10 @@ Bonus: al pasar a ENTREGADO se manda un enlace personal `/bonus/<token>` que **n
 
 El PDF y el video viven en un bucket **privado** (`STORAGE_PRIVATE_BUCKET`) y solo se entregan con URLs firmadas que vencen solas:
 
-- **Video:** **sin tope de reproducciones** mientras el enlace esté vigente (decisión 2026-10-14; antes eran 3). `POST /bonus/<token>/video` valida el enlace y devuelve una URL firmada válida 1 h; el cliente puede volver a abrirlo cuantas veces quiera. La columna `presale_bonus_links.video_plays` quedó en desuso (no se migró para no tocar producción).
+- **Video:** **sin tope de reproducciones** (decisión 2026-10-14; antes eran 3). `POST /bonus/<token>/video` valida el enlace y devuelve una URL firmada válida 1 h; el cliente puede volver a abrirlo cuantas veces quiera. La columna `presale_bonus_links.video_plays` quedó en desuso (no se migró para no tocar producción).
 - **PDF:** `GET /bonus/<token>/pdf` valida el enlace y redirige a una URL de 5 min, sin tope de descargas.
 - **Límite real:** esto evita que circule la liga y limita copias casuales; **no es DRM**. Quien grabe la pantalla o descargue durante la hora de vigencia de la URL puede quedarse con el video.
-- Un enlace retirado, de un pedido reembolsado o desconocido no entrega nada.
+- Los enlaces **nunca vencen ni se retiran** (decisión 2026-10-22): `expires_at` de enlaces viejos se ignora, así que también sirven los que antes habían vencido o quedaron retirados. Solo un pedido reembolsado por completo o un enlace desconocido no entregan nada.
 
 Subir los archivos (una vez; cada subida crea una clave nueva y nunca sobrescribe):
 
@@ -230,8 +230,7 @@ pnpm bonus:upload --file=ruta/guia.pdf  --kind=pdf
 Imprime `"videoKey": "bonus/…"` / `"pdfKey": "bonus/…"`: se pega dentro de `bonus` en el JSON de la campaña y se carga con `pnpm presale:upsert` (desde `main`, con `DATABASE_URL` de producción).
 
 Soporte:
-- **Enlace retirado (el cliente):** cuando se emite un enlace nuevo, el anterior deja de servir y su página muestra **Reenviarme mi bonus por correo**. `POST /bonus/<token>/reenviar` manda un enlace nuevo **siempre al correo de la compra** (muestra `an•••@dominio` para confirmar), solo si el enlace ya no sirve, con un intervalo mínimo de 10 min por compra (`BONUS_RESEND_COOLDOWN_MS`). Queda en el historial como `BONUS_SENT` con `source: api`, `actor: cliente`.
-- **Enlace perdido o filtrado (el equipo):** en el pedido, botón **Reenviar bonus con enlace nuevo** (solo si el bonus ya se envió; sirve también si el cliente nunca abrió el correo ni conserva el enlace). Retira el enlace anterior: también es la forma de revocar uno que circuló. Si el correo falla, el cliente conserva el enlace que tenía.
+- **Enlace perdido (el equipo):** en el pedido, botón **Reenviar bonus con enlace nuevo** (solo si el bonus ya se envió). El enlace nuevo se suma a los anteriores, que siguen sirviendo. Ya no hay forma de revocar un enlace individual.
 
 ## Avisos de rastreo de SkyDropX (webhook)
 

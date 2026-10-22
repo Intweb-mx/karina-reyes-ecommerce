@@ -42,7 +42,7 @@ describe("bonus protegido", () => {
   it("el video se entrega con una URL temporal firmada cada vez, sin tope de reproducciones", async () => {
     const token = await linkFor();
 
-    for (let i = 0; i < 10; i++) expect(await grantBonusVideo({ db, storage }, token, NOW)).toMatchObject({ status: "ok", url: expect.stringContaining("privado.test/bonus/video.mp4") });
+    for (let i = 0; i < 10; i++) expect(await grantBonusVideo({ db, storage }, token)).toMatchObject({ status: "ok", url: expect.stringContaining("privado.test/bonus/video.mp4") });
 
     // La URL real del archivo nunca se entrega: solo una firma de corta vida.
     expect(storage.signed).toHaveLength(10);
@@ -51,24 +51,27 @@ describe("bonus protegido", () => {
 
   it("el PDF se puede descargar las veces que haga falta, como archivo", async () => {
     const token = await linkFor();
-    for (let i = 0; i < 5; i++) expect(await grantBonusPdf({ db, storage }, token, NOW)).toMatchObject({ status: "ok" });
+    for (let i = 0; i < 5; i++) expect(await grantBonusPdf({ db, storage }, token)).toMatchObject({ status: "ok" });
     expect(storage.signed.at(-1)).toMatchObject({ key: "bonus/guia.pdf", downloadName: expect.stringMatching(/\.pdf$/) });
   });
 
-  it("un enlace vencido o desconocido no firma nada", async () => {
+  it("un enlace con fecha de vencimiento pasada (emitido antes del 2026-10-14) sigue sirviendo", async () => {
     const token = await linkFor(new Date(NOW.getTime() - 1000));
-    expect(await grantBonusVideo({ db, storage }, token, NOW)).toMatchObject({ status: "expired" });
-    expect(await grantBonusPdf({ db, storage }, token, NOW)).toMatchObject({ status: "expired" });
-    expect(await grantBonusVideo({ db, storage }, "x".repeat(43), NOW)).toEqual({ status: "invalid" });
-    expect(await grantBonusVideo({ db, storage }, "corto", NOW)).toEqual({ status: "invalid" });
+    expect(await grantBonusVideo({ db, storage }, token)).toMatchObject({ status: "ok" });
+    expect(await grantBonusPdf({ db, storage }, token)).toMatchObject({ status: "ok" });
+  });
+
+  it("un enlace desconocido no firma nada", async () => {
+    expect(await grantBonusVideo({ db, storage }, "x".repeat(43))).toEqual({ status: "invalid" });
+    expect(await grantBonusVideo({ db, storage }, "corto")).toEqual({ status: "invalid" });
     expect(storage.signed).toHaveLength(0);
   });
 
   it("un bonus con ligas directas (sin archivos propios) no entrega nada por esta vía", async () => {
     await updateCampaign(db, campaignId, { bonus: { title: "Guía", pdfUrl: "https://archivos.test/guia.pdf", videoUrl: "https://archivos.test/video" } });
     const token = await linkFor();
-    expect(await grantBonusVideo({ db, storage }, token, NOW)).toEqual({ status: "unavailable" });
-    expect(await grantBonusPdf({ db, storage }, token, NOW)).toEqual({ status: "unavailable" });
+    expect(await grantBonusVideo({ db, storage }, token)).toEqual({ status: "unavailable" });
+    expect(await grantBonusPdf({ db, storage }, token)).toEqual({ status: "unavailable" });
     expect(storage.signed).toHaveLength(0);
   });
 });

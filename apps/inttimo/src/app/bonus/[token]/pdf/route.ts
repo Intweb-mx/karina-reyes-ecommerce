@@ -7,7 +7,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/bonus/[token]/p
     const { token } = await ctx.params;
     const grant = await grantBonusPdf({ db: getDb(), storage: getPrivateStorage() }, token);
     if (grant.status === "ok") return new Response(null, { status: 302, headers: { location: grant.url, "cache-control": "no-store" } });
-    // Enlace vencido, inválido o sin archivo: se vuelve a la página del bonus, que explica qué pasó.
+    // Enlace inválido o sin archivo: se vuelve a la página del bonus, que explica qué pasó.
     return new Response(null, { status: 303, headers: { location: `/bonus/${encodeURIComponent((await ctx.params).token)}`, "cache-control": "no-store" } });
   });
 }

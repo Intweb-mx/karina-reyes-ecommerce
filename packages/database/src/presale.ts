@@ -509,25 +509,6 @@ export async function createBonusLink(db: Executor, input: { reservationId: stri
   return row!;
 }
 
-/** Cuándo se creó el enlace más reciente de la reserva (null si no hay): base del intervalo mínimo entre reenvíos. */
-export async function lastBonusLinkAt(db: Executor, reservationId: string): Promise<Date | null> {
-  const [row] = await db
-    .select({ createdAt: presaleBonusLinks.createdAt })
-    .from(presaleBonusLinks)
-    .where(eq(presaleBonusLinks.reservationId, reservationId))
-    .orderBy(desc(presaleBonusLinks.createdAt))
-    .limit(1);
-  return row?.createdAt ?? null;
-}
-
-/** Retira de inmediato los enlaces vigentes de la reserva salvo `keepLinkId`: queda una sola liga viva. */
-export async function expireOtherBonusLinks(db: Executor, reservationId: string, keepLinkId: string, now: Date): Promise<void> {
-  await db
-    .update(presaleBonusLinks)
-    .set({ expiresAt: now })
-    .where(and(eq(presaleBonusLinks.reservationId, reservationId), sql`${presaleBonusLinks.id} <> ${keepLinkId}`, or(isNull(presaleBonusLinks.expiresAt), gt(presaleBonusLinks.expiresAt, now))));
-}
-
 export async function deleteBonusLink(db: Pick<Database, "delete">, linkId: string): Promise<void> {
   await db.delete(presaleBonusLinks).where(eq(presaleBonusLinks.id, linkId));
 }

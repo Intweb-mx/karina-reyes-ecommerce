@@ -58,7 +58,7 @@ export function BonusVideo({ token }: { token: string }) {
         <span className="min-w-0 flex-1">
           <span className="eyebrow block text-muted">Video</span>
           <span className="mt-1.5 block font-serif text-2xl leading-tight font-medium">{loading ? "Cargando…" : "Ver el video especial"}</span>
-          <span className="mt-1.5 block text-sm text-muted">Míralo las veces que quieran, mientras tu enlace esté vigente.</span>
+          <span className="mt-1.5 block text-sm text-muted">Míralo las veces que quieran, cuando quieran.</span>
         </span>
       </button>
       {status.kind === "error" && (

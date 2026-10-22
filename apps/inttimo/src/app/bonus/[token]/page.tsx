@@ -7,7 +7,7 @@ import { getDb } from "@/server/presale/runtime";
 
 export const metadata: Metadata = { title: "Tu bonus de preventa", robots: { index: false, follow: false } };
 
-/** Acceso personal y temporal al bonus digital de preventa (enlace enviado por correo). */
+/** Acceso personal al bonus digital de preventa (enlace enviado por correo). */
 export default async function BonusPage({ params }: PageProps<"/bonus/[token]">) {
   await connection();
   const { token } = await params;
@@ -16,7 +16,7 @@ export default async function BonusPage({ params }: PageProps<"/bonus/[token]">)
   return (
     <PresaleShell>
       <main className="container-page section-y">
-        <BonusView state={access.status === "ok" ? { ...access, token } : access.status === "expired" ? { ...access, token } : access} />
+        <BonusView state={access.status === "ok" ? { ...access, token } : access} />
       </main>
     </PresaleShell>
   );
