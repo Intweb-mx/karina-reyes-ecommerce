@@ -8,6 +8,7 @@ import {
   findReservationById,
   getCampaignById,
   listReservationEvents,
+  listReservations,
   markDelivered,
   markReadyForPickup,
   markShipped,
@@ -27,7 +28,8 @@ export type FulfillmentAction =
   | { type: "delivered" };
 
 export type Outcome = "sent" | "failed" | "skipped";
-export type BonusOutcome = Outcome | "not_configured" | "not_eligible";
+/** Toda compra pagada de la preventa recibe el bonus, sin importar la fecha de pago (decisión de Karina, 2026-10-19). */
+export type BonusOutcome = Outcome | "not_configured";
 /** `never_sent`: el bonus nunca salió, así que no hay enlace que renovar (corresponde "Reintentar bonus"). */
 export type ReissueOutcome = BonusOutcome | "never_sent";
 
@@ -90,10 +92,11 @@ function hasBonusFiles(config: { pdfUrl: string | null; videoUrl: string | null;
 async function deliverWithBonus(deps: FulfillmentDeps, updated: PresaleReservation, campaign: Awaited<ReturnType<typeof getCampaignById>>, source: EventSource): Promise<FulfillmentResult> {
   const config = campaign?.bonus;
   if (!campaign || !config || !hasBonusFiles(config)) return { ok: true, reservation: updated, email: "skipped", bonus: "not_configured" };
-  if (!updated.paidAt || updated.paidAt > campaign.endsAt) return { ok: true, reservation: updated, email: "skipped", bonus: "not_eligible" };
 
   // Sin correo no hay a dónde mandar el enlace: el bonus queda sin reclamar por si luego se captura uno.
   if (!updated.email) return { ok: true, reservation: updated, email: "skipped", bonus: "skipped" };
+  // El bonus ya salió en el envío masivo: solo se confirma la entrega.
+  if (updated.bonusSentAt) return deliverWithoutBonus(deps, updated, campaign.productName, source);
   const claimed = await claimBonusSend(deps.db, updated.id);
   if (!claimed) return { ok: true, reservation: updated, email: "skipped", bonus: "skipped" };
 
@@ -111,6 +114,17 @@ async function deliverWithBonus(deps: FulfillmentDeps, updated: PresaleReservati
     await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_FAILED", source, { metadata: { status: updated.fulfillmentStatus, error: String(error).slice(0, 300) } });
     await addReservationEvent(deps.db, updated.id, "BONUS_FAILED", "api", { metadata: { error: String(error).slice(0, 300) } });
     return { ok: true, reservation: updated, email: "failed", bonus: "failed" };
+  }
+}
+
+async function deliverWithoutBonus(deps: FulfillmentDeps, updated: PresaleReservation, productName: string, source: EventSource): Promise<FulfillmentResult> {
+  try {
+    await deps.send(deliveredMail(updated, productName, null));
+    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_SENT", source, { metadata: { status: updated.fulfillmentStatus, bonusIncluded: false } });
+    return { ok: true, reservation: updated, email: "sent", bonus: "skipped" };
+  } catch (error) {
+    await addReservationEvent(deps.db, updated.id, "FULFILLMENT_EMAIL_FAILED", source, { metadata: { status: updated.fulfillmentStatus, error: String(error).slice(0, 300) } });
+    return { ok: true, reservation: updated, email: "failed", bonus: "skipped" };
   }
 }
 
@@ -169,7 +183,6 @@ export async function sendBonusIfEligible(deps: FulfillmentDeps, reservationId: 
   if (!reservation?.email || reservation.fulfillmentStatus !== "delivered") return "skipped";
   const campaign = await getCampaignById(deps.db, reservation.campaignId);
   if (!campaign?.bonus || !hasBonusFiles(campaign.bonus)) return "not_configured";
-  if (!reservation.paidAt || reservation.paidAt > campaign.endsAt) return "not_eligible";
 
   const claimed = await claimBonusSend(deps.db, reservation.id);
   if (!claimed) return "skipped";
@@ -200,7 +213,6 @@ export async function reissueBonus(deps: FulfillmentDeps, reservationId: string,
   if (reservation.status !== "paid" && reservation.status !== "partially_refunded") return "skipped";
   const campaign = await getCampaignById(deps.db, reservation.campaignId);
   if (!campaign?.bonus || !hasBonusFiles(campaign.bonus)) return "not_configured";
-  if (!reservation.paidAt || reservation.paidAt > campaign.endsAt) return "not_eligible";
   if (!reservation.bonusSentAt) return "never_sent";
 
   const now = deps.now?.() ?? new Date();
@@ -217,4 +229,57 @@ export async function reissueBonus(deps: FulfillmentDeps, reservationId: string,
   await expireOtherBonusLinks(deps.db, reservation.id, link.id, now);
   await addReservationEvent(deps.db, reservation.id, "BONUS_SENT", source, { metadata: { actor, reissued: true } });
   return "sent";
+}
+
+export type BulkBonusResult = { sent: number; failed: number; skipped: number };
+
+/** Pausa entre correos: Resend limita las solicitudes por segundo. */
+const BULK_PAUSE_MS = 600;
+
+/**
+ * "Enviar bonus a todos" (panel → Preventa): manda el bonus a cada compra pagada de la campaña con correo, sin importar
+ * la fecha de pago ni si el pedido ya se entregó. Por defecto solo a quien aún no lo tiene (se puede repetir sin
+ * duplicar correos); con `includeAlreadySent` también reenvía a quien ya lo recibió, con un enlace nuevo que se suma
+ * al anterior (no se retira: el cliente puede tenerlo guardado). Un correo que falla no detiene a los demás.
+ */
+export async function sendBonusToAll(
+  deps: FulfillmentDeps & { pauseMs?: number },
+  campaignId: string,
+  actor: string,
+  options: { includeAlreadySent?: boolean } = {},
+): Promise<BulkBonusResult | "not_configured"> {
+  const campaign = await getCampaignById(deps.db, campaignId);
+  if (!campaign?.bonus || !hasBonusFiles(campaign.bonus)) return "not_configured";
+  const bonus = campaign.bonus;
+  const pause = deps.pauseMs ?? BULK_PAUSE_MS;
+  const result: BulkBonusResult = { sent: 0, failed: 0, skipped: 0 };
+
+  for (const reservation of await listReservations(deps.db, campaignId, ["paid", "partially_refunded"])) {
+    if (!reservation.email?.trim() || (reservation.bonusSentAt && !options.includeAlreadySent)) {
+      result.skipped++;
+      continue;
+    }
+    const firstTime = !reservation.bonusSentAt;
+    // El primer envío se reclama (idempotente frente a dos clics o a un ENTREGADO simultáneo).
+    if (firstTime && !(await claimBonusSend(deps.db, reservation.id, { anyFulfillment: true }))) {
+      result.skipped++;
+      continue;
+    }
+
+    const now = deps.now?.() ?? new Date();
+    const token = randomBytes(32).toString("base64url");
+    const link = await createBonusLink(deps.db, { reservationId: reservation.id, tokenHash: hashBonusToken(token), createdAt: now });
+    try {
+      await deps.send(bonusMail(reservation, campaign.productName, bonus.title, `${deps.siteUrl.replace(/\/$/, "")}/bonus/${token}`, firstTime));
+      await addReservationEvent(deps.db, reservation.id, "BONUS_SENT", "panel", { metadata: { actor, bulk: true, reissued: !firstTime } });
+      result.sent++;
+    } catch (error) {
+      await deleteBonusLink(deps.db, link.id);
+      if (firstTime) await releaseBonusSend(deps.db, reservation.id);
+      await addReservationEvent(deps.db, reservation.id, "BONUS_FAILED", "panel", { metadata: { actor, bulk: true, error: String(error).slice(0, 300) } });
+      result.failed++;
+    }
+    if (pause) await new Promise((resolve) => setTimeout(resolve, pause));
+  }
+  return result;
 }

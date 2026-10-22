@@ -483,8 +483,11 @@ export async function saveLabel(
 
 // ---------- Bonus ----------
 
-/** Reserva el envío del bonus; solo una llamada gana. Exige pedido pagado y ya enviado / listo / entregado. */
-export async function claimBonusSend(db: Executor, reservationId: string): Promise<PresaleReservation | null> {
+/**
+ * Reserva el envío del bonus; solo una llamada gana. Exige pedido pagado y ya enviado / listo / entregado,
+ * salvo `anyFulfillment` (envío masivo desde el panel: el bonus sale aunque el pedido no se haya entregado).
+ */
+export async function claimBonusSend(db: Executor, reservationId: string, options: { anyFulfillment?: boolean } = {}): Promise<PresaleReservation | null> {
   const [row] = await db
     .update(presaleReservations)
     .set({ bonusSentAt: new Date() })
@@ -492,7 +495,7 @@ export async function claimBonusSend(db: Executor, reservationId: string): Promi
       and(
         eq(presaleReservations.id, reservationId),
         inArray(presaleReservations.status, FULFILLABLE),
-        inArray(presaleReservations.fulfillmentStatus, ["ready_for_pickup", "shipped", "delivered"]),
+        options.anyFulfillment ? undefined : inArray(presaleReservations.fulfillmentStatus, ["ready_for_pickup", "shipped", "delivered"]),
         isNull(presaleReservations.bonusSentAt),
       ),
     )

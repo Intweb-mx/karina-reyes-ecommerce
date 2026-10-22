@@ -168,8 +168,25 @@ export function fulfillmentMail(reservation: PresaleReservation, productName: st
   return { to: reservation.email, subject: `Tu ${productName} ya va en camino · ${reservation.code}`, text: lines.join("\n"), html: toHtml(lines) };
 }
 
-/** Correo de ENTREGADO: confirma la entrega y trae el acceso personal al bonus (enlace que no vence). */
-export function deliveredMail(reservation: PresaleReservation, productName: string, bonus: BonusEmailInfo): Mail {
+/**
+ * Correo de ENTREGADO: confirma la entrega y trae el acceso personal al bonus (enlace que no vence).
+ * `bonus` nulo: el bonus ya salió antes en un correo aparte (envío masivo desde el panel); solo se confirma la entrega.
+ */
+export function deliveredMail(reservation: PresaleReservation, productName: string, bonus: BonusEmailInfo | null): Mail {
+  const contact = [`Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · ${business.hours}.`, "", "— inttimo —"];
+  const subject = `Tu ${productName} fue entregado${bonus ? " · tu bonus de preventa" : ""} · ${reservation.code}`;
+  if (!bonus) {
+    const lines = [
+      `Hola ${reservation.fullName}: Tu ${productName} ya fue entregado.`,
+      "",
+      `Folio: ${reservation.code}`,
+      "",
+      "Gracias por ser parte de esta primera etapa. Tu bonus de preventa te llegó en un correo aparte; ese enlace sigue funcionando.",
+      "",
+      ...contact,
+    ];
+    return { to: reservation.email, subject, text: lines.join("\n"), html: toHtml(lines) };
+  }
   const intro = [
     `Hola ${reservation.fullName}: Tu ${productName} ya fue entregado.`,
     "",
@@ -181,30 +198,23 @@ export function deliveredMail(reservation: PresaleReservation, productName: stri
     bonus.title,
     `Abrir mi bonus: ${bonus.url}`,
   ];
-  const outro = [
-    "",
-    `Este enlace es personal y puedes abrirlo cuando quieras. El contenido es para tu uso personal; no lo compartas ni lo publiques.`,
-    "",
-    `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · ${business.hours}.`,
-    "",
-    "— inttimo —",
-  ];
+  const outro = ["", `Este enlace es personal y puedes abrirlo cuando quieras. El contenido es para tu uso personal; no lo compartas ni lo publiques.`, "", ...contact];
   const button = `<p><a href="${escapeHtml(bonus.url)}" style="display:inline-block;padding:12px 24px;background:#221c17;color:#ffffff;text-decoration:none">Abrir mi bonus</a></p>`;
   const htmlIntro = toHtml(intro.slice(0, -1));
-  return {
-    to: reservation.email,
-    subject: `Tu ${productName} fue entregado · tu bonus de preventa · ${reservation.code}`,
-    text: [...intro, ...outro].join("\n"),
-    html: htmlIntro + button + toHtml(outro),
-  };
+  return { to: reservation.email, subject, text: [...intro, ...outro].join("\n"), html: htmlIntro + button + toHtml(outro) };
 }
 
-/** Reenvío manual del bonus (p. ej. el cliente reporta que no le llegó el correo de ENTREGADO), sin tocar el estado del pedido. */
-export function bonusMail(reservation: PresaleReservation, productName: string, bonusTitle: string, url: string): Mail {
+/**
+ * Bonus en un correo aparte, sin tocar el estado del pedido: reenvío manual (el cliente no recibió el de ENTREGADO)
+ * o primer envío desde el envío masivo del panel (`firstTime`).
+ */
+export function bonusMail(reservation: PresaleReservation, productName: string, bonusTitle: string, url: string, firstTime = false): Mail {
   const lines = [
     `Hola ${reservation.fullName}:`,
     "",
-    `Aquí está de nuevo tu bonus de preventa de ${productName}: ${bonusTitle}.`,
+    firstTime
+      ? `Gracias por comprar ${productName} en la preventa. Aquí está tu bonus de preventa: ${bonusTitle}.`
+      : `Aquí está de nuevo tu bonus de preventa de ${productName}: ${bonusTitle}.`,
     "",
     `Accede aquí: ${url}`,
     "",
