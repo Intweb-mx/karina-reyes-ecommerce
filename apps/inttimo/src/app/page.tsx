@@ -6,13 +6,13 @@ import { StateMessage } from "@/components/presale/sections/StateMessage";
 import { PageTransition } from "@/components/store/layout/PageTransition";
 import { StoreShell } from "@/components/store/layout/StoreShell";
 import { StoreHome } from "@/components/store/pages/StoreHome";
-import { storeEnabled } from "@/lib/store/flags";
+import { sitePublic } from "@/lib/store/flags";
 import { getDb } from "@/server/presale/runtime";
 
-// Con la tienda habilitada (desarrollo o NEXT_PUBLIC_STORE_ENABLED=1) la raíz es el home de inttimo.
-// En producción, mientras la tienda no esté aprobada (CLAUDE.md §1), la raíz sigue llevando a la preventa.
+// Con el sitio habilitado (desarrollo, NEXT_PUBLIC_SITE_PUBLIC=1 o NEXT_PUBLIC_STORE_ENABLED=1) la raíz es el home de inttimo.
+// En producción, mientras no se habilite (CLAUDE.md §1), la raíz sigue llevando a la preventa.
 export default async function HomePage() {
-  if (storeEnabled) {
+  if (sitePublic) {
     return (
       <StoreShell>
         <PageTransition>

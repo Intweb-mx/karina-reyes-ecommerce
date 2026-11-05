@@ -3,6 +3,8 @@ import { AnchorButton } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
 import { CheckIcon } from "@/components/ui/icons";
 import { ChurchQuoteForm } from "@/components/store/forms/ChurchQuoteForm";
+import { SupportChannels } from "@/components/store/SupportChannels";
+import { storeEnabled } from "@/lib/store/flags";
 import { PageHero, SectionHeading } from "@/components/store/PageHero";
 import { churches } from "@/content/store";
 import { getProductContent } from "@/content/products";
@@ -49,9 +51,19 @@ export default function IglesiasPage() {
             </ul>
           </Reveal>
           <div id="cotizacion" className="scroll-mt-24 border border-border bg-[#fffdf9] p-6 shadow-[0_30px_60px_-40px_rgb(34_28_23/0.45)] sm:p-8">
-            <h2 className="font-serif text-3xl font-medium">Solicitar cotización</h2>
-            <p className="mt-1 mb-7 text-sm text-muted">Todos los campos son obligatorios salvo los marcados como opcionales.</p>
-            <ChurchQuoteForm />
+            {storeEnabled ? (
+              <>
+                <h2 className="font-serif text-3xl font-medium">Solicitar cotización</h2>
+                <p className="mt-1 mb-7 text-sm text-muted">Todos los campos son obligatorios salvo los marcados como opcionales.</p>
+                <ChurchQuoteForm />
+              </>
+            ) : (
+              <>
+                <h2 className="font-serif text-3xl font-medium">Cuéntanos tu proyecto</h2>
+                <p className="mt-1 mb-7 text-sm text-muted">Escríbenos con el nombre de tu iglesia o ministerio, la cantidad aproximada y el uso que le darán. Te respondemos con una propuesta.</p>
+                <SupportChannels />
+              </>
+            )}
           </div>
         </div>
       </section>

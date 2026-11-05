@@ -53,6 +53,7 @@ Implementa lo que pide frontend en [BACKEND-REQUEST.md](./BACKEND-REQUEST.md) y 
 - [ ] Programar `pnpm store:reconcile` (Vercel Cron o equivalente). Es la red de seguridad si un webhook no llega y libera apartados vencidos en bloque. El plan Hobby de Vercel solo permite crons diarios: decidir el plan y la frecuencia.
 - [ ] Los cambios de frontend de [FRONTEND-NOTAS.md](./FRONTEND-NOTAS.md) hechos y probados en modo `http`.
 - [ ] Compra con tarjeta real (monto mínimo) y su reembolso desde Stripe: pedido pagado, correo al cliente, aviso al equipo, stock descontado y reembolso registrado.
+- [ ] **Sitio informativo (2026-11-05, decisión del usuario):** `NEXT_PUBLIC_SITE_PUBLIC=1` en Production abre home, para matrimonios, filosofía, iglesias, ayuda, productos y contacto. Carrito, checkout, cuenta, rastreo y confirmación muestran "muy pronto" con los canales reales de atención; el contacto y la cotización de iglesias van por WhatsApp/correo (sus formularios y endpoints aún no existen). Requiere también `NEXT_PUBLIC_STORE_API=http` y `pnpm store:seed` (UNO+UNO queda `coming_soon`, sin precio: no se puede comprar). Con `mock` se verían datos de ejemplo con precio.
 - [ ] `NEXT_PUBLIC_STORE_ENABLED=1` solo en Production y solo cuando el usuario lo indique. Nunca en un Preview con llaves live de Stripe.
 
 ## Verificación después de desplegar
