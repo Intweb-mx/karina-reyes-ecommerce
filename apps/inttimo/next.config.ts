@@ -30,6 +30,12 @@ const nextConfig: NextConfig = {
   },
   poweredByHeader: false,
   transpilePackages: ["@inttimo/database", "@inttimo/shared-utils", "@inttimo/storage"],
+  async redirects() {
+    // Tienda abierta: se apaga la página de venta de la preventa. Solo un segmento: /preventa/[slug]/confirmacion sigue viva
+    // para los compradores. Aquí y no en la página porque su loading.tsx ya habría respondido 200.
+    if (process.env.NEXT_PUBLIC_STORE_ENABLED !== "1") return [];
+    return [{ source: "/preventa/:slug", destination: "/productos/uno-mas-uno", permanent: false }];
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

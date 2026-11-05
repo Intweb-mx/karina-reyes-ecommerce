@@ -54,7 +54,16 @@ Implementa lo que pide frontend en [BACKEND-REQUEST.md](./BACKEND-REQUEST.md) y 
 - [ ] Los cambios de frontend de [FRONTEND-NOTAS.md](./FRONTEND-NOTAS.md) hechos y probados en modo `http`.
 - [ ] Compra con tarjeta real (monto mínimo) y su reembolso desde Stripe: pedido pagado, correo al cliente, aviso al equipo, stock descontado y reembolso registrado.
 - [ ] **Sitio informativo (2026-11-05, decisión del usuario):** `NEXT_PUBLIC_SITE_PUBLIC=1` en Production abre home, para matrimonios, filosofía, iglesias, ayuda, productos y contacto. Carrito, checkout, cuenta, rastreo y confirmación muestran "muy pronto" con los canales reales de atención; el contacto y la cotización de iglesias van por WhatsApp/correo (sus formularios y endpoints aún no existen). Requiere también `NEXT_PUBLIC_STORE_API=http` y `pnpm store:seed` (UNO+UNO queda `coming_soon`, sin precio: no se puede comprar). Con `mock` se verían datos de ejemplo con precio.
-- [ ] `NEXT_PUBLIC_STORE_ENABLED=1` solo en Production y solo cuando el usuario lo indique. Nunca en un Preview con llaves live de Stripe.
+- [x] `NEXT_PUBLIC_STORE_ENABLED=1` solo en Production (2026-11-05, decisión del usuario: publicar tal como está). Nunca en un Preview con llaves live de Stripe. Apaga además la venta en `/preventa/[slug]`.
+
+## Publicada, falta para vender de verdad (2026-11-05)
+
+La tienda está abierta, pero UNO+UNO sigue `coming_soon` y sin precio: nadie puede comprar hasta completar esta lista.
+
+- [ ] Precio y existencias de UNO+UNO, y pasarlo a `on_sale` (el panel de tienda aún no existe: subproyectos 5, 6 y 8).
+- [ ] Términos y Condiciones de la tienda (los actuales son de la preventa).
+- [ ] `pnpm store:reconcile` programado y compra real de prueba (lista de arriba).
+- [ ] Endpoints de rastreo, cuenta, contacto, iglesias y newsletter (subproyecto 7). Al terminar cada uno, quitarlo de `pendingBackendEnabled`.
 
 ## Verificación después de desplegar
 

@@ -4,7 +4,7 @@ import { Reveal } from "@/components/ui/Reveal";
 import { CheckIcon } from "@/components/ui/icons";
 import { ChurchQuoteForm } from "@/components/store/forms/ChurchQuoteForm";
 import { SupportChannels } from "@/components/store/SupportChannels";
-import { storeEnabled } from "@/lib/store/flags";
+import { pendingBackendEnabled } from "@/lib/store/flags";
 import { PageHero, SectionHeading } from "@/components/store/PageHero";
 import { churches } from "@/content/store";
 import { getProductContent } from "@/content/products";
@@ -51,7 +51,7 @@ export default function IglesiasPage() {
             </ul>
           </Reveal>
           <div id="cotizacion" className="scroll-mt-24 border border-border bg-[#fffdf9] p-6 shadow-[0_30px_60px_-40px_rgb(34_28_23/0.45)] sm:p-8">
-            {storeEnabled ? (
+            {pendingBackendEnabled ? (
               <>
                 <h2 className="font-serif text-3xl font-medium">Solicitar cotización</h2>
                 <p className="mt-1 mb-7 text-sm text-muted">Todos los campos son obligatorios salvo los marcados como opcionales.</p>

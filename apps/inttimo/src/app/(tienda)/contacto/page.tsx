@@ -5,7 +5,7 @@ import { ContactForm } from "@/components/store/forms/ContactForm";
 import { PageHero } from "@/components/store/PageHero";
 import { SupportChannels } from "@/components/store/SupportChannels";
 import { faqs } from "@/content/store";
-import { storeEnabled } from "@/lib/store/flags";
+import { pendingBackendEnabled } from "@/lib/store/flags";
 
 export const metadata: Metadata = { title: "Contacto" };
 
@@ -17,7 +17,7 @@ export default function ContactoPage() {
       <PageHero eyebrow="Contacto" title={<>Hablemos. <em className="font-normal">Estamos para ti.</em></>} body="Si tienes alguna pregunta, duda o necesitas apoyo, nuestro equipo está listo para ayudarte." size="sm" />
       <div className="container-page grid gap-12 section-y lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <section aria-labelledby="mensaje" className="border border-border bg-[#fffdf9] p-6 shadow-[0_30px_60px_-40px_rgb(34_28_23/0.45)] sm:p-8">
-          {storeEnabled ? (
+          {pendingBackendEnabled ? (
             <>
               <h2 id="mensaje" className="font-serif text-3xl font-medium">Envíanos un mensaje</h2>
               <p className="mt-1 mb-7 text-sm text-muted">Te responderemos a la brevedad.</p>
@@ -32,7 +32,7 @@ export default function ContactoPage() {
           )}
         </section>
         <aside className="space-y-10">
-          {storeEnabled && (
+          {pendingBackendEnabled && (
             <div>
               <h2 className="font-serif text-2xl font-medium">Otras formas de contacto</h2>
               <div className="mt-4"><SupportChannels withChurch /></div>

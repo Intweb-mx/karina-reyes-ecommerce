@@ -1,12 +1,17 @@
 import type { ReactNode } from "react";
 import { ButtonLink } from "@/components/ui/Button";
-import { storeEnabled } from "@/lib/store/flags";
+import { pendingBackendEnabled, storeEnabled } from "@/lib/store/flags";
 import { PageHero } from "./PageHero";
 import { SupportChannels } from "./SupportChannels";
 
 /** Muestra `children` con la tienda abierta; si solo está abierto el sitio informativo, muestra `closed`. */
 export function WhenStoreOpen({ children, closed }: { children: ReactNode; closed: ReactNode }) {
   return storeEnabled ? children : closed;
+}
+
+/** Muestra `children` solo si la función ya puede responder (hoy, con el simulador); si no, muestra `closed`. */
+export function WhenBackendReady({ children, closed }: { children: ReactNode; closed: ReactNode }) {
+  return pendingBackendEnabled ? children : closed;
 }
 
 /** Página de una función de compra que aún no abre: dice qué es y deja los canales reales de atención (sin fechas inventadas). */

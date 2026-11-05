@@ -13,6 +13,13 @@ export const storeEnabled = process.env.NEXT_PUBLIC_STORE_ENABLED === "1" || pro
  */
 export const sitePublic = storeEnabled || process.env.NEXT_PUBLIC_SITE_PUBLIC === "1";
 
+/**
+ * Rastreo, cuenta, formularios de contacto e iglesias, newsletter y panel de la tienda: su backend aún no existe, así que
+ * solo funcionan con el simulador. Con NEXT_PUBLIC_STORE_API=http se ofrecen los canales reales (WhatsApp y correo).
+ * Quitar cada uno de esta bandera conforme tenga endpoints reales (docs/store/BACKEND-PLAN.md).
+ */
+export const pendingBackendEnabled = storeEnabled && process.env.NEXT_PUBLIC_STORE_API !== "http";
+
 /** En Server Components: 404 si ni la tienda ni el sitio informativo están habilitados. */
 export function requireSite() {
   if (!sitePublic) notFound();
