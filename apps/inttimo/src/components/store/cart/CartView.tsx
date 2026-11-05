@@ -16,6 +16,7 @@ export function CartView() {
   const [couponInput, setCouponInput] = useState("");
   const [coupon, setCoupon] = useState<string | undefined>();
   const { quote, error, loading } = useCartQuote(coupon);
+  const blocked = !!quote?.lines.some((line) => !line.available);
   const money = (value: { amount: number; currency: string }) => formatMoney(value.amount, value.currency);
 
   if (!loading && !count) {
@@ -72,7 +73,8 @@ export function CartView() {
             {quote?.couponError && <p id="cupon-error" className="mt-1.5 text-xs text-danger">{quote.couponError}</p>}
           </form>
 
-          <ButtonLink href="/checkout" variant="bronze" block className="mt-6" aria-disabled={!quote || loading}>
+          {blocked && <p role="alert" className="mt-5 text-sm text-danger">Quita los productos que no están disponibles para continuar.</p>}
+          <ButtonLink href="/checkout" variant="bronze" block className={`mt-6 ${!quote || loading || blocked ? "pointer-events-none opacity-50" : ""}`} aria-disabled={!quote || loading || blocked} tabIndex={!quote || loading || blocked ? -1 : undefined}>
             Finalizar compra
           </ButtonLink>
           <p className="mt-3 flex items-center justify-center gap-2 text-xs text-muted"><LockIcon className="size-3.5" /> Pago seguro procesado por Stripe.</p>

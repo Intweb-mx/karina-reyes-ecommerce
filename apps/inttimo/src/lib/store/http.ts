@@ -20,7 +20,7 @@ async function call<T>(path: string, init?: RequestInit & { idempotencyKey?: str
     if (response.ok) return { ok: true, data: data as T };
     return { ok: false, ...(data as StoreError) };
   } catch {
-    return { ok: false, error: { code: "service_unavailable", message: "No pudimos conectar con la tienda. Inténtalo de nuevo en un momento." } };
+    return { ok: false, error: { code: "network_error", message: "No pudimos conectar con la tienda. Inténtalo de nuevo en un momento." } };
   }
 }
 

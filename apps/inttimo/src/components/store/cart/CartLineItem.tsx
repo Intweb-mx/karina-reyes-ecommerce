@@ -25,8 +25,8 @@ export function CartLineItem({ line, compact = false, onNavigate }: { line: Cart
           </div>
           <p key={line.subtotal.amount} className="animate-tick shrink-0 font-semibold lining-nums tabular-nums">{money(line.subtotal)}</p>
         </div>
-        {line.notice && <p className="mt-1 text-xs text-warning">{line.notice}</p>}
-        {!line.available && <p className="mt-1 text-xs text-danger">Agotado: quítalo para continuar.</p>}
+        {/* El servidor explica por qué (agotado, próximamente, sin precio, máximo por pedido): se muestra tal cual. */}
+        {line.notice ? <p className={`mt-1 text-xs ${line.available ? "text-warning" : "text-danger"}`}>{line.notice}</p> : !line.available && <p className="mt-1 text-xs text-danger">No disponible por ahora: quítalo para continuar.</p>}
         <div className="mt-auto flex items-center justify-between gap-3 pt-3">
           <div role="group" aria-label={`Cantidad de ${line.name}`} className="inline-flex items-stretch divide-x divide-border border border-border bg-[#fffdf9]">
             <button type="button" aria-label="Quitar uno" disabled={line.quantity <= 1} onClick={() => setQuantity(line.productId, line.quantity - 1)} className={`grid ${step} place-items-center transition-colors hover:bg-sand/60 active:bg-sand disabled:text-muted/40`}>

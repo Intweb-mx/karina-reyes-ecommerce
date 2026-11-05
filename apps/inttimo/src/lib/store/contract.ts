@@ -208,6 +208,8 @@ export type NewsletterRequest = { email: string; consent: true; source: string; 
 
 export type AckResponse = { ok: true; reference?: string };
 
-export type StoreErrorCode = "validation_error" | "not_found" | "out_of_stock" | "rate_limited" | "quote_expired" | "service_unavailable" | "terms_outdated";
+export type StoreErrorCode = "validation_error" | "not_found" | "out_of_stock" | "rate_limited" | "quote_expired" | "service_unavailable" | "terms_outdated"
+  /** Solo del navegador: no hubo respuesta del servidor (red caída). El backend nunca lo envía. */
+  | "network_error";
 
 export type StoreError = { error: { code: StoreErrorCode; message: string; fieldErrors?: Record<string, string[]> } };
