@@ -48,7 +48,8 @@ Se puede dejar preparada la arquitectura de este repo (scaffold, tipos, tokens v
 > **Decisión del usuario (2026-10-06):** construir el frontend de las 13 pantallas de la tienda (§8) **sin tocar código de backend**. Lo que el frontend necesita del servidor se pide en un **contrato propuesto** (`apps/inttimo/src/lib/store/contract.ts` + `docs/store/BACKEND-REQUEST.md`) para que el equipo de backend lo implemente después. Mientras tanto la UI funciona con un adaptador simulado (`src/lib/store/mock.ts`, datos marcados como EJEMPLO).
 
 - Todo entra por pull request; nada se fusiona directo a `main`.
-- Las rutas de la tienda están ocultas en producción salvo `NEXT_PUBLIC_STORE_ENABLED=1` (la raíz sigue llevando a la preventa).
+- **Actualización 2026-11-05 (decisión del usuario):** la preventa se apaga y la tienda se publica tal como está en `inttimo.shop` y se completa ya publicada. Producción usa `NEXT_PUBLIC_STORE_ENABLED=1` y `NEXT_PUBLIC_STORE_API=http`. `/preventa/[slug]` redirige al producto; confirmación, bonus, webhooks y panel de preventa siguen vivos para los compradores. Lo que aún no tiene backend (rastreo, cuenta, contacto, iglesias, newsletter, panel de tienda) se ofrece por WhatsApp/correo o se oculta (`pendingBackendEnabled` en `src/lib/store/flags.ts`). Esto reemplaza la restricción de visibilidad de la nota del gate.
+- Sin `NEXT_PUBLIC_STORE_ENABLED=1` las rutas de la tienda quedan ocultas y la raíz lleva a la preventa (así se comportan los Preview).
 - Sin precios, paquetes B2B, testimonios ni datos de contacto inventados: lo no aprobado se marca como pendiente.
 
 ### Plataforma: Supabase completo (producción real)

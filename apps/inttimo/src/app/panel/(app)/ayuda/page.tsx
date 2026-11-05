@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { storeEnabled } from "@/lib/store/flags";
+import { pendingBackendEnabled } from "@/lib/store/flags";
 import { requireAdmin } from "@/server/auth/admin";
 import { Badge, Card, FULFILLMENT_LABELS, FULFILLMENT_TONES, PageHeader, STATUS_LABELS, STATUS_TONES } from "../../ui";
 
@@ -58,7 +58,7 @@ export default async function PanelHelpPage() {
           <Guide title="Actividad" href="/panel/bitacora">
             Registro de quién hizo qué en el panel (entradas, guías generadas, cambios de configuración). No se puede editar ni borrar.
           </Guide>
-          {storeEnabled && (
+          {pendingBackendEnabled && (
             <Guide title="Tienda (demo)" href="/panel/tienda">
               El panel de la tienda completa: pedidos, productos e inventario y solicitudes de contacto e iglesias. <strong>Hoy usa datos de ejemplo</strong>; funcionará con datos reales cuando el backend de la tienda esté listo.
             </Guide>
