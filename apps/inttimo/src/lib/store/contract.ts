@@ -34,6 +34,8 @@ export type ProductSummary = {
   territories: TerritoryId[];
   /** Unidades disponibles solo si el negocio decide mostrarlas (stock bajo). */
   availableUnits: number | null;
+  /** Envío a domicilio gratis por promoción vigente: un pedido que lo incluya no paga envío. */
+  freeShipping: boolean;
 };
 
 export type ProductDetail = ProductSummary & {

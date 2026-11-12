@@ -4,6 +4,8 @@ import { Reveal } from "@/components/ui/Reveal";
 import { CheckIcon } from "@/components/ui/icons";
 import { ChurchQuoteForm } from "@/components/store/forms/ChurchQuoteForm";
 import { SupportChannels } from "@/components/store/SupportChannels";
+import { ProductCard } from "@/components/store/Blocks";
+import { getStoreApi } from "@/lib/store/api";
 import { pendingBackendEnabled } from "@/lib/store/flags";
 import { PageHero, SectionHeading } from "@/components/store/PageHero";
 import { churches } from "@/content/store";
@@ -11,9 +13,14 @@ import { getProductContent } from "@/content/products";
 
 export const metadata: Metadata = { title: "Para iglesias y ministerios" };
 
-/** 05 · Iglesias y ministerios: usos, por qué UNO+UNO y solicitud de cotización (sin precios B2B publicados). */
-export default function IglesiasPage() {
+/** Paquetes aprobados para iglesias (precio en la base; si no están publicados no se muestran). */
+const CHURCH_PACKS = ["uno-mas-uno-paquete-6", "uno-mas-uno-paquete-10"];
+
+/** 05 · Iglesias y ministerios: usos, paquetes aprobados (compra directa) y solicitud de cotización. */
+export default async function IglesiasPage() {
   const content = getProductContent("uno-mas-uno")!;
+  const catalog = await getStoreApi().catalog();
+  const packs = catalog.ok ? CHURCH_PACKS.flatMap((slug) => catalog.data.products.filter((product) => product.slug === slug)) : [];
   return (
     <main>
       <PageHero
@@ -36,6 +43,19 @@ export default function IglesiasPage() {
           ))}
         </ul>
       </section>
+
+      {packs.length > 0 && (
+        <section className="container-page pb-16 lg:pb-24">
+          <Reveal><SectionHeading eyebrow="Paquetes" title="Compra directa para tu comunidad." body="Juegos UNO+UNO completos en un solo pedido. ¿Necesitas otra cantidad? Pide una cotización." /></Reveal>
+          <ul className="mx-auto mt-10 grid max-w-3xl gap-6 sm:grid-cols-2">
+            {packs.map((product, index) => (
+              <Reveal as="li" key={product.id} delay={index * 80}>
+                <ProductCard product={product} />
+              </Reveal>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="border-y border-border/70 bg-surface">
         <div className="container-page grid gap-10 section-y lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">

@@ -76,7 +76,7 @@ export default async function ProductPage({ params }: PageProps<"/productos/[slu
               {product.compareAtPrice && <s className="text-muted lining-nums">{formatMoney(product.compareAtPrice.amount, product.compareAtPrice.currency)}</s>}
               {product.price && <span className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">{product.price.currency}</span>}
             </p>
-            <p className="mt-1 text-xs text-muted">El envío se calcula en el checkout. <Link href={legalPaths.shipping} className="underline underline-offset-4">Envíos y recolección</Link></p>
+            <p className="mt-1 text-xs text-muted">{product.freeShipping ? <><span className="font-medium text-success">Envío a domicilio gratis</span> por temporada.</> : "El envío se calcula en el checkout."} <Link href={legalPaths.shipping} className="underline underline-offset-4">Envíos y recolección</Link></p>
             <div id="comprar" className="mt-6">
               {purchasable ? (
                 <AddToCartButton productId={product.id} productName={product.name} withQuantity max={product.maxQuantityPerOrder} />

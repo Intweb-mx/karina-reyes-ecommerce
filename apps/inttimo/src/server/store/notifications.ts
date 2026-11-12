@@ -43,7 +43,7 @@ export function storeCustomerMail(order: StoreOrder, items: StoreOrderItem[], po
     ...itemLines(order, items),
     `Subtotal: ${money(order.subtotalAmount)}`,
     ...(order.discountAmount ? [`Descuento: −${money(order.discountAmount)}`] : []),
-    `${pickup ? "Recolección" : "Envío"}: ${money(order.shippingAmount)}`,
+    `${pickup ? "Recolección" : "Envío"}: ${!pickup && order.shippingAmount === 0 ? "gratis" : money(order.shippingAmount)}`,
     `Total pagado: ${money(order.totalAmount)}`,
     "",
     `Método de entrega: ${pickup ? "RECOLECCIÓN" : "ENVÍO A DOMICILIO"}`,
