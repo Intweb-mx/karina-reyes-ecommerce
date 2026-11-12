@@ -1,31 +1,41 @@
-import { getExpiredHeldUnits, listStoreProducts, type Database, type StoreProductWithInventory } from "@inttimo/database";
+import { currentPrice, getExpiredHeldUnits, listStoreProducts, stockKeyOf, type Database, type StoreProductWithInventory } from "@inttimo/database";
 import { z } from "zod";
 import { getStoreProductContent, type StoreProductContent } from "../../content/store-products.ts";
 import type { CartQuoteLine, CartQuoteResponse, CatalogResponse, Money, ProductDetail, ProductStatus, ProductSummary, TerritoryId } from "../../lib/store/contract.ts";
 import { fail, ok, zodFieldErrors, type StoreDeps, type StoreResult } from "./common.ts";
 import { lineSchema, MAX_CART_LINES, normalizeLines } from "./lines.ts";
 
-/** Producto publicado, con contenido y con su disponible efectivo. */
-export type ForSale = StoreProductWithInventory & { content: StoreProductContent; effectiveAvailable: number };
+/** Producto publicado, con contenido, con su precio vigente, su disponible efectivo y si hoy tiene envío gratis. */
+export type ForSale = StoreProductWithInventory & { content: StoreProductContent; effectiveAvailable: number; freeShipping: boolean };
 
 const TERRITORIES: readonly TerritoryId[] = ["conversacion", "conexion", "intimidad", "disfrute", "conocimiento", "fe"];
 const isTerritory = (value: string): value is TerritoryId => (TERRITORIES as readonly string[]).includes(value);
 const money = (amount: number, currency: string): Money => ({ amount, currency });
 
 /**
- * Productos publicados que tienen contenido, con su disponible efectivo: `existencias − apartado + apartados ya vencidos`.
- * Solo lee (no libera nada): la liberación ocurre en el checkout y en `store:reconcile`.
+ * Productos publicados que tienen contenido, con su disponible efectivo: `existencias − apartado + apartados ya vencidos`
+ * (en un paquete, piezas del producto base divididas entre las piezas del paquete). Solo lee (no libera nada): la
+ * liberación ocurre en el checkout y en `store:reconcile`.
  */
 export async function loadForSale(db: Database, now: Date): Promise<ForSale[]> {
   const products = await listStoreProducts(db, { publishedOnly: true });
-  const expired = await getExpiredHeldUnits(db, products.map((product) => product.id), now);
+  const expired = await getExpiredHeldUnits(db, [...new Set(products.map(stockKeyOf))], now);
   return products.flatMap((product) => {
     const content = getStoreProductContent(product.slug);
     if (!content) {
       console.warn(JSON.stringify({ level: "warn", msg: "store_product_without_content", slug: product.slug }));
       return [];
     }
-    return [{ ...product, content, effectiveAvailable: Math.max(0, product.available + (expired.get(product.id) ?? 0)) }];
+    const freePieces = product.onHand - product.reserved + (expired.get(stockKeyOf(product)) ?? 0);
+    return [
+      {
+        ...product,
+        ...currentPrice(product, now),
+        content,
+        effectiveAvailable: Math.max(0, Math.floor(freePieces / product.stockUnits)),
+        freeShipping: !!product.freeShippingUntil && product.freeShippingUntil > now,
+      },
+    ];
   });
 }
 
@@ -57,6 +67,7 @@ export function toSummary(product: ForSale): ProductSummary {
     image: product.content.image,
     territories: product.territories.filter(isTerritory),
     availableUnits: status === "low_stock" ? product.effectiveAvailable : null,
+    freeShipping: product.freeShipping,
   };
 }
 

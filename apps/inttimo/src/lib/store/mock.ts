@@ -29,6 +29,7 @@ const unoMasUno: ProductDetail = {
   image: { ...content.thumbnail },
   territories: ["conversacion", "conexion", "intimidad", "conocimiento"],
   availableUnits: null,
+  freeShipping: false,
   description: content.intro,
   gallery: [content.hero, content.includes!.image, content.bonus!.image, content.thumbnail].map((image) => ({ ...image })),
   includes: content.includes!.items,

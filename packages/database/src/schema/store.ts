@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createdAt, updatedAt } from "./columns.ts";
 import type { DeliveryAddress, PickupPoint, ShippingProfile, ShippingSelection } from "./presale.ts";
 
@@ -74,12 +74,28 @@ export const storeProducts = pgTable(
     widthCm: integer(),
     heightCm: integer(),
     territories: text().array().notNull().default(sql`'{}'::text[]`),
+    /**
+     * Paquete: producto propio (precio y SKU) que descuenta `stockUnits` piezas del inventario de `stockProductId`
+     * (p. ej. dúo = 2 × UNO+UNO). Null = el producto lleva su propio inventario.
+     */
+    stockProductId: uuid().references((): AnyPgColumn => storeProducts.id, { onDelete: "restrict" }),
+    stockUnits: integer().notNull().default(1),
+    /** Envío a domicilio gratis hasta esta fecha (promoción de temporada). Null = sin envío gratis. */
+    freeShippingUntil: timestamp({ withTimezone: true }),
+    /**
+     * Fin del descuento de temporada: desde esta fecha se cobra `compareAtPrice` (el precio normal) y ya no se muestra
+     * tachado. Null = el precio no vence.
+     */
+    saleEndsAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
     check("store_products_price_check", sql`${table.price} is null or ${table.price} >= 0`),
+    check("store_products_stock_units_check", sql`${table.stockUnits} between 1 and 100`),
+    check("store_products_bundle_check", sql`${table.stockProductId} is null and ${table.stockUnits} = 1 or ${table.stockProductId} is not null and ${table.stockProductId} <> ${table.id}`),
     check("store_products_compare_price_check", sql`${table.compareAtPrice} is null or ${table.compareAtPrice} >= 0`),
+    check("store_products_sale_ends_check", sql`${table.saleEndsAt} is null or ${table.compareAtPrice} is not null`),
     check("store_products_max_quantity_check", sql`${table.maxQuantityPerOrder} between 1 and 100`),
     check("store_products_low_stock_check", sql`${table.lowStockThreshold} >= 0`),
   ],
@@ -177,9 +193,13 @@ export const storeOrderItems = pgTable(
     name: text().notNull(),
     quantity: integer().notNull(),
     unitAmount: integer().notNull(),
+    /** Copia, al comprar, de qué inventario descuenta la línea: null = el del propio producto; piezas por unidad. */
+    stockProductId: uuid().references(() => storeProducts.id, { onDelete: "restrict" }),
+    stockUnits: integer().notNull().default(1),
     createdAt: createdAt(),
   },
   (table) => [
+    check("store_order_items_stock_units_check", sql`${table.stockUnits} between 1 and 100`),
     unique("store_order_items_order_product_unique").on(table.orderId, table.productId),
     index("store_order_items_product_idx").on(table.productId),
     check("store_order_items_quantity_check", sql`${table.quantity} >= 1`),

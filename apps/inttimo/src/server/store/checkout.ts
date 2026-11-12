@@ -21,7 +21,7 @@ import { addressSchema } from "../presale/shipping.ts";
 import { isPurchasable, loadForSale } from "./catalog.ts";
 import { fail, hash, isUniqueViolation, ok, redactError, zodFieldErrors, type StoreDeps, type StoreResult } from "./common.ts";
 import { cartLinesSchema, normalizeLines, sameLines } from "./lines.ts";
-import { resolveStoreShippingChoice, storeShippingAvailable } from "./shipping.ts";
+import { hasFreeShipping, resolveStoreShippingChoice, storeShippingAvailable } from "./shipping.ts";
 import { STORE_TERMS_VERSION } from "./terms.ts";
 
 /** Vigencia de la sesión de Stripe: 30 min (mínimo de Stripe, contado desde que la crea) + 1 min de margen por latencia y reloj. */
@@ -204,12 +204,13 @@ export async function createStoreCheckout(
     orderDelivery = { method: "pickup", pickupPointId: point.id };
   } else {
     if (!storeShippingAvailable(settings, deps.shipping)) return deliveryError("deliveryMethod", "El envío a domicilio no está disponible. Puedes elegir recolección en Chihuahua.");
-    const choice = await resolveStoreShippingChoice(deps.db, { quoteId: delivery.quoteId, rateId: delivery.rateId, postalCode: delivery.address.postalCode, lines }, now);
+    const free = hasFreeShipping(lines.map((line) => forSale.get(line.productId)!));
+    const choice = await resolveStoreShippingChoice(deps.db, { quoteId: delivery.quoteId, rateId: delivery.rateId, postalCode: delivery.address.postalCode, lines, free }, now);
     if (!choice.ok) return fail(choice.status, choice.code, choice.message, { [choice.field]: [choice.message] });
     const { name, phone: recipientPhone, street, neighborhood, city, state, postalCode, reference } = delivery.address;
     orderDelivery = { method: "shipping", address: { name, phone: recipientPhone, street, neighborhood, city, state, postalCode, reference }, selection: choice.selection };
     shippingAmount = choice.amount;
-    shippingLabel = `Envío · ${choice.selection.carrier} ${choice.selection.service}`.trim();
+    shippingLabel = `${free ? "Envío gratis" : "Envío"} · ${choice.selection.carrier} ${choice.selection.service}`.trim();
   }
 
   const email = request.contact.email.trim().toLowerCase();
@@ -226,8 +227,9 @@ export async function createStoreCheckout(
   if (limited) return fail(429, "rate_limited", "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.");
 
   // Piezas que este comprador ya tiene apartadas (por correo y por IP, por separado), antes de crear el pedido. Solo aplica
-  // si ya tiene algo apartado: el tamaño de un pedido suelto lo limita el máximo por pedido de cada producto.
-  const units = lines.reduce((sum, line) => sum + line.quantity, 0);
+  // si ya tiene algo apartado: el tamaño de un pedido suelto lo limita el máximo por pedido de cada producto. Se cuentan
+  // piezas físicas: un paquete de 6 son 6.
+  const units = lines.reduce((sum, line) => sum + line.quantity * (forSale.get(line.productId)?.stockUnits ?? 1), 0);
   const heldByEmail = await getStoreHeldUnits(deps.db, { email }, now);
   const heldByIp = clientIpHash ? await getStoreHeldUnits(deps.db, { clientIpHash }, now) : 0;
   if ((heldByEmail > 0 && heldByEmail + units > STORE_MAX_HELD_UNITS_PER_BUYER) || (heldByIp > 0 && heldByIp + units > STORE_MAX_HELD_UNITS_PER_BUYER)) {

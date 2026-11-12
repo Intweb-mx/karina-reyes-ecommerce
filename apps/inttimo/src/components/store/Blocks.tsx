@@ -85,9 +85,13 @@ export function ProductCard({ product, priority }: { product: ProductSummary; pr
         </h3>
         <p className="mt-1 text-sm text-muted">{product.tagline}</p>
         <div className="mt-auto flex items-end justify-between gap-3 pt-5">
-          <p className="font-serif text-2xl font-medium lining-nums">
-            {product.price ? formatMoney(product.price.amount, product.price.currency) : <span className="text-base text-muted">Precio por confirmar</span>}
-          </p>
+          <div>
+            <p className="flex flex-wrap items-baseline gap-x-2 font-serif text-2xl font-medium lining-nums">
+              {product.price ? formatMoney(product.price.amount, product.price.currency) : <span className="text-base text-muted">Precio por confirmar</span>}
+              {product.price && product.compareAtPrice && <s className="font-sans text-sm font-normal text-muted">{formatMoney(product.compareAtPrice.amount, product.compareAtPrice.currency)}</s>}
+            </p>
+            {product.freeShipping && <p className="mt-1 text-xs font-medium text-success">Envío gratis</p>}
+          </div>
           {product.status !== "sold_out" && product.status !== "coming_soon" && product.price && <AddToCartButton productId={product.id} productName={product.name} compact />}
         </div>
       </div>

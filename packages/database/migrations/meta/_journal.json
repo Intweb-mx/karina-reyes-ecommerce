@@ -120,6 +120,13 @@
       "when": 1791999212561,
       "tag": "0016_bonus_link_no_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794519665811,
+      "tag": "0017_store_bundles_free_shipping",
+      "breakpoints": true
     }
   ]
 }

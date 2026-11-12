@@ -74,7 +74,7 @@ export function OrderLines({ order }: { order: OrderView }) {
       <dl className="mt-5 space-y-2 border-t border-border pt-4 text-sm">
         <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd className="lining-nums">{money(order.subtotal)}</dd></div>
         {order.discount && <div className="flex justify-between text-success"><dt>Descuento</dt><dd className="lining-nums">−{money(order.discount)}</dd></div>}
-        <div className="flex justify-between"><dt className="text-muted">{order.delivery.method === "pickup" ? "Recolección" : "Envío"}</dt><dd className="lining-nums">{order.shipping.amount ? money(order.shipping) : "$0"}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted">{order.delivery.method === "pickup" ? "Recolección" : "Envío"}</dt><dd className="lining-nums">{order.shipping.amount ? money(order.shipping) : order.delivery.method === "shipping" ? "Gratis" : "$0"}</dd></div>
         <div className="flex items-baseline justify-between border-t border-border pt-3"><dt className="font-semibold">Total</dt><dd className="font-serif text-3xl font-medium lining-nums">{money(order.total)}</dd></div>
       </dl>
     </div>

@@ -20,8 +20,34 @@ export type StoreProduct = typeof storeProducts.$inferSelect;
 export type NewStoreProduct = typeof storeProducts.$inferInsert;
 export type StoreInventory = typeof storeInventory.$inferSelect;
 export type StoreStockMovement = typeof storeStockMovements.$inferSelect;
-/** Producto con sus existencias; disponible = existencias − apartado. */
+/**
+ * Producto con sus existencias; disponible = existencias − apartado. En un paquete, existencias y apartado son piezas de
+ * su producto base y disponible se cuenta en paquetes completos (⌊piezas libres ÷ piezas por paquete⌋).
+ */
 export type StoreProductWithInventory = StoreProduct & { onHand: number; reserved: number; available: number };
+
+/** Inventario que descuenta un producto: el suyo o, si es un paquete, el de su producto base. */
+export const stockKeyOf = (product: Pick<StoreProduct, "id" | "stockProductId">): string => product.stockProductId ?? product.id;
+
+/**
+ * Precio que se cobra en `now`: con el descuento de temporada vencido (`saleEndsAt`) se cobra el precio normal
+ * (`compareAtPrice`) y ya no hay tachado. Catálogo, carrito y pedido usan esta misma función.
+ */
+export function currentPrice(
+  product: Pick<StoreProduct, "price" | "compareAtPrice" | "saleEndsAt">,
+  now: Date,
+): { price: number | null; compareAtPrice: number | null } {
+  if (product.saleEndsAt && product.compareAtPrice !== null && now >= product.saleEndsAt) return { price: product.compareAtPrice, compareAtPrice: null };
+  return { price: product.price, compareAtPrice: product.compareAtPrice };
+}
+
+/** El producto no se puede guardar así (p. ej. un paquete de otro paquete). */
+export class InvalidStoreProductError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidStoreProductError";
+  }
+}
 
 // ---------- Productos ----------
 
@@ -29,6 +55,12 @@ export type StoreProductWithInventory = StoreProduct & { onHand: number; reserve
 export async function upsertStoreProduct(db: Database, input: NewStoreProduct): Promise<StoreProduct> {
   return db.transaction(async (tx) => {
     const { id: _id, createdAt: _createdAt, ...values } = input;
+    if (values.stockProductId) {
+      const [base] = await tx.select({ slug: storeProducts.slug, stockProductId: storeProducts.stockProductId }).from(storeProducts).where(eq(storeProducts.id, values.stockProductId)).limit(1);
+      if (!base) throw new InvalidStoreProductError("El producto base del paquete no existe.");
+      if (base.stockProductId) throw new InvalidStoreProductError("Un paquete no puede descontar de otro paquete.");
+      if (base.slug === values.slug) throw new InvalidStoreProductError("Un paquete no puede descontar de sí mismo.");
+    }
     const [row] = await tx
       .insert(storeProducts)
       .values(values)
@@ -43,10 +75,13 @@ function selectWithInventory(db: Executor) {
   return db
     .select({ ...getTableColumns(storeProducts), onHand: storeInventory.onHand, reserved: storeInventory.reserved })
     .from(storeProducts)
-    .innerJoin(storeInventory, eq(storeInventory.productId, storeProducts.id));
+    .innerJoin(storeInventory, eq(storeInventory.productId, sql`coalesce(${storeProducts.stockProductId}, ${storeProducts.id})`));
 }
 
-const withAvailable = <T extends { onHand: number; reserved: number }>(row: T): T & { available: number } => ({ ...row, available: row.onHand - row.reserved });
+const withAvailable = <T extends { onHand: number; reserved: number; stockUnits: number }>(row: T): T & { available: number } => ({
+  ...row,
+  available: Math.floor((row.onHand - row.reserved) / row.stockUnits),
+});
 
 export async function getStoreProductBySlug(db: Executor, slug: string): Promise<StoreProductWithInventory | null> {
   const [row] = await selectWithInventory(db).where(eq(storeProducts.slug, slug)).limit(1);
@@ -108,6 +143,8 @@ export async function adjustStock(
   if (reason === "damage" && delta > 0) throw new InvalidStockAdjustmentError("Una merma debe restar piezas.");
 
   return db.transaction(async (tx) => {
+    const [product] = await tx.select({ stockProductId: storeProducts.stockProductId }).from(storeProducts).where(eq(storeProducts.id, productId)).limit(1);
+    if (product?.stockProductId) throw new InvalidStockAdjustmentError("Este paquete descuenta del inventario de su producto base: ajusta las existencias de ese producto.");
     const [current] = await tx.select().from(storeInventory).where(eq(storeInventory.productId, productId)).for("update");
     if (!current) throw new StoreProductNotFoundError();
     if (current.onHand + delta < current.reserved) throw new StockBelowReservedError(current.reserved);
@@ -233,6 +270,18 @@ function mergeLines(lines: NewStoreOrderLine[]): NewStoreOrderLine[] {
   return [...merged].map(([productId, quantity]) => ({ productId, quantity })).sort((a, b) => (a.productId < b.productId ? -1 : 1));
 }
 
+type StockLine = { productId: string; quantity: number; stockProductId: string | null; stockUnits: number };
+
+/** Piezas que mueve cada inventario (un paquete cuenta sus piezas en el de su producto base), ordenadas por id. */
+function stockUnitsByKey(lines: StockLine[]): Map<string, number> {
+  const units = new Map<string, number>();
+  for (const line of lines) {
+    const key = line.stockProductId ?? line.productId;
+    units.set(key, (units.get(key) ?? 0) + line.quantity * line.stockUnits);
+  }
+  return new Map([...units].sort(([a], [b]) => (a < b ? -1 : 1)));
+}
+
 /**
  * Crea el pedido apartando el stock. Bloquea las filas de inventario de sus productos (ordenadas por id): dos compras
  * simultáneas se serializan y nunca apartan más de lo disponible. El precio sale de la base, nunca de quien llama.
@@ -257,7 +306,13 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
     // Ninguna otra función de este módulo toma candados advisory, así que no hay ciclos. Sin él, dos peticiones con la misma
     // clave y carritos distintos no comparten fila de inventario y la segunda fallaría con un UNIQUE crudo en idempotency_key.
     if (input.idempotencyKey) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.idempotencyKey}))`);
-    const inventory = await tx.select().from(storeInventory).where(inArray(storeInventory.productId, productIds)).orderBy(asc(storeInventory.productId)).for("update");
+    // Los productos se leen antes (sin bloqueo) para saber qué inventario bloquear: un paquete usa el de su producto base.
+    // El precio es el vigente en `now` (el descuento de temporada puede haber vencido).
+    const products = new Map(
+      (await tx.select().from(storeProducts).where(inArray(storeProducts.id, productIds))).map((row) => [row.id, { ...row, ...currentPrice(row, now) }]),
+    );
+    const stockIds = [...new Set(lines.map((line) => { const product = products.get(line.productId); return product ? stockKeyOf(product) : line.productId; }))];
+    const inventory = await tx.select().from(storeInventory).where(inArray(storeInventory.productId, stockIds)).orderBy(asc(storeInventory.productId)).for("update");
 
     // Con el inventario bloqueado, dos peticiones con la misma clave se serializan: la segunda ya ve el pedido de la primera.
     if (input.idempotencyKey) {
@@ -266,11 +321,10 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
     }
 
     const stock = new Map(inventory.map((row) => [row.productId, row]));
-    const products = new Map((await tx.select().from(storeProducts).where(inArray(storeProducts.id, productIds))).map((row) => [row.id, row]));
 
     for (const line of lines) {
       const product = products.get(line.productId);
-      if (!product || !stock.has(line.productId) || !product.published || product.price === null || product.saleStatus === "coming_soon") {
+      if (!product || !stock.has(stockKeyOf(product)) || !product.published || product.price === null || product.saleStatus === "coming_soon") {
         throw new StoreProductUnavailableError(line.productId);
       }
     }
@@ -278,10 +332,13 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
       const product = products.get(line.productId)!;
       if (line.quantity > product.maxQuantityPerOrder) throw new InvalidStoreOrderError(`Máximo ${product.maxQuantityPerOrder} por pedido de ${product.name}.`);
     }
+    // Piezas por inventario: UNO+UNO suelto y un dúo en el mismo carrito compiten por las mismas piezas.
+    const pieces = stockUnitsByKey(lines.map((line) => ({ ...line, stockProductId: products.get(line.productId)!.stockProductId, stockUnits: products.get(line.productId)!.stockUnits })));
     for (const line of lines) {
-      const row = stock.get(line.productId)!;
-      const available = row.onHand - row.reserved;
-      if (line.quantity > available) throw new InsufficientStoreStockError(line.productId, available);
+      const product = products.get(line.productId)!;
+      const row = stock.get(stockKeyOf(product))!;
+      const free = row.onHand - row.reserved;
+      if (pieces.get(stockKeyOf(product))! > free) throw new InsufficientStoreStockError(line.productId, Math.max(0, Math.floor(free / product.stockUnits)));
     }
     const currencies = new Set(lines.map((line) => products.get(line.productId)!.currency));
     if (currencies.size > 1) throw new InvalidStoreOrderError("Los productos del pedido usan monedas distintas.");
@@ -318,21 +375,31 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
       .values(
         lines.map((line) => {
           const product = products.get(line.productId)!;
-          return { orderId: order!.id, productId: product.id, productSlug: product.slug, sku: product.sku, name: product.name, quantity: line.quantity, unitAmount: product.price! };
+          return {
+            orderId: order!.id,
+            productId: product.id,
+            productSlug: product.slug,
+            sku: product.sku,
+            name: product.name,
+            quantity: line.quantity,
+            unitAmount: product.price!,
+            stockProductId: product.stockProductId,
+            stockUnits: product.stockUnits,
+          };
         }),
       )
       .returning();
 
-    for (const line of lines) {
+    for (const [productId, units] of pieces) {
       await tx
         .update(storeInventory)
-        .set({ reserved: sql`${storeInventory.reserved} + ${line.quantity}` })
-        .where(eq(storeInventory.productId, line.productId));
-      await tx.insert(storeStockMovements).values({ productId: line.productId, deltaOnHand: 0, deltaReserved: line.quantity, reason: "reservation", orderId: order!.id, actor: "system" });
+        .set({ reserved: sql`${storeInventory.reserved} + ${units}` })
+        .where(eq(storeInventory.productId, productId));
+      await tx.insert(storeStockMovements).values({ productId, deltaOnHand: 0, deltaReserved: units, reason: "reservation", orderId: order!.id, actor: "system" });
     }
 
     await addStoreOrderEvent(tx, order!.id, "ORDER_CREATED", "api", { metadata: { units: lines.reduce((sum, line) => sum + line.quantity, 0), totalAmount: order!.totalAmount } });
-    await addStoreOrderEvent(tx, order!.id, "INVENTORY_RESERVED", "api", { metadata: { lines } });
+    await addStoreOrderEvent(tx, order!.id, "INVENTORY_RESERVED", "api", { metadata: { lines, pieces: Object.fromEntries(pieces) } });
     return { order: order!, items, reused: false };
   });
 }
@@ -418,29 +485,31 @@ function expiredHoldWhere(cutoff: Date) {
 }
 
 /**
- * Unidades apartadas por pedidos ya vencidos que aún no se liberan, por producto. Solo lee: catálogo y carrito suman
+ * Piezas apartadas por pedidos ya vencidos que aún no se liberan, por inventario (id del producto que lo lleva). Solo lee: catálogo y carrito suman
  * esto a `existencias − apartado` en vez de liberar en cada consulta.
  */
 export async function getExpiredHeldUnits(db: Executor, productIds: string[], now: Date = new Date()): Promise<Map<string, number>> {
   if (!productIds.length) return new Map();
+  // Por inventario: las piezas de un paquete se cuentan en su producto base.
+  const stockKey = sql<string>`coalesce(${storeOrderItems.stockProductId}, ${storeOrderItems.productId})`;
   const rows = await db
-    .select({ productId: storeOrderItems.productId, units: sql<number>`sum(${storeOrderItems.quantity})::int` })
+    .select({ productId: stockKey, units: sql<number>`sum(${storeOrderItems.quantity} * ${storeOrderItems.stockUnits})::int` })
     .from(storeOrderItems)
     .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.orderId))
-    .where(and(inArray(storeOrderItems.productId, productIds), expiredHoldWhere(holdCutoff(now))))
-    .groupBy(storeOrderItems.productId);
+    .where(and(inArray(stockKey, productIds), expiredHoldWhere(holdCutoff(now))))
+    .groupBy(stockKey);
   return new Map(rows.map((row) => [row.productId, Number(row.units)]));
 }
 
 /**
- * Piezas que un comprador (por correo o por hash de IP) tiene apartadas en pedidos pendientes cuyo apartado sigue vigente
+ * Piezas físicas (un paquete de 6 cuenta 6) que un comprador (por correo o por hash de IP) tiene apartadas en pedidos pendientes cuyo apartado sigue vigente
  * (misma regla de vencimiento que la liberación; los marcados como excepción conservan su apartado y cuentan). Solo lee.
  */
 export async function getStoreHeldUnits(db: Executor, buyer: { email: string } | { clientIpHash: string }, now: Date = new Date()): Promise<number> {
   const cutoff = holdCutoff(now);
   const who = "email" in buyer ? eq(storeOrders.email, buyer.email.trim().toLowerCase()) : eq(storeOrders.clientIpHash, buyer.clientIpHash);
   const [row] = await db
-    .select({ units: sql<number>`coalesce(sum(${storeOrderItems.quantity}), 0)::int` })
+    .select({ units: sql<number>`coalesce(sum(${storeOrderItems.quantity} * ${storeOrderItems.stockUnits}), 0)::int` })
     .from(storeOrderItems)
     .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.orderId))
     .where(
@@ -459,23 +528,28 @@ export async function getStoreHeldUnits(db: Executor, buyer: { email: string } |
  * Bloquea en el orden único del módulo: primero el inventario de los productos del pedido (por id) y después la fila del
  * pedido. Las líneas de un pedido no cambian después de crearse, así que leerlas sin bloqueo es seguro.
  */
-async function lockOrderAndInventory(tx: StoreTx, orderId: string): Promise<{ order: StoreOrder; items: StoreOrderItem[]; inventory: Map<string, StoreInventory> } | null> {
+async function lockOrderAndInventory(
+  tx: StoreTx,
+  orderId: string,
+): Promise<{ order: StoreOrder; items: StoreOrderItem[]; pieces: Map<string, number>; inventory: Map<string, StoreInventory> } | null> {
   const items = await tx.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, orderId));
-  const productIds = items.map((item) => item.productId);
-  const rows = productIds.length ? await tx.select().from(storeInventory).where(inArray(storeInventory.productId, productIds)).orderBy(asc(storeInventory.productId)).for("update") : [];
+  // Las líneas guardan de qué inventario descuentan y cuántas piezas por unidad (copia al comprar).
+  const pieces = stockUnitsByKey(items);
+  const stockIds = [...pieces.keys()];
+  const rows = stockIds.length ? await tx.select().from(storeInventory).where(inArray(storeInventory.productId, stockIds)).orderBy(asc(storeInventory.productId)).for("update") : [];
   const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).for("update");
   if (!order) return null;
-  return { order, items, inventory: new Map(rows.map((row) => [row.productId, row])) };
+  return { order, items, pieces, inventory: new Map(rows.map((row) => [row.productId, row])) };
 }
 
-/** Libera las unidades apartadas de un pedido. Solo dentro de una transacción que ya bloqueó inventario y pedido. */
-async function releaseReservedStock(tx: StoreTx, order: StoreOrder, items: StoreOrderItem[], source: EventSource): Promise<void> {
-  for (const item of items) {
+/** Libera las piezas apartadas de un pedido. Solo dentro de una transacción que ya bloqueó inventario y pedido. */
+async function releaseReservedStock(tx: StoreTx, order: StoreOrder, pieces: Map<string, number>, source: EventSource): Promise<void> {
+  for (const [productId, units] of pieces) {
     await tx
       .update(storeInventory)
-      .set({ reserved: sql`${storeInventory.reserved} - ${item.quantity}` })
-      .where(eq(storeInventory.productId, item.productId));
-    await tx.insert(storeStockMovements).values({ productId: item.productId, deltaOnHand: 0, deltaReserved: -item.quantity, reason: "release", orderId: order.id, actor: "system" });
+      .set({ reserved: sql`${storeInventory.reserved} - ${units}` })
+      .where(eq(storeInventory.productId, productId));
+    await tx.insert(storeStockMovements).values({ productId, deltaOnHand: 0, deltaReserved: -units, reason: "release", orderId: order.id, actor: "system" });
   }
   await tx.update(storeOrders).set({ inventoryReserved: false }).where(eq(storeOrders.id, order.id));
   await addStoreOrderEvent(tx, order.id, "INVENTORY_RELEASED", source);
@@ -498,29 +572,29 @@ export async function markStoreOrderPaid(
   return db.transaction(async (tx) => {
     const locked = await lockOrderAndInventory(tx, orderId);
     if (!locked) return null;
-    const { order, items, inventory } = locked;
+    const { order, pieces, inventory } = locked;
     if (order.paymentStatus === "paid" || order.paymentStatus === "partially_refunded" || order.paymentStatus === "refunded") return { order, outcome: "already_paid" as const };
 
     let outcome: StorePaidOutcome = "paid";
     let fulfillmentStatus = order.fulfillmentStatus;
     if (order.inventoryReserved) {
-      for (const item of items) {
+      for (const [productId, units] of pieces) {
         await tx
           .update(storeInventory)
-          .set({ onHand: sql`${storeInventory.onHand} - ${item.quantity}`, reserved: sql`${storeInventory.reserved} - ${item.quantity}` })
-          .where(eq(storeInventory.productId, item.productId));
-        await tx.insert(storeStockMovements).values({ productId: item.productId, deltaOnHand: -item.quantity, deltaReserved: -item.quantity, reason: "sale", orderId: order.id, actor: "system" });
+          .set({ onHand: sql`${storeInventory.onHand} - ${units}`, reserved: sql`${storeInventory.reserved} - ${units}` })
+          .where(eq(storeInventory.productId, productId));
+        await tx.insert(storeStockMovements).values({ productId, deltaOnHand: -units, deltaReserved: -units, reason: "sale", orderId: order.id, actor: "system" });
       }
-    } else if (items.every((item) => {
-      const row = inventory.get(item.productId);
-      return !!row && row.onHand - row.reserved >= item.quantity;
+    } else if ([...pieces].every(([productId, units]) => {
+      const row = inventory.get(productId);
+      return !!row && row.onHand - row.reserved >= units;
     })) {
-      for (const item of items) {
+      for (const [productId, units] of pieces) {
         await tx
           .update(storeInventory)
-          .set({ onHand: sql`${storeInventory.onHand} - ${item.quantity}` })
-          .where(eq(storeInventory.productId, item.productId));
-        await tx.insert(storeStockMovements).values({ productId: item.productId, deltaOnHand: -item.quantity, deltaReserved: 0, reason: "sale", orderId: order.id, actor: "system" });
+          .set({ onHand: sql`${storeInventory.onHand} - ${units}` })
+          .where(eq(storeInventory.productId, productId));
+        await tx.insert(storeStockMovements).values({ productId, deltaOnHand: -units, deltaReserved: 0, reason: "sale", orderId: order.id, actor: "system" });
       }
     } else {
       outcome = "paid_oversold";
@@ -561,7 +635,7 @@ async function closePendingOrder(
   return db.transaction(async (tx) => {
     const locked = await lockOrderAndInventory(tx, orderId);
     if (!locked) return null;
-    const { order, items } = locked;
+    const { order, pieces } = locked;
     // Un pedido marcado como excepción (cobro distinto, dinero retenido) queda congelado para revisión manual: ningún camino automático lo cierra.
     if (order.paymentStatus !== "pending" || order.fulfillmentStatus === "exception") return { order, changed: false };
     // Con el cierre por vencimiento, revalida bajo candado.
@@ -570,7 +644,7 @@ async function closePendingOrder(
     if (!stillExpired) return { order, changed: false };
     await tx.update(storeOrders).set({ paymentStatus: close.paymentStatus }).where(eq(storeOrders.id, orderId));
     await addStoreOrderEvent(tx, orderId, close.event, close.source, { metadata: close.metadata });
-    if (order.inventoryReserved) await releaseReservedStock(tx, order, items, close.source);
+    if (order.inventoryReserved) await releaseReservedStock(tx, order, pieces, close.source);
     const [updated] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId));
     return { order: updated!, changed: true };
   });

@@ -163,8 +163,9 @@ export function createStripeGateway(stripe: Stripe): PaymentGateway {
             metadata,
             description: `Pedido inttimo ${input.orderNumber} · ${input.deliveryMethod === "pickup" ? "Recolección en Chihuahua" : "Envío a domicilio"}`,
           },
-          // Dirección y tarifa se eligen en el checkout de inttimo (antes de Stripe); aquí solo se cobra.
-          ...(input.shippingAmount > 0
+          // Dirección y tarifa se eligen en el checkout de inttimo (antes de Stripe); aquí solo se cobra. Un envío gratis
+          // se muestra igual, en $0, para que el cliente vea que no se le cobra.
+          ...(input.deliveryMethod === "shipping"
             ? {
                 shipping_options: [
                   {

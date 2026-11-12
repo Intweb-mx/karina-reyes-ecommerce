@@ -12,7 +12,7 @@ import {
 import type { CartLine, DeliveryOptionsResponse, ShippingQuoteResponse, StoreErrorCode } from "../../lib/store/contract.ts";
 import { areaSchema, pickOptions } from "../presale/shipping.ts";
 import type { Parcel, Rate, ShippingProvider } from "../shipping/provider.ts";
-import { isPurchasable, loadForSale } from "./catalog.ts";
+import { isPurchasable, loadForSale, type ForSale } from "./catalog.ts";
 import { fail, hash, ok, redactError, zodFieldErrors, type StoreDeps, type StoreResult } from "./common.ts";
 import { cartLinesSchema, normalizeLines, sameLines } from "./lines.ts";
 import { STORE_TERMS_VERSION } from "./terms.ts";
@@ -59,6 +59,22 @@ export function cartParcel(items: { product: Pick<StoreProduct, "weightGrams" | 
   return { weightKg: Math.round(weightKg * 1000) / 1000, lengthCm, widthCm, heightCm };
 }
 
+/**
+ * Lo que va en la caja: un paquete sin medidas propias se cotiza como sus piezas del producto base (p. ej. dúo = 2 cajas
+ * de UNO+UNO apiladas). Si el paquete tiene peso y medidas propios, se usan esos.
+ */
+export function parcelItems(items: { product: ForSale; quantity: number }[], byId: Map<string, ForSale>) {
+  return items.map(({ product, quantity }) => {
+    const measured = !!(product.weightGrams && product.lengthCm && product.widthCm && product.heightCm);
+    if (measured || !product.stockProductId) return { product, quantity };
+    const base = byId.get(product.stockProductId);
+    return { product: base ?? { weightGrams: null, lengthCm: null, widthCm: null, heightCm: null }, quantity: quantity * product.stockUnits };
+  });
+}
+
+/** El pedido no paga envío si incluye un producto con envío gratis vigente (regalo de temporada). */
+export const hasFreeShipping = (products: Pick<ForSale, "freeShipping">[]) => products.some((product) => product.freeShipping);
+
 const quoteRequestSchema = areaSchema.extend({ lines: cartLinesSchema });
 
 /** POST /api/tienda/envio/cotizar: cotiza el carrito con SkyDropX y guarda las opciones (el costo cobrado sale de aquí). */
@@ -73,20 +89,22 @@ export async function quoteStoreShipping(deps: Pick<StoreDeps, "db" | "shipping"
   const lines = normalizeLines(rawLines);
 
   const products = new Map((await loadForSale(deps.db, now)).map((product) => [product.id, product]));
-  const items = lines.map((line) => ({ product: products.get(line.productId), quantity: line.quantity }));
-  if (items.some(({ product }) => !product || !isPurchasable(product))) {
+  const found = lines.map((line) => ({ product: products.get(line.productId), quantity: line.quantity }));
+  if (found.some(({ product }) => !product || !isPurchasable(product))) {
     return fail(409, "out_of_stock", "Revisa tu carrito: hay productos que ya no están disponibles.");
   }
+  const items = found as { product: ForSale; quantity: number }[];
+  const free = hasFreeShipping(items.map(({ product }) => product));
 
   if (input.clientIp && (await hitRateLimit(deps.db, `store:quote:${hash(input.clientIp)}`, RATE_LIMIT.limit, RATE_LIMIT.windowSeconds))) {
     return fail(429, "rate_limited", "Demasiadas cotizaciones. Espera unos minutos e inténtalo de nuevo.");
   }
 
   const profile = settings.shippingProfile;
-  const currency = items[0]!.product!.currency;
+  const currency = items[0]!.product.currency;
   let result: { quotationId: string; rates: Rate[] };
   try {
-    result = await deps.shipping!.quote({ from: profile.origin, to: area, parcel: cartParcel(items.map(({ product, quantity }) => ({ product: product!, quantity })), profile.parcel), carriers: profile.carriers });
+    result = await deps.shipping!.quote({ from: profile.origin, to: area, parcel: cartParcel(parcelItems(items, products), profile.parcel), carriers: profile.carriers });
   } catch (error) {
     console.error(JSON.stringify({ level: "error", msg: "store_shipping_quote_failed", error: redactError(error) }));
     return fail(503, "service_unavailable", "No pudimos cotizar el envío en este momento. Inténtalo de nuevo en unos minutos o elige recolección en Chihuahua.");
@@ -108,17 +126,32 @@ export async function quoteStoreShipping(deps: Pick<StoreDeps, "db" | "shipping"
     createdAt: now,
   });
 
+  // Con envío gratis la paquetería se elige igual (hace falta para la guía), pero se muestra y se cobra en $0.
   return ok({
     quoteId: quote.id,
     expiresAt: quote.expiresAt.toISOString(),
-    rates: quote.options.map(({ id, carrier, service, days, amount }) => ({ id, label: RATE_LABELS[id] ?? "Envío", carrier, service, days, price: { amount, currency: quote.currency } })),
+    rates: quote.options.map(({ id, carrier, service, days, amount }) => ({
+      id,
+      label: free ? "Envío gratis" : (RATE_LABELS[id] ?? "Envío"),
+      carrier,
+      service,
+      days,
+      price: { amount: free ? 0 : amount, currency: quote.currency },
+    })),
   });
 }
 
 export type ShippingChoice = { ok: true; amount: number; selection: ShippingSelection } | { ok: false; status: number; code: StoreErrorCode; field: string; message: string };
 
-/** Valida en el checkout la tarifa elegida contra la cotización guardada: mismo carrito, mismo código postal, vigente. */
-export async function resolveStoreShippingChoice(db: Database, choice: { quoteId: string; rateId: string; postalCode: string; lines: CartLine[] }, now: Date): Promise<ShippingChoice> {
+/**
+ * Valida en el checkout la tarifa elegida contra la cotización guardada: mismo carrito, mismo código postal, vigente.
+ * `free`: el pedido tiene envío gratis; se guarda la paquetería elegida (para la guía) y se cobra $0.
+ */
+export async function resolveStoreShippingChoice(
+  db: Database,
+  choice: { quoteId: string; rateId: string; postalCode: string; lines: CartLine[]; free?: boolean },
+  now: Date,
+): Promise<ShippingChoice> {
   const expired = (field: string, message: string): ShippingChoice => ({ ok: false, status: 409, code: "quote_expired", field, message });
   const quote = await getStoreShippingQuote(db, choice.quoteId);
   if (!quote) return expired("shipping", "Vuelve a calcular el envío.");
@@ -129,7 +162,7 @@ export async function resolveStoreShippingChoice(db: Database, choice: { quoteId
   if (!option) return { ok: false, status: 400, code: "validation_error", field: "shipping", message: "Elige una opción de envío." };
   return {
     ok: true,
-    amount: option.amount,
+    amount: choice.free ? 0 : option.amount,
     selection: { provider: "skydropx", quotationId: quote.quotationId, rateId: option.rateId, carrier: option.carrier, service: option.service, days: option.days, quotedAt: quote.createdAt.toISOString() },
   };
 }

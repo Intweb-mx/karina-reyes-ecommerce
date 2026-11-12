@@ -147,7 +147,7 @@ Pero:
     └── preventa/                # contrato de API y operación de la preventa
 ```
 
-`packages/database` contiene el esquema de la preventa (`presale_*`) y la base de datos de la tienda (`store_*`: productos, inventario con movimientos, pedidos). Faltan variantes, cupones, clientes y territorios (ver §11 en adelante). No reutilizar el esquema de Karina Reyes — son dominios de datos distintos. Cambios de esquema: editar `packages/database/src/schema/*` → `pnpm db:generate` → `pnpm db:migrate`; las migraciones de producción corren en el build de Vercel (`VERCEL_ENV=production`).
+`packages/database` contiene el esquema de la preventa (`presale_*`) y la base de datos de la tienda (`store_*`: productos, inventario con movimientos, pedidos). Los paquetes (dúo, 6, 10) son productos con precio propio que descuentan `stock_units` piezas del inventario de su producto base (`stock_product_id`); el envío gratis de temporada es `free_shipping_until` por producto, y el descuento de temporada vence solo con `sale_ends_at` (desde esa fecha se cobra `compare_at_price`; catálogo y pedido usan `currentPrice`). Faltan variantes, cupones, clientes y territorios (ver §11 en adelante). No reutilizar el esquema de Karina Reyes — son dominios de datos distintos. Cambios de esquema: editar `packages/database/src/schema/*` → `pnpm db:generate` → `pnpm db:migrate`; las migraciones de producción corren en el build de Vercel (`VERCEL_ENV=production`).
 
 Si en algún momento se decide compartir código de verdad entre este repo y `karina-reyes-ecosyste` (en vez de mantener copias duplicadas), documentarlo en un ADR antes de hacerlo — no improvisar un submódulo o paquete publicado sin decisión explícita.
 
@@ -1015,6 +1015,9 @@ pnpm presale:upsert --file=...    # crear/editar campaña de preventa
 pnpm presale:export --slug=...    # CSV de reservas
 pnpm presale:reconcile            # sincronizar con Stripe si falló un webhook
 pnpm store:seed                   # catálogo inicial de la tienda (UNO+UNO sin precio); en una base remota exige --allow-remote
+pnpm store:catalog --file=docs/store/catalogo.json   # precios, paquetes y envío gratis (pesos en el JSON); --dry-run, --allow-remote
+pnpm store:stock --slug=uno-mas-uno --delta=N --reason=reception   # existencias (los paquetes descuentan del producto base)
+pnpm store:stock --slug=uno-mas-uno --from-presale=uno-mas-uno [--apply]   # carga inicial: lo que sobró de la preventa
 ```
 
 ---

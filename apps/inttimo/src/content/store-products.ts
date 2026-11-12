@@ -44,6 +44,27 @@ const PRODUCTS: Record<string, StoreProductContent> = {
   },
 };
 
+/**
+ * Paquetes de UNO+UNO (dúo, 6 y 10). Precio, envío gratis e inventario vienen de la base (docs/store/catalogo.json);
+ * aquí solo el texto. Fotos: las de UNO+UNO hasta tener fotografía del paquete. Textos PENDIENTES DE APROBACIÓN.
+ */
+function unoPack(units: number, tagline: string, extra: string): StoreProductContent {
+  const base = PRODUCTS["uno-mas-uno"]!;
+  return {
+    ...base,
+    tagline,
+    gallery: base.gallery.map((image) => ({ ...image })),
+    image: { ...base.image },
+    description: [`${units} juegos UNO+UNO completos, cada uno con sus 164 tarjetas.`, extra, ...uno.intro.slice(1)],
+    includes: [`${units} juegos UNO+UNO`, ...base.includes.map((item) => `${item} (en cada juego)`)],
+    seo: { title: `UNO+UNO · ${tagline}`, description: `${units} juegos UNO+UNO. ${extra}` },
+  };
+}
+
+PRODUCTS["uno-mas-uno-duo"] = unoPack(2, "Pack dúo", "Uno para ustedes y otro para regalar.");
+PRODUCTS["uno-mas-uno-paquete-6"] = unoPack(6, "Paquete de 6", "Pensado para iglesias, ministerios y grupos de matrimonios.");
+PRODUCTS["uno-mas-uno-paquete-10"] = unoPack(10, "Paquete de 10", "Pensado para iglesias, ministerios, retiros y grupos de matrimonios.");
+
 export function getStoreProductContent(slug: string): StoreProductContent | null {
   return PRODUCTS[slug] ?? null;
 }
