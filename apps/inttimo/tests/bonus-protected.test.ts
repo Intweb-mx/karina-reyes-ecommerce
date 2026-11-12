@@ -64,6 +64,14 @@ describe("bonus protegido", () => {
     expect(storage.signed).toHaveLength(0);
   });
 
+  it("al quitar el video de la campaña, los enlaces ya enviados siguen dando el PDF pero ya no el video", async () => {
+    const token = await linkFor();
+    await updateCampaign(db, campaignId, { bonus: { ...PROTECTED, videoKey: null } });
+    expect(await grantBonusVideo({ db, storage }, token, NOW)).toEqual({ status: "unavailable" });
+    expect(await grantBonusPdf({ db, storage }, token, NOW)).toMatchObject({ status: "ok" });
+    expect(storage.signed.map((s) => s.key)).toEqual(["bonus/guia.pdf"]);
+  });
+
   it("un bonus con ligas directas (sin archivos propios) no entrega nada por esta vía", async () => {
     await updateCampaign(db, campaignId, { bonus: { title: "Guía", pdfUrl: "https://archivos.test/guia.pdf", videoUrl: "https://archivos.test/video" } });
     const token = await linkFor();

@@ -55,7 +55,7 @@ export function BonusView({ state }: { state: BonusViewState }) {
             Bonus exclusivo de preventa · {productName}
           </p>
           <h1 className="mt-5 font-serif text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-medium text-balance">{bonus.title}</h1>
-          <p className="mt-4 leading-relaxed text-muted">Gracias por ser parte de la preventa. Este contenido es para ustedes: descarguen la guía y disfruten el video juntos.</p>
+          <p className="mt-4 leading-relaxed text-muted">Gracias por ser parte de la preventa. Este contenido es para ustedes: {bonus.videoKey || bonus.videoUrl ? "descarguen la guía y disfruten el video juntos." : "descarguen la guía y léanla juntos."}</p>
         </div>
         {image && (
           <div className="relative min-h-56 bg-sand max-md:aspect-[16/10]">
