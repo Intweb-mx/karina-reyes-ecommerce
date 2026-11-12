@@ -33,7 +33,7 @@ export async function loadForSale(db: Database, now: Date): Promise<ForSale[]> {
         ...currentPrice(product, now),
         content,
         effectiveAvailable: Math.max(0, Math.floor(freePieces / product.stockUnits)),
-        freeShipping: !!product.freeShippingUntil && product.freeShippingUntil > now,
+        freeShipping: !!product.freeShippingUntil && product.freeShippingUntil > now && (!product.freeShippingFrom || product.freeShippingFrom <= now),
       },
     ];
   });

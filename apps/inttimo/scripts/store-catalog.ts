@@ -31,7 +31,7 @@ for (const product of products) {
     product.published ? "publicado" : "oculto",
     product.bundleOf ? `paquete: ${product.bundleOf.units} × ${product.bundleOf.slug}` : null,
     product.saleEndsAt ? `descuento hasta ${product.saleEndsAt} (después ${money(product.compareAtPrice)})` : null,
-    product.freeShippingUntil ? `envío gratis hasta ${product.freeShippingUntil}` : null,
+    product.freeShippingUntil ? `envío gratis ${product.freeShippingFrom ? `del ${product.freeShippingFrom} ` : ""}hasta ${product.freeShippingUntil}` : null,
   ];
   console.log(`  ${parts.filter(Boolean).join(" · ")}`);
   if (product.published && !getStoreProductContent(product.slug)) console.warn(`    ⚠ ${product.slug} no tiene texto en src/content/store-products.ts: no aparecerá en la tienda.`);
@@ -57,6 +57,7 @@ for (const product of products) {
     ...(product.maxQuantityPerOrder ? { maxQuantityPerOrder: product.maxQuantityPerOrder } : {}),
     stockProductId: base?.id ?? null,
     stockUnits: product.bundleOf?.units ?? 1,
+    freeShippingFrom: product.freeShippingFrom ? new Date(product.freeShippingFrom) : null,
     freeShippingUntil: product.freeShippingUntil ? new Date(product.freeShippingUntil) : null,
     saleEndsAt: product.saleEndsAt ? new Date(product.saleEndsAt) : null,
   });

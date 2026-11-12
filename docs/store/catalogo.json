@@ -1,5 +1,5 @@
 {
-  "$comment": "Precios en pesos MXN con IVA, aprobados por el cliente el 2026-11-12 (descuento de temporada). Cargar con: pnpm store:catalog --file=docs/store/catalogo.json. No toca existencias (usar pnpm store:stock). saleEndsAt: desde ese momento se cobra compareAtPrice (precio normal), descuento hasta el 25 de diciembre inclusive. freeShippingUntil: fin del envío gratis de temporada (Buen Fin y diciembre). Horas de Chihuahua (UTC-6).",
+  "$comment": "Precios en pesos MXN con IVA, aprobados por el cliente el 2026-11-12 (descuento de temporada). Cargar con: pnpm store:catalog --file=docs/store/catalogo.json. No toca existencias (usar pnpm store:stock). saleEndsAt: desde ese momento se cobra compareAtPrice (precio normal), descuento hasta el 25 de diciembre inclusive. freeShippingFrom/freeShippingUntil: envío gratis de temporada del 13 al 17 de noviembre inclusive (Buen Fin). Horas de Chihuahua (UTC-6).",
   "products": [
     { "slug": "uno-mas-uno", "name": "UNO+UNO", "price": 472.14, "compareAtPrice": 549, "saleEndsAt": "2026-12-26T00:00:00-06:00", "saleStatus": "on_sale", "published": true },
     { "slug": "uno-mas-uno-duo", "name": "UNO+UNO · Pack dúo", "price": 900, "compareAtPrice": 1098, "saleEndsAt": "2026-12-26T00:00:00-06:00", "saleStatus": "on_sale", "published": true, "bundleOf": { "slug": "uno-mas-uno", "units": 2 } },
@@ -11,7 +11,8 @@
       "saleStatus": "on_sale",
       "published": true,
       "bundleOf": { "slug": "uno-mas-uno", "units": 6 },
-      "freeShippingUntil": "2026-12-31T23:59:59-06:00"
+      "freeShippingFrom": "2026-11-13T00:00:00-06:00",
+      "freeShippingUntil": "2026-11-18T00:00:00-06:00"
     },
     {
       "slug": "uno-mas-uno-paquete-10",
@@ -21,7 +22,8 @@
       "saleStatus": "on_sale",
       "published": true,
       "bundleOf": { "slug": "uno-mas-uno", "units": 10 },
-      "freeShippingUntil": "2026-12-31T23:59:59-06:00"
+      "freeShippingFrom": "2026-11-13T00:00:00-06:00",
+      "freeShippingUntil": "2026-11-18T00:00:00-06:00"
     }
   ]
 }
