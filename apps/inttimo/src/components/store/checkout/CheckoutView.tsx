@@ -57,6 +57,8 @@ function writeSaved(saved: Saved | null) {
 export function CheckoutView() {
   const { lines, ready, clear } = useCart();
   const { quote, loading } = useCartQuote();
+  const purchasableLines = (quote?.lines ?? []).filter((line) => line.available).map((line) => ({ productId: line.productId, quantity: line.quantity }));
+  const unavailableLines = (quote?.lines ?? []).filter((line) => !line.available);
   const [options, setOptions] = useState<DeliveryOptionsResponse | null>(null);
   const [method, setMethod] = useState<"pickup" | "shipping" | null>(null);
   const [pickupPointId, setPickupPointId] = useState("");
@@ -72,7 +74,9 @@ export function CheckoutView() {
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [idempotencyKey] = useState(() => (typeof crypto !== "undefined" ? crypto.randomUUID() : String(Date.now())));
+  // Una clave por intento: se conserva solo para reintentos idénticos (doble clic o red caída) y se renueva tras cualquier rechazo.
+  const newKey = () => (typeof crypto !== "undefined" ? crypto.randomUUID() : String(Date.now()));
+  const [idempotencyKey, setIdempotencyKey] = useState(newKey);
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
   const payRef = useRef<HTMLDivElement>(null);
@@ -82,7 +86,8 @@ export function CheckoutView() {
   useEffect(() => {
     void getStoreApi().deliveryOptions().then((result) => result.ok && setOptions(result.data));
     const saved = readSaved();
-    if (saved) {
+    const hasData = !!saved && [saved.contact?.fullName, saved.contact?.email, saved.address?.postalCode, saved.address?.street, saved.pickupPointId].some((v) => !!v?.trim());
+    if (saved && hasData) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- restaura los datos guardados en este dispositivo
       setContact({ ...emptyContact, ...saved.contact });
       setAddress({ ...emptyAddress, ...saved.address });
@@ -154,7 +159,7 @@ export function CheckoutView() {
     delete e["address.street"];
     if (Object.keys(e).length) return setErrors((current) => ({ ...current, ...e }));
     setQuoting(true);
-    const result = await getStoreApi().quoteShipping({ lines, postalCode: address.postalCode, state: address.state, city: address.city, neighborhood: address.neighborhood });
+    const result = await getStoreApi().quoteShipping({ lines: purchasableLines, postalCode: address.postalCode, state: address.state, city: address.city, neighborhood: address.neighborhood });
     setQuoting(false);
     if (result.ok) {
       setShippingQuote(result.data);
@@ -164,9 +169,22 @@ export function CheckoutView() {
         delete rest.shipping;
         return rest;
       });
+    } else if (result.error.code === "quote_expired") {
+      resetShippingQuote();
     } else {
       setErrors((current) => ({ ...current, shipping: [result.error.message], ...(result.error.fieldErrors ? Object.fromEntries(Object.entries(result.error.fieldErrors).map(([k, v]) => [`address.${k}`, v])) : {}) }));
     }
+  }
+
+  /** Volver a cotizar desde cero (cotización vencida o datos cambiados). */
+  function resetShippingQuote() {
+    setShippingQuote(null);
+    setRateId(null);
+    setErrors((current) => {
+      const rest = { ...current };
+      delete rest.shipping;
+      return rest;
+    });
   }
 
   // Cotiza el envío solo en cuanto la dirección alcanza para hacerlo (sin tener que buscar el botón).
@@ -204,13 +222,15 @@ export function CheckoutView() {
     if (form.get("acceptTerms") !== "on") e.acceptTerms = ["Debes aceptar los Términos y Condiciones y el Aviso de Privacidad para continuar."];
     setErrors(e);
     setFormError(Object.keys(e).length ? "Revisa los datos marcados." : null);
-    if (Object.keys(e).length || !options || !quote) return focusProblem();
+    if (!Object.keys(e).length && unavailableLines.length) setFormError("Hay productos que ya no están disponibles. Quítalos del carrito para continuar.");
+    if (Object.keys(e).length || !options || !quote || unavailableLines.length) return focusProblem();
 
     setSubmitting(true);
     const result = await getStoreApi().checkout(
       {
         contact: { fullName, email, phone: contact.phone.trim() || undefined },
-        lines,
+        // Las líneas que cotizó el servidor (puede recortar cantidades o quitar productos), no las del navegador.
+        lines: purchasableLines,
         delivery: method === "pickup" ? { method: "pickup", pickupPointId } : { method: "shipping", quoteId: shippingQuote!.quoteId, rateId: rateId!, address: { ...address, reference: address.reference || undefined } },
         acceptTerms: true,
         termsVersion: options.termsVersion,
@@ -225,6 +245,14 @@ export function CheckoutView() {
       return;
     }
     setSubmitting(false);
+    // Tras cualquier respuesta de error los datos pueden cambiar: el siguiente intento necesita otra clave.
+    // Solo se conserva si no hubo respuesta (red caída), para que el reintento idéntico no cree otro pedido.
+    if (result.error.code !== "network_error") setIdempotencyKey(newKey());
+    if (result.error.code === "quote_expired") {
+      resetShippingQuote();
+      setFormError("El envío se volvió a calcular porque la cotización venció o cambiaron tus datos. Revisa el total y vuelve a pagar.");
+      return focusProblem();
+    }
     setErrors(result.error.fieldErrors ?? {});
     setFormError(result.error.message);
     focusProblem();
@@ -386,11 +414,17 @@ export function CheckoutView() {
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold">{line.name}</span>
                     <span className="block text-xs text-muted lining-nums">{formatMoney(line.unitPrice.amount, line.unitPrice.currency)} c/u</span>
+                    {line.notice && <span className={`mt-0.5 block text-xs ${line.available ? "text-warning" : "text-danger"}`}>{line.notice}</span>}
                   </span>
                   <span className="font-semibold lining-nums tabular-nums">{formatMoney(line.subtotal.amount, line.subtotal.currency)}</span>
                 </li>
               ))}
             </ul>
+          )}
+          {unavailableLines.length > 0 && (
+            <p role="alert" className="border border-danger/30 bg-danger/5 px-3.5 py-2.5 text-sm text-danger">
+              Hay productos que ya no están disponibles. <Link href="/carrito" className="font-semibold underline underline-offset-4">Quítalos del carrito</Link> para continuar.
+            </p>
           )}
           <dl className="space-y-3 border-t border-border pt-5 text-sm">
             <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd className="lining-nums">{quote ? money(quote.subtotal.amount) : "—"}</dd></div>
@@ -428,7 +462,7 @@ export function CheckoutView() {
           </div>
 
           <div ref={payRef}>
-            <Button type="submit" variant="bronze" block arrow="right" loading={submitting} disabled={submitting || loading}>
+            <Button type="submit" variant="bronze" block arrow="right" loading={submitting} disabled={submitting || loading || unavailableLines.length > 0}>
               {submitting ? "Preparando pago…" : total !== null ? `Pagar ${money(total)}` : "Pagar"}
             </Button>
           </div>
@@ -448,7 +482,7 @@ export function CheckoutView() {
             <p className="text-xs text-muted">Total</p>
             <p className="font-serif text-2xl leading-none font-medium lining-nums">{total !== null ? money(total) : "—"}</p>
           </div>
-          <Button type="submit" variant="bronze" size="md" arrow={false} loading={submitting} disabled={submitting || loading} className="flex-1 justify-center">
+          <Button type="submit" variant="bronze" size="md" arrow={false} loading={submitting} disabled={submitting || loading || unavailableLines.length > 0} className="flex-1 justify-center">
             {submitting ? "Preparando…" : "Pagar"}
           </Button>
         </div>

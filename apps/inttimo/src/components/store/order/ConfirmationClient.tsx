@@ -6,6 +6,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { AlertIcon, CheckIcon, MailIcon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { getStoreApi } from "@/lib/store/api";
+import { useCart } from "../cart/CartProvider";
 import { formatDate } from "@/lib/format";
 import { CheckoutSteps } from "../checkout/CheckoutSteps";
 import { DeliveryInfo, OrderLines, OrderSteps, PAYMENT_TEXT } from "./OrderParts";
@@ -14,6 +15,13 @@ import { DeliveryInfo, OrderLines, OrderSteps, PAYMENT_TEXT } from "./OrderParts
 export function ConfirmationClient({ sessionId }: { sessionId: string | null }) {
   const [order, setOrder] = useState<OrderView | null>(null);
   const [error, setError] = useState<string | null>(sessionId ? null : "Falta el identificador del pago. Revisa tu correo de confirmación.");
+  const { clear, ready } = useCart();
+
+  // El carrito se vacía solo cuando el pago quedó confirmado: si no se completó, la persona puede reintentar con el mismo carrito.
+  const paidForCart = order?.paymentStatus === "paid";
+  useEffect(() => {
+    if (paidForCart && ready) clear();
+  }, [paidForCart, ready, clear]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -32,15 +40,24 @@ export function ConfirmationClient({ sessionId }: { sessionId: string | null }) 
   }
   if (!order) return <p role="status" className="flex items-center gap-3 py-16 text-muted"><Spinner className="size-5" /> Confirmando tu pedido…</p>;
 
-  const paid = order.paymentStatus === "paid";
+  // Incidencia: el pago llegó cuando ya no había piezas. No se surte, el equipo lo reembolsa y no se manda correo de confirmación.
+  const exception = order.paymentStatus === "paid" && order.fulfillmentStatus === "exception";
+  const confirmed = order.paymentStatus === "paid" && !exception;
   return (
     <div className="space-y-12">
-      {paid && <CheckoutSteps current={3} />}
+      {confirmed && <CheckoutSteps current={3} />}
       <header className="animate-rise">
-        <span aria-hidden="true" className={`grid size-12 place-items-center rounded-full ${paid ? "bg-success text-on-ink" : "bg-sand text-warning"}`}><CheckIcon className="animate-pop size-6" /></span>
-        <p className="eyebrow mt-6 text-muted">{paid ? "¡Gracias por tu compra!" : PAYMENT_TEXT[order.paymentStatus]}</p>
-        <h1 className="mt-3 font-serif text-[clamp(2.75rem,6vw,4.75rem)] leading-[0.98] font-medium">{paid ? <>Tu pedido está <em className="font-normal">confirmado</em>.</> : "Estamos confirmando tu pago."}</h1>
-        <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted">Te enviamos un correo a <strong className="text-fg">{order.email}</strong> con tu número de pedido.</p>
+        <span aria-hidden="true" className={`grid size-12 place-items-center rounded-full ${confirmed ? "bg-success text-on-ink" : exception ? "bg-danger/10 text-danger" : "bg-sand text-warning"}`}>
+          {exception ? <AlertIcon className="size-6" /> : <CheckIcon className="animate-pop size-6" />}
+        </span>
+        <p className="eyebrow mt-6 text-muted">{confirmed ? "¡Gracias por tu compra!" : exception ? "Pago recibido" : PAYMENT_TEXT[order.paymentStatus]}</p>
+        <h1 className="mt-3 font-serif text-[clamp(2.75rem,6vw,4.75rem)] leading-[0.98] font-medium">
+          {/* Texto de la incidencia pendiente de aprobación de Karina (docs/store/FRONTEND-NOTAS.md, punto 5). */}
+          {confirmed ? <>Tu pedido está <em className="font-normal">confirmado</em>.</> : exception ? "Recibimos tu pago, pero hubo un problema con tu pedido." : "Estamos confirmando tu pago."}
+        </h1>
+        {confirmed && <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted">En unos momentos te llegará un correo a <strong className="text-fg">{order.email}</strong> con tu número de pedido.</p>}
+        {exception && <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted">Te contactaremos a <strong className="text-fg">{order.email}</strong>. Tu número de pedido es <span className="font-mono text-fg">{order.orderNumber}</span>.</p>}
+        {!confirmed && !exception && <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted">Cuando el pago se acredite, tu pedido quedará confirmado. Guarda tu número de pedido: <span className="font-mono text-fg">{order.orderNumber}</span>.</p>}
         <div className="mt-8 flex flex-wrap gap-3">
           <ButtonLink href={`/rastrear-pedido?pedido=${encodeURIComponent(order.orderNumber)}`}>Rastrear mi pedido</ButtonLink>
           <ButtonLink href="/productos" variant="outline" arrow={false}>Seguir comprando</ButtonLink>
@@ -65,10 +82,12 @@ export function ConfirmationClient({ sessionId }: { sessionId: string | null }) 
         </section>
       </div>
 
-      <p className="flex items-start gap-3 border border-border bg-surface px-5 py-4 text-sm">
-        <MailIcon className="mt-0.5 size-5 shrink-0 text-fg/60" />
-        {order.delivery.method === "pickup" ? "Te avisaremos por correo cuando tu pedido esté LISTO PARA RECOGER. Espera ese aviso antes de acudir." : "Te enviaremos la guía de rastreo cuando tu pedido salga."} ¿Requieres factura? Solicítala respondiendo a tu correo de confirmación.
-      </p>
+      {confirmed && (
+        <p className="flex items-start gap-3 border border-border bg-surface px-5 py-4 text-sm">
+          <MailIcon className="mt-0.5 size-5 shrink-0 text-fg/60" />
+          {order.delivery.method === "pickup" ? "Te avisaremos por correo cuando tu pedido esté LISTO PARA RECOGER. Espera ese aviso antes de acudir." : "Te enviaremos la guía de rastreo cuando tu pedido salga."} ¿Requieres factura? Solicítala respondiendo a tu correo de confirmación.
+        </p>
+      )}
     </div>
   );
 }

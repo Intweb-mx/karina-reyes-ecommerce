@@ -1,6 +1,6 @@
 import Image from "next/image";
 import type { FulfillmentStatus, OrderView, PaymentStatus } from "@/lib/store/contract";
-import { CheckIcon } from "@/components/ui/icons";
+import { AlertIcon, CheckIcon } from "@/components/ui/icons";
 import { formatDate, formatMoney } from "@/lib/format";
 
 export const FULFILLMENT_TEXT: Record<FulfillmentStatus, string> = {
@@ -30,12 +30,22 @@ const PICKUP_FLOW: FulfillmentStatus[] = ["confirmed", "preparing", "ready_for_p
 
 /** Pasos del pedido (mockups 09 y 12). Solo se marcan como hechos los que reportó el sistema. */
 export function OrderSteps({ order }: { order: OrderView }) {
+  // Una incidencia no es un paso del flujo: se muestra como estado propio, sin marcar pasos como hechos.
+  if (order.fulfillmentStatus === "exception") {
+    return (
+      <p role="status" className="flex items-start gap-3 border border-danger/30 bg-danger/5 px-4 py-3 text-sm">
+        <AlertIcon className="mt-0.5 size-4 shrink-0 text-danger" />
+        <span><strong>{FULFILLMENT_TEXT.exception}.</strong> El equipo de inttimo revisará tu pedido y te contactará.</span>
+      </p>
+    );
+  }
   const flow = order.delivery.method === "pickup" ? PICKUP_FLOW : SHIPPING_FLOW;
   const rank = (status: FulfillmentStatus) => {
     const index = flow.indexOf(status === "label_generated" ? "preparing" : status === "out_for_delivery" ? "in_transit" : status);
     return index === -1 ? 0 : index;
   };
-  const current = rank(order.fulfillmentStatus);
+  // Mientras el pago no esté confirmado, ningún paso se marca como hecho.
+  const current = order.paymentStatus === "paid" ? rank(order.fulfillmentStatus) : -1;
   const reached = (status: FulfillmentStatus) => order.events.find((event) => rank(event.status) === flow.indexOf(status));
   return (
     <ol aria-label="Estado del pedido" className="grid" style={{ gridTemplateColumns: `repeat(${flow.length}, minmax(0, 1fr))` }}>

@@ -82,6 +82,7 @@ export function CartDrawer() {
 function DrawerContent() {
   const { count, lastAdded, closeDrawer } = useCart();
   const { quote, loading, error } = useCartQuote();
+  const blocked = !!quote?.lines.some((line) => !line.available);
   const [recent, setRecent] = useState(false);
 
   // Muestra "Agregado" unos segundos después de cada producto agregado.
@@ -129,7 +130,8 @@ function DrawerContent() {
           </div>
           <div className="text-xs text-muted"><dt className="sr-only">Envío</dt><dd>Envío calculado en el checkout. Recolección en Chihuahua sin costo.</dd></div>
         </dl>
-        <ButtonLink href="/checkout" variant="bronze" block>Finalizar compra</ButtonLink>
+        {blocked && <p role="alert" className="text-sm text-danger">Quita los productos que no están disponibles para continuar.</p>}
+        <ButtonLink href="/checkout" variant="bronze" block className={blocked ? "pointer-events-none opacity-50" : ""} aria-disabled={blocked || undefined} tabIndex={blocked ? -1 : undefined}>Finalizar compra</ButtonLink>
         <div className="flex items-center justify-between gap-3 text-sm">
           <Link href="/carrito" className="inline-flex min-h-11 items-center font-medium underline underline-offset-4">Ver carrito completo</Link>
           <button type="button" onClick={closeDrawer} className="inline-flex min-h-11 items-center text-muted hover:text-fg">Seguir comprando</button>

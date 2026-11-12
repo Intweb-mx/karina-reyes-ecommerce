@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 
 /**
- * La tienda completa (carrito, checkout, cuenta, rastreo) está oculta en producción hasta su aprobación (CLAUDE.md §1).
- * Se ve en desarrollo o en producción con NEXT_PUBLIC_STORE_ENABLED=1. Los Previews de Vercel NO la muestran.
+ * La tienda completa (carrito, checkout, cuenta, rastreo) se ve en desarrollo local o con NEXT_PUBLIC_STORE_ENABLED=1
+ * (producción la tiene activada desde 2026-11-05). Los Previews de Vercel se construyen con NODE_ENV=production: ahí no
+ * se ve sin esa variable (nunca activarla en un Preview con llaves live de Stripe).
  */
 export const storeEnabled = process.env.NEXT_PUBLIC_STORE_ENABLED === "1" || process.env.NODE_ENV !== "production";
 
