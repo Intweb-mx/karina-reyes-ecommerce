@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "../src/client.ts";
-import { createStoreOrder, getStoreSettings, getStoreShippingQuote, saveStoreSettings, saveStoreShippingQuote } from "../src/store.ts";
+import { getCampaignBySlug, upsertCampaign } from "../src/presale.ts";
+import { createStoreOrder, getStoreSettings, getStoreShippingQuote, saveStoreSettings, saveStoreShippingQuote, setShippingOriginPhone } from "../src/store.ts";
 import { createTestDatabase } from "../src/testing.ts";
 import { pickupOrder, seedProduct } from "./store-helpers.ts";
 
@@ -65,5 +66,31 @@ describe("pedidos", () => {
     const product = await seedProduct(db);
     const { order } = await createStoreOrder(db, pickupOrder([{ productId: product.id, quantity: 1 }]));
     expect(order.confirmationEmailSentAt).toBeNull();
+  });
+});
+
+describe("teléfono del remitente de las guías", () => {
+  const campaign = (slug: string, shippingProfile: typeof PROFILE | null) =>
+    upsertCampaign(db, { slug, productName: slug, status: "active", startsAt: new Date("2026-01-01"), endsAt: new Date("2026-01-15"), unitAmount: 100, shippingProfile });
+
+  it("cambia solo el teléfono en la tienda y en las preventas con envío; repetirlo no cambia nada", async () => {
+    await saveStoreSettings(db, { pickupEnabled: true, pickupPoints: POINTS, shippingEnabled: true, shippingProfile: PROFILE });
+    await campaign("con-envio", PROFILE);
+    await campaign("sin-envio", null);
+
+    expect(await setShippingOriginPhone(db, "6145315250")).toEqual([
+      { target: "store", before: "6140000000" },
+      { target: "presale:con-envio", before: "6140000000" },
+    ]);
+    const expected = { ...PROFILE, origin: { ...PROFILE.origin, phone: "6145315250" } };
+    expect(await getStoreSettings(db)).toMatchObject({ pickupEnabled: true, pickupPoints: POINTS, shippingProfile: expected });
+    expect((await getCampaignBySlug(db, "con-envio"))!.shippingProfile).toEqual(expected);
+    expect((await getCampaignBySlug(db, "sin-envio"))!.shippingProfile).toBeNull();
+
+    expect(await setShippingOriginPhone(db, "6145315250")).toEqual([]);
+  });
+
+  it("sin configuración de entrega no hace nada", async () => {
+    expect(await setShippingOriginPhone(db, "6145315250")).toEqual([]);
   });
 });
