@@ -2,7 +2,7 @@ import { randomInt } from "node:crypto";
 import { and, asc, desc, eq, getTableColumns, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Database } from "./client.ts";
 import type { EventSource, Executor } from "./presale.ts";
-import type { DeliveryAddress, ShippingSelection } from "./schema/presale.ts";
+import { presaleCampaigns, type DeliveryAddress, type ShippingSelection } from "./schema/presale.ts";
 import {
   storeInventory,
   storeOrderEvents,
@@ -820,6 +820,35 @@ export async function saveStoreSettings(db: Executor, input: StoreSettingsInput,
     ? await insert.onConflictDoUpdate({ target: storeSettings.id, set: { ...input, updatedAt: new Date() } }).returning()
     : await insert.onConflictDoNothing().returning();
   return row ?? (await getStoreSettings(db))!;
+}
+
+/**
+ * Teléfono del remitente que va en las guías: lo cambia en la configuración de la tienda y en cada preventa con envío
+ * configurado (sus guías se siguen generando desde el panel). No toca nada más del perfil. Devuelve lo que cambió.
+ */
+export async function setShippingOriginPhone(db: Database, phone: string): Promise<{ target: string; before: string }[]> {
+  return db.transaction(async (tx) => {
+    const changed: { target: string; before: string }[] = [];
+    const settings = await getStoreSettings(tx);
+    const storeProfile = settings?.shippingProfile;
+    if (storeProfile && storeProfile.origin.phone !== phone) {
+      await tx
+        .update(storeSettings)
+        .set({ shippingProfile: { ...storeProfile, origin: { ...storeProfile.origin, phone } }, updatedAt: new Date() })
+        .where(eq(storeSettings.id, SETTINGS_ID));
+      changed.push({ target: "store", before: storeProfile.origin.phone });
+    }
+    for (const campaign of await tx.select().from(presaleCampaigns).orderBy(asc(presaleCampaigns.slug))) {
+      const profile = campaign.shippingProfile;
+      if (!profile || profile.origin.phone === phone) continue;
+      await tx
+        .update(presaleCampaigns)
+        .set({ shippingProfile: { ...profile, origin: { ...profile.origin, phone } }, updatedAt: new Date() })
+        .where(eq(presaleCampaigns.id, campaign.id));
+      changed.push({ target: `presale:${campaign.slug}`, before: profile.origin.phone });
+    }
+    return changed;
+  });
 }
 
 export type StoreShippingQuote = typeof storeShippingQuotes.$inferSelect;

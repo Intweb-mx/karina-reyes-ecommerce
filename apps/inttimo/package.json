@@ -16,6 +16,7 @@
     "store:reconcile": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/store-reconcile.ts",
     "store:catalog": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/store-catalog.ts",
     "store:stock": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/store-stock.ts",
+    "shipping:phone": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/shipping-phone.ts",
     "store:seed": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/store-seed.ts",
     "admin": "node --env-file-if-exists=../../.env --experimental-strip-types --no-warnings scripts/admin.ts"
   },

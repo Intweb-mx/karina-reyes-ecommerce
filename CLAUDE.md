@@ -1018,6 +1018,7 @@ pnpm store:seed                   # catálogo inicial de la tienda (UNO+UNO sin 
 pnpm store:catalog --file=docs/store/catalogo.json   # precios, paquetes y envío gratis (pesos en el JSON); --dry-run, --allow-remote
 pnpm store:stock --slug=uno-mas-uno --delta=N --reason=reception   # existencias (los paquetes descuentan del producto base)
 pnpm store:stock --slug=uno-mas-uno --from-presale=uno-mas-uno [--apply]   # carga inicial: lo que sobró de la preventa
+pnpm shipping:phone --phone=NNNNNNNNNN [--apply]   # teléfono del remitente en las guías (tienda y preventas)
 ```
 
 ---

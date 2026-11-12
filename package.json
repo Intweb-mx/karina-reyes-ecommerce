@@ -22,6 +22,7 @@
     "store:catalog": "pnpm --filter inttimo store:catalog",
     "store:stock": "pnpm --filter inttimo store:stock",
     "store:seed": "pnpm --filter inttimo store:seed",
+    "shipping:phone": "pnpm --filter inttimo shipping:phone",
     "store:reconcile": "pnpm --filter inttimo store:reconcile",
     "admin": "pnpm --filter inttimo admin",
     "supabase:start": "supabase start",
