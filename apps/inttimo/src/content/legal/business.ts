@@ -1,6 +1,7 @@
 /*
  * Datos del proveedor y canales de atención. Fuente: documentos legales de inttimo del 30 de septiembre de 2026
  * (Aviso de Privacidad, Términos y Condiciones, Envíos y Cambios y Reembolsos). Son datos reales entregados por el cliente.
+ * WhatsApp oficial actualizado por el cliente el 12 de noviembre de 2026.
  */
 export const business = {
   brand: "inttimo",
@@ -8,8 +9,8 @@ export const business = {
   legalNature: "persona física",
   address: "Residencial Torralba, Calle Paseo de las Valdivias 702, Interior 50, Chihuahua, Chihuahua, México",
   email: "inttimojuegosdemesa@gmail.com",
-  whatsapp: "639 131 5972",
-  whatsappUrl: "https://wa.me/526391315972",
+  whatsapp: "614 531 5250",
+  whatsappUrl: "https://wa.me/526145315250",
   hours: "9:00 a 17:00 horas",
   responseTime: "hasta 24 horas hábiles",
 } as const;
