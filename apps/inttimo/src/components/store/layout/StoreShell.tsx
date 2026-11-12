@@ -4,6 +4,7 @@ import { Wordmark } from "@/components/layout/Wordmark";
 import { ChatIcon, MailIcon } from "@/components/ui/icons";
 import { business, legalDocuments } from "@/content/legal";
 import { nav } from "@/content/store";
+import { pendingBackendEnabled } from "@/lib/store/flags";
 import { CartDrawer } from "../cart/CartDrawer";
 import { CartProvider } from "../cart/CartProvider";
 import { NewsletterForm } from "../forms/NewsletterForm";
@@ -24,15 +25,17 @@ export function StoreShell({ children }: { children: ReactNode }) {
         {children}
       </div>
 
-      <section aria-labelledby="comunidad" className="surface-ink bg-ink text-on-ink print:hidden">
-        <div className="container-page grid gap-8 py-12 md:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] md:items-center md:py-14">
-          <div>
-            <h2 id="comunidad" className="font-serif text-3xl font-medium sm:text-4xl">Sé parte de esta comunidad.</h2>
-            <p className="mt-2 max-w-md text-sm leading-relaxed text-on-ink-muted">Recibe inspiración, lanzamientos y recursos para tu matrimonio.</p>
+      {pendingBackendEnabled && (
+        <section aria-labelledby="comunidad" className="surface-ink bg-ink text-on-ink print:hidden">
+          <div className="container-page grid gap-8 py-12 md:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] md:items-center md:py-14">
+            <div>
+              <h2 id="comunidad" className="font-serif text-3xl font-medium sm:text-4xl">Sé parte de esta comunidad.</h2>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-on-ink-muted">Recibe inspiración, lanzamientos y recursos para tu matrimonio.</p>
+            </div>
+            <NewsletterForm source="footer" />
           </div>
-          <NewsletterForm source="footer" />
-        </div>
-      </section>
+        </section>
+      )}
 
       <footer className="border-t border-border/70 print:hidden">
         <div className="container-page grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">

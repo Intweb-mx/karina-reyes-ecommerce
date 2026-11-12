@@ -1,6 +1,6 @@
 import { listCampaigns } from "@inttimo/database";
 import type { ReactNode } from "react";
-import { storeEnabled } from "@/lib/store/flags";
+import { pendingBackendEnabled } from "@/lib/store/flags";
 import { requireAdmin } from "@/server/auth/admin";
 import { getDb } from "@/server/presale/runtime";
 import { PanelSidebar } from "./PanelSidebar";
@@ -14,7 +14,7 @@ export default async function PanelAppLayout({ children }: { children: ReactNode
         Saltar al contenido
       </a>
       <div className="lg:flex">
-        <PanelSidebar campaigns={campaigns} email={admin.email} storeEnabled={storeEnabled} />
+        <PanelSidebar campaigns={campaigns} email={admin.email} storeEnabled={pendingBackendEnabled} />
         <main id="panel-contenido" className="min-w-0 flex-1">
           <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-10">{children}</div>
         </main>
