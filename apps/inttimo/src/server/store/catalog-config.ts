@@ -21,6 +21,8 @@ const productSchema = z
     maxQuantityPerOrder: z.number().int().min(1).max(100).optional(),
     /** Paquete: descuenta `units` piezas del inventario de `slug`. */
     bundleOf: z.object({ slug, units: z.number().int().min(2).max(100) }).nullable().optional(),
+    /** Inicio del envío gratis (ISO con zona horaria). Null u omitido = desde que se carga. */
+    freeShippingFrom: z.iso.datetime({ offset: true }).nullable().optional(),
     /** Fin del envío gratis (ISO con zona horaria). Null u omitido = sin envío gratis. */
     freeShippingUntil: z.iso.datetime({ offset: true }).nullable().optional(),
     /** Fin del descuento (ISO con zona horaria): desde ese momento se cobra `compareAtPrice`. Exige precio tachado. */
@@ -29,6 +31,10 @@ const productSchema = z
   .refine((product) => product.compareAtPrice == null || (product.price !== null && product.compareAtPrice > product.price), {
     message: "El precio anterior (tachado) debe ser mayor que el precio.",
     path: ["compareAtPrice"],
+  })
+  .refine((product) => !product.freeShippingFrom || (!!product.freeShippingUntil && Date.parse(product.freeShippingUntil) > Date.parse(product.freeShippingFrom)), {
+    message: "El inicio del envío gratis necesita un fin posterior (freeShippingUntil).",
+    path: ["freeShippingFrom"],
   })
   .refine((product) => !product.saleEndsAt || product.compareAtPrice != null, {
     message: "El fin del descuento necesita el precio normal en compareAtPrice.",

@@ -80,6 +80,8 @@ export const storeProducts = pgTable(
      */
     stockProductId: uuid().references((): AnyPgColumn => storeProducts.id, { onDelete: "restrict" }),
     stockUnits: integer().notNull().default(1),
+    /** Envío a domicilio gratis desde esta fecha (null = desde ya) hasta `freeShippingUntil`. */
+    freeShippingFrom: timestamp({ withTimezone: true }),
     /** Envío a domicilio gratis hasta esta fecha (promoción de temporada). Null = sin envío gratis. */
     freeShippingUntil: timestamp({ withTimezone: true }),
     /**
@@ -95,6 +97,7 @@ export const storeProducts = pgTable(
     check("store_products_stock_units_check", sql`${table.stockUnits} between 1 and 100`),
     check("store_products_bundle_check", sql`${table.stockProductId} is null and ${table.stockUnits} = 1 or ${table.stockProductId} is not null and ${table.stockProductId} <> ${table.id}`),
     check("store_products_compare_price_check", sql`${table.compareAtPrice} is null or ${table.compareAtPrice} >= 0`),
+    check("store_products_free_shipping_check", sql`${table.freeShippingFrom} is null or ${table.freeShippingUntil} > ${table.freeShippingFrom}`),
     check("store_products_sale_ends_check", sql`${table.saleEndsAt} is null or ${table.compareAtPrice} is not null`),
     check("store_products_max_quantity_check", sql`${table.maxQuantityPerOrder} between 1 and 100`),
     check("store_products_low_stock_check", sql`${table.lowStockThreshold} >= 0`),

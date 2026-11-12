@@ -1,0 +1,2 @@
+ALTER TABLE "store_products" ADD COLUMN "free_shipping_from" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "store_products" ADD CONSTRAINT "store_products_free_shipping_check" CHECK ("store_products"."free_shipping_from" is null or "store_products"."free_shipping_until" > "store_products"."free_shipping_from");

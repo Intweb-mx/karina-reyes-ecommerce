@@ -80,6 +80,26 @@ describe("paquetes en la tienda", () => {
     expect(await inventoryOf(db, uno.id)).toEqual({ onHand: 13, reserved: 6 });
   });
 
+  it("antes del inicio de la promoción se cobra el envío normal y no se anuncia", async () => {
+    const six = await pack("uno-mas-uno-paquete-6", 6, { freeShippingFrom: minutesAfter(1), freeShippingUntil: minutesAfter(60) });
+    const catalog = await getCatalog({ db, now: () => T0 });
+    if (!catalog.ok) throw new Error("catálogo");
+    expect(catalog.data.products.find((p) => p.slug === "uno-mas-uno-paquete-6")).toMatchObject({ freeShipping: false });
+    const { result } = await shipCheckout(six.id);
+    expect(result.status).toBe(201);
+    expect(gateway.storeCreated[0]).toMatchObject({ shippingAmount: 32_050 });
+  });
+
+  it("dentro de la ventana (inicio y fin) el envío es gratis", async () => {
+    const six = await pack("uno-mas-uno-paquete-6", 6, { freeShippingFrom: minutesAfter(-1), freeShippingUntil: minutesAfter(60) });
+    await shipCheckout(six.id);
+    expect(gateway.storeCreated[0]).toMatchObject({ shippingAmount: 0 });
+  });
+
+  it("la base no acepta un inicio de envío gratis sin fin posterior", async () => {
+    await expect(pack("uno-mas-uno-paquete-6", 6, { freeShippingFrom: minutesAfter(60), freeShippingUntil: minutesAfter(1) })).rejects.toThrow();
+  });
+
   it("con la promoción vencida se cobra el envío normal", async () => {
     const six = await pack("uno-mas-uno-paquete-6", 6, { freeShippingUntil: minutesAfter(-1) });
     const { quote, result } = await shipCheckout(six.id);
@@ -141,6 +161,8 @@ describe("archivo de catálogo (pnpm store:catalog)", () => {
     expect(catalogConfigSchema.safeParse({ products: [product, product] }).success).toBe(false);
     expect(catalogConfigSchema.safeParse({ products: [{ ...product, freeShippingUntil: "2026-12-31T23:59:59" }] }).success).toBe(false);
     expect(catalogConfigSchema.safeParse({ products: [{ ...product, freeShippingUntil: "2026-12-31T23:59:59-06:00" }] }).success).toBe(true);
+    expect(catalogConfigSchema.safeParse({ products: [{ ...product, freeShippingFrom: "2026-11-13T00:00:00-06:00" }] }).success).toBe(false);
+    expect(catalogConfigSchema.safeParse({ products: [{ ...product, freeShippingFrom: "2026-11-18T00:00:00-06:00", freeShippingUntil: "2026-11-13T00:00:00-06:00" }] }).success).toBe(false);
     expect(catalogConfigSchema.safeParse({ products: [{ ...product, compareAtPrice: null, saleEndsAt: "2026-12-26T00:00:00-06:00" }] }).success).toBe(false);
   });
 
