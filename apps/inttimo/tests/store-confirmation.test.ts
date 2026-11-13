@@ -68,7 +68,7 @@ describe("confirmación del pedido", () => {
       createdAt: order.createdAt.toISOString(),
       paymentStatus: "paid",
       fulfillmentStatus: "confirmed",
-      lines: [{ name: "UNO+UNO", image: expect.objectContaining({ src: "/images/preventa/uno-mas-uno-caja-y-mazos.jpg" }), quantity: 2, unitPrice: MXN(50_000), subtotal: MXN(100_000) }],
+      lines: [{ name: "UNO+UNO", image: expect.objectContaining({ src: "/images/preventa/uno-mas-uno-caja-y-mazos.jpg" }), quantity: 2, unitPrice: MXN(50_000), subtotal: MXN(100_000), digital: false }],
       subtotal: MXN(100_000),
       discount: null,
       shipping: MXN(0),

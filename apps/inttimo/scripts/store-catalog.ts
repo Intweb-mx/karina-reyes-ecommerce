@@ -30,6 +30,7 @@ for (const product of products) {
     product.saleStatus,
     product.published ? "publicado" : "oculto",
     product.bundleOf ? `paquete: ${product.bundleOf.units} × ${product.bundleOf.slug}` : null,
+    product.type === "digital" ? `digital: ${product.digitalFileKey}` : null,
     product.saleEndsAt ? `descuento hasta ${product.saleEndsAt} (después ${money(product.compareAtPrice)})` : null,
     product.freeShippingUntil ? `envío gratis ${product.freeShippingFrom ? `del ${product.freeShippingFrom} ` : ""}hasta ${product.freeShippingUntil}` : null,
   ];
@@ -54,6 +55,8 @@ for (const product of products) {
     compareAtPrice: product.compareAtPrice ?? null,
     saleStatus: product.saleStatus,
     published: product.published,
+    type: product.type,
+    digitalFileKey: product.digitalFileKey ?? null,
     ...(product.maxQuantityPerOrder ? { maxQuantityPerOrder: product.maxQuantityPerOrder } : {}),
     stockProductId: base?.id ?? null,
     stockUnits: product.bundleOf?.units ?? 1,

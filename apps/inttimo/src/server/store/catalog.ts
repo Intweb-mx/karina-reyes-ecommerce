@@ -32,7 +32,8 @@ export async function loadForSale(db: Database, now: Date): Promise<ForSale[]> {
         ...product,
         ...currentPrice(product, now),
         content,
-        effectiveAvailable: Math.max(0, Math.floor(freePieces / product.stockUnits)),
+        // Un producto digital no tiene inventario: siempre disponible si tiene archivo.
+        effectiveAvailable: product.type === "digital" ? (product.digitalFileKey ? product.maxQuantityPerOrder : 0) : Math.max(0, Math.floor(freePieces / product.stockUnits)),
         freeShipping: !!product.freeShippingUntil && product.freeShippingUntil > now && (!product.freeShippingFrom || product.freeShippingFrom <= now),
       },
     ];
@@ -44,10 +45,12 @@ export function isPurchasable(product: Pick<ForSale, "price" | "saleStatus">): b
   return product.price !== null && product.saleStatus !== "coming_soon";
 }
 
-export function productStatus(product: Pick<ForSale, "saleStatus" | "effectiveAvailable" | "lowStockThreshold">): ProductStatus {
+export function productStatus(product: Pick<ForSale, "saleStatus" | "effectiveAvailable" | "lowStockThreshold"> & { type?: ForSale["type"] }): ProductStatus {
   if (product.saleStatus === "coming_soon") return "coming_soon";
   if (product.saleStatus === "presale") return "presale";
   if (product.effectiveAvailable <= 0) return "sold_out";
+  // Un producto digital no se agota ni tiene "pocas piezas".
+  if (product.type === "digital") return "available";
   if (product.effectiveAvailable <= product.lowStockThreshold) return "low_stock";
   return "available";
 }
@@ -94,7 +97,12 @@ export async function getProduct(deps: Pick<StoreDeps, "db" | "now">, slug: stri
     howToPlay: content.howToPlay,
     faqs: content.faqs,
     maxQuantityPerOrder: product.maxQuantityPerOrder,
-    related: products.filter((candidate) => candidate.id !== product.id).slice(0, 3).map(toSummary),
+    // Primero los complementos digitales (p. ej. la guía en PDF de UNO+UNO).
+    related: products
+      .filter((candidate) => candidate.id !== product.id)
+      .sort((a, b) => Number(b.type === "digital") - Number(a.type === "digital"))
+      .slice(0, 3)
+      .map(toSummary),
     seo: content.seo,
   });
 }
@@ -105,7 +113,7 @@ function stockNotice(available: number): string {
 
 /** Precio y cantidad de una línea según la base: ajusta al máximo por pedido y a lo disponible, y lo explica. */
 export function quoteLine(product: ForSale, requested: number): CartQuoteLine {
-  const base = { productId: product.id, slug: product.slug, name: product.name, image: product.content.image, unitPrice: money(product.price ?? 0, product.currency) };
+  const base = { productId: product.id, slug: product.slug, name: product.name, image: product.content.image, unitPrice: money(product.price ?? 0, product.currency), digital: product.type === "digital" };
   if (!isPurchasable(product)) {
     return { ...base, quantity: requested, subtotal: money(0, product.currency), notice: "Este producto todavía no está a la venta.", available: false, maxQuantity: requested };
   }

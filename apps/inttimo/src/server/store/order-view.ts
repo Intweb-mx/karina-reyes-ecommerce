@@ -31,7 +31,7 @@ export async function buildOrderView(db: Executor, order: StoreOrder): Promise<O
       // El checkout solo vende productos con contenido; si falta aquí, es un error de despliegue (503 con log).
       const content = getStoreProductContent(item.productSlug);
       if (!content) throw new Error(`Producto sin contenido en content/store-products.ts: ${item.productSlug}`);
-      return { name: item.name, image: content.image, quantity: item.quantity, unitPrice: money(item.unitAmount), subtotal: money(item.unitAmount * item.quantity) };
+      return { name: item.name, image: content.image, quantity: item.quantity, unitPrice: money(item.unitAmount), subtotal: money(item.unitAmount * item.quantity), digital: item.digital };
     }),
     subtotal: money(order.subtotalAmount),
     discount: order.discountAmount ? money(order.discountAmount) : null,

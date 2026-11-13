@@ -22,6 +22,7 @@ const report = await reconcileStore(
     gateway: createStripeGateway(new Stripe(key)),
     send: sendMail,
     notifyEmail: process.env.STORE_NOTIFY_EMAIL || process.env.PRESALE_NOTIFY_EMAIL || null,
+    siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? fail("NEXT_PUBLIC_SITE_URL no está configurada (hace falta para los enlaces de descarga)."),
   },
   { olderThan: new Date(Date.now() - minutes * 60_000) },
 );

@@ -22,7 +22,7 @@ export type StoreReconcileReport = {
  * El orden importa: primero se registra lo que sí se pagó y después se libera lo vencido.
  */
 export async function reconcileStore(
-  deps: { db: Database; gateway: PaymentGateway; send: MailSender; notifyEmail?: string | null },
+  deps: { db: Database; gateway: PaymentGateway; send: MailSender; notifyEmail?: string | null; siteUrl?: string },
   options: { olderThan: Date; now?: Date },
 ): Promise<StoreReconcileReport> {
   const report: StoreReconcileReport = { checked: 0, updated: [], released: 0, emails: { sent: 0, failed: 0, exceptions: 0 }, errors: [] };
@@ -54,7 +54,7 @@ export async function reconcileStore(
   }
 
   for (const order of await listStorePaidWithoutConfirmation(deps.db)) {
-    const result = await sendStoreConfirmationIfNeeded(deps.db, order.id, { send: deps.send, notifyEmail: deps.notifyEmail });
+    const result = await sendStoreConfirmationIfNeeded(deps.db, order.id, { send: deps.send, notifyEmail: deps.notifyEmail, siteUrl: deps.siteUrl });
     if (result === "sent") report.emails.sent++;
     if (result === "failed") report.emails.failed++;
     if (result === "exception") report.emails.exceptions++;

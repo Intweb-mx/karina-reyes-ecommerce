@@ -24,7 +24,8 @@ export const storeFulfillmentStatus = pgEnum("store_fulfillment_status", [
   "exception",
 ]);
 
-export const storeDeliveryMethod = pgEnum("store_delivery_method", ["shipping", "pickup"]);
+/** "digital": pedido solo con productos digitales (sin envío ni recolección; se entrega por enlace de descarga). */
+export const storeDeliveryMethod = pgEnum("store_delivery_method", ["shipping", "pickup", "digital"]);
 
 export type StoreOrderEventType =
   | "ORDER_CREATED"
@@ -46,6 +47,8 @@ export type StoreOrderEventType =
   | "DELIVERED"
   | "CONFIRMATION_EMAIL_SENT"
   | "CONFIRMATION_EMAIL_FAILED"
+  | "DOWNLOAD_LINK_ISSUED"
+  | "DOWNLOAD_USED"
   | "CANCELLED"
   | "REFUND_REQUESTED"
   | "REFUNDED"
@@ -89,6 +92,8 @@ export const storeProducts = pgTable(
      * tachado. Null = el precio no vence.
      */
     saleEndsAt: timestamp({ withTimezone: true }),
+    /** Producto digital: llave del archivo en el almacenamiento privado (se entrega con un enlace de un solo uso). */
+    digitalFileKey: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -98,6 +103,7 @@ export const storeProducts = pgTable(
     check("store_products_bundle_check", sql`${table.stockProductId} is null and ${table.stockUnits} = 1 or ${table.stockProductId} is not null and ${table.stockProductId} <> ${table.id}`),
     check("store_products_compare_price_check", sql`${table.compareAtPrice} is null or ${table.compareAtPrice} >= 0`),
     check("store_products_free_shipping_check", sql`${table.freeShippingFrom} is null or ${table.freeShippingUntil} > ${table.freeShippingFrom}`),
+    check("store_products_digital_check", sql`${table.type} = 'physical' and ${table.digitalFileKey} is null or ${table.type} = 'digital' and ${table.stockProductId} is null`),
     check("store_products_sale_ends_check", sql`${table.saleEndsAt} is null or ${table.compareAtPrice} is not null`),
     check("store_products_max_quantity_check", sql`${table.maxQuantityPerOrder} between 1 and 100`),
     check("store_products_low_stock_check", sql`${table.lowStockThreshold} >= 0`),
@@ -199,6 +205,8 @@ export const storeOrderItems = pgTable(
     /** Copia, al comprar, de qué inventario descuenta la línea: null = el del propio producto; piezas por unidad. */
     stockProductId: uuid().references(() => storeProducts.id, { onDelete: "restrict" }),
     stockUnits: integer().notNull().default(1),
+    /** Copia, al comprar: producto digital (no aparta ni descuenta inventario; se entrega por enlace de descarga). */
+    digital: boolean().notNull().default(false),
     createdAt: createdAt(),
   },
   (table) => [
@@ -310,4 +318,27 @@ export const storeShippingQuotes = pgTable(
     createdAt: createdAt(),
   },
   (table) => [index("store_shipping_quotes_created_idx").on(table.createdAt)],
+);
+
+/**
+ * Enlaces de descarga de productos digitales: sirven UNA vez (se gastan al pulsar "Descargar", no al abrir el correo, para
+ * que los revisores de enlaces del correo no los consuman). Solo se guarda el hash del token. Reenviar = nuevo enlace y
+ * los anteriores sin usar quedan revocados.
+ */
+export const storeDownloadLinks = pgTable(
+  "store_download_links",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    orderId: uuid()
+      .notNull()
+      .references(() => storeOrders.id, { onDelete: "restrict" }),
+    productId: uuid()
+      .notNull()
+      .references(() => storeProducts.id, { onDelete: "restrict" }),
+    tokenHash: text().notNull().unique(),
+    createdAt: createdAt(),
+    usedAt: timestamp({ withTimezone: true }),
+    revokedAt: timestamp({ withTimezone: true }),
+  },
+  (table) => [index("store_download_links_order_idx").on(table.orderId)],
 );

@@ -1,5 +1,5 @@
 {
-  "$comment": "Precios en pesos MXN con IVA, aprobados por el cliente el 2026-11-12 (descuento de temporada). Cargar con: pnpm store:catalog --file=docs/store/catalogo.json. No toca existencias (usar pnpm store:stock). saleEndsAt: desde ese momento se cobra compareAtPrice (precio normal), descuento hasta el 25 de diciembre inclusive. freeShippingFrom/freeShippingUntil: envío gratis de temporada del 13 al 17 de noviembre inclusive (Buen Fin). Horas de Chihuahua (UTC-6).",
+  "$comment": "Precios en pesos MXN con IVA, aprobados por el cliente el 2026-11-12 (descuento de temporada). Cargar con: pnpm store:catalog --file=docs/store/catalogo.json. No toca existencias (usar pnpm store:stock). saleEndsAt: desde ese momento se cobra compareAtPrice (precio normal), descuento hasta el 25 de diciembre inclusive. freeShippingFrom/freeShippingUntil: envío gratis de temporada del 13 al 17 de noviembre inclusive (Buen Fin). Horas de Chihuahua (UTC-6). type digital: se entrega con enlace de descarga de un solo uso; digitalFileKey = mismo PDF del bonus de preventa.",
   "products": [
     { "slug": "uno-mas-uno", "name": "UNO+UNO", "price": 472.14, "compareAtPrice": 549, "saleEndsAt": "2026-12-26T00:00:00-06:00", "saleStatus": "on_sale", "published": true },
     { "slug": "uno-mas-uno-duo", "name": "UNO+UNO · Pack dúo", "price": 900, "compareAtPrice": 1098, "saleEndsAt": "2026-12-26T00:00:00-06:00", "saleStatus": "on_sale", "published": true, "bundleOf": { "slug": "uno-mas-uno", "units": 2 } },
@@ -24,6 +24,18 @@
       "bundleOf": { "slug": "uno-mas-uno", "units": 10 },
       "freeShippingFrom": "2026-11-13T00:00:00-06:00",
       "freeShippingUntil": "2026-11-18T00:00:00-06:00"
+    },
+    {
+      "slug": "despues-de-la-pregunta",
+      "name": "Después de la pregunta",
+      "type": "digital",
+      "digitalFileKey": "bonus/2026/10/53da8fe1-f92d-4ff5-864e-bcdcc8825352-despues-de-la-pregunta-uno-uno.pdf",
+      "price": 30,
+      "compareAtPrice": 50,
+      "saleEndsAt": "2026-12-26T00:00:00-06:00",
+      "saleStatus": "on_sale",
+      "published": true,
+      "maxQuantityPerOrder": 1
     }
   ]
 }

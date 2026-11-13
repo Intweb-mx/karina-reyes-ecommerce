@@ -61,6 +61,10 @@ export function PanelSidebar({ campaigns, email, storeEnabled }: { campaigns: { 
         ]
       : []),
     {
+      title: "Tienda en línea",
+      items: [{ href: "/panel/descargas", label: "Reenviar descarga", hint: "Enlace nuevo del PDF para un cliente", icon: FileIcon, active: (p) => p.startsWith("/panel/descargas") }],
+    },
+    {
       title: "Registro y ayuda",
       items: [
         { href: "/panel/bitacora", label: "Actividad", hint: "Quién hizo qué en el panel", icon: ClockIcon, active: (p) => p.startsWith("/panel/bitacora") },

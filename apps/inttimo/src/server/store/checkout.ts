@@ -53,6 +53,8 @@ const checkoutSchema = z.object({
     "method",
     [
       z.object({ method: z.literal("pickup"), pickupPointId: z.string({ error: PICK_POINT }).trim().min(1, PICK_POINT).max(60, PICK_POINT) }),
+      // Solo productos digitales: sin envío ni recolección (el enlace de descarga llega por correo).
+      z.object({ method: z.literal("digital") }),
       z.object({
         method: z.literal("shipping"),
         quoteId: z.string({ error: QUOTE_SHIPPING }).max(60, QUOTE_SHIPPING),
@@ -102,7 +104,9 @@ const ADDRESS_FIELDS = ["name", "phone", "street", "neighborhood", "city", "stat
 /** ¿El reintento pide exactamente lo mismo que el pedido guardado? (correo, entrega, cotización, dirección y productos) */
 async function sameRequest(db: Database, order: StoreOrder, request: ReplayRequest): Promise<boolean> {
   if (order.email !== request.email || order.deliveryMethod !== request.delivery.method) return false;
-  if (request.delivery.method === "pickup") {
+  if (request.delivery.method === "digital") {
+    // Sin entrega que comparar: solo correo y productos.
+  } else if (request.delivery.method === "pickup") {
     if (order.pickupPointId !== request.delivery.pickupPointId) return false;
   } else {
     const stored = order.shippingSelection;
@@ -197,7 +201,14 @@ export async function createStoreCheckout(
   let orderDelivery: NewStoreOrder["delivery"];
   let shippingAmount = 0;
   let shippingLabel: string | null = null;
-  if (delivery.method === "pickup") {
+  // Solo digital ⇔ entrega "digital": un carrito con algo físico necesita envío o recolección.
+  const allDigital = lines.every((line) => forSale.get(line.productId)!.type === "digital");
+  if (allDigital !== (delivery.method === "digital")) {
+    return deliveryError("deliveryMethod", allDigital ? "Tu carrito solo tiene productos digitales: no necesita envío." : "Elige cómo quieres recibir tu pedido.");
+  }
+  if (delivery.method === "digital") {
+    orderDelivery = { method: "digital" };
+  } else if (delivery.method === "pickup") {
     if (!settings?.pickupEnabled || !settings.pickupPoints.length) return deliveryError("deliveryMethod", "La recolección no está disponible.");
     const point = settings.pickupPoints.find((candidate) => candidate.id === delivery.pickupPointId);
     if (!point) return deliveryError("pickupPointId", PICK_POINT);
@@ -229,10 +240,13 @@ export async function createStoreCheckout(
   // Piezas que este comprador ya tiene apartadas (por correo y por IP, por separado), antes de crear el pedido. Solo aplica
   // si ya tiene algo apartado: el tamaño de un pedido suelto lo limita el máximo por pedido de cada producto. Se cuentan
   // piezas físicas: un paquete de 6 son 6.
-  const units = lines.reduce((sum, line) => sum + line.quantity * (forSale.get(line.productId)?.stockUnits ?? 1), 0);
+  const units = lines.reduce((sum, line) => {
+    const product = forSale.get(line.productId);
+    return product?.type === "digital" ? sum : sum + line.quantity * (product?.stockUnits ?? 1);
+  }, 0);
   const heldByEmail = await getStoreHeldUnits(deps.db, { email }, now);
   const heldByIp = clientIpHash ? await getStoreHeldUnits(deps.db, { clientIpHash }, now) : 0;
-  if ((heldByEmail > 0 && heldByEmail + units > STORE_MAX_HELD_UNITS_PER_BUYER) || (heldByIp > 0 && heldByIp + units > STORE_MAX_HELD_UNITS_PER_BUYER)) {
+  if (units > 0 && ((heldByEmail > 0 && heldByEmail + units > STORE_MAX_HELD_UNITS_PER_BUYER) || (heldByIp > 0 && heldByIp + units > STORE_MAX_HELD_UNITS_PER_BUYER))) {
     console.warn(JSON.stringify({ level: "warn", msg: "store_checkout_held_units_cap", heldByEmail, heldByIp, units }));
     return fail(429, "rate_limited", "Ya tienes piezas apartadas en otra compra. Termina ese pago o espera unos minutos.");
   }
