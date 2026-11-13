@@ -15,7 +15,7 @@ export function storeNotifyEmail(): string | null {
 
 /** Correo de pedido pagado (idempotente): lo llaman el webhook y la confirmación. */
 export function confirmStorePaid(orderId: string) {
-  return sendStoreConfirmationIfNeeded(getDb(), orderId, { send: sendMail, notifyEmail: storeNotifyEmail() });
+  return sendStoreConfirmationIfNeeded(getDb(), orderId, { send: sendMail, notifyEmail: storeNotifyEmail(), siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "" });
 }
 
 /** Aviso al equipo de un cobro con monto distinto. Un fallo se registra y nunca hace fallar el webhook. */

@@ -175,6 +175,7 @@ describe("archivo de catálogo (pnpm store:catalog)", () => {
       ["uno-mas-uno-duo", 90_000, "2026-12-26T00:00:00-06:00"],
       ["uno-mas-uno-paquete-6", 261_000, null],
       ["uno-mas-uno-paquete-10", 419_900, null],
+      ["despues-de-la-pregunta", 3_000, "2026-12-26T00:00:00-06:00"],
     ]);
   });
 });

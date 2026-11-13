@@ -134,6 +134,13 @@
       "when": 1794526265304,
       "tag": "0018_store_free_shipping_from",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794528268843,
+      "tag": "0019_store_digital_products",
+      "breakpoints": true
     }
   ]
 }

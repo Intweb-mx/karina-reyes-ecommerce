@@ -30,6 +30,9 @@ export default async function ProductPage({ params }: PageProps<"/productos/[slu
   const product = await load((await params).slug);
   const [main, ...rest] = product.gallery;
   const purchasable = !!product.price && product.status !== "sold_out" && product.status !== "coming_soon";
+  const digital = product.type === "digital";
+  // Complemento digital que se ofrece junto a un producto físico (p. ej. la guía en PDF con UNO+UNO).
+  const complement = digital ? null : product.related.find((candidate) => candidate.type === "digital" && candidate.price && candidate.status !== "sold_out" && candidate.status !== "coming_soon");
 
   return (
     <main>
@@ -59,7 +62,7 @@ export default async function ProductPage({ params }: PageProps<"/productos/[slu
 
         {/* Compra */}
         <div className="lg:sticky lg:top-24 lg:self-start">
-          <p className="eyebrow text-muted">Un juego para matrimonios</p>
+          <p className="eyebrow text-muted">{digital ? "Guía digital · PDF" : "Un juego para matrimonios"}</p>
           <h1 className="mt-4 font-serif text-[clamp(3rem,6vw,4.75rem)] leading-none font-medium">{product.name}</h1>
           <p className="mt-3 font-serif text-2xl text-fg/85 italic">{product.tagline}</p>
           <div className="mt-6 space-y-3 leading-relaxed text-muted">
@@ -76,14 +79,35 @@ export default async function ProductPage({ params }: PageProps<"/productos/[slu
               {product.compareAtPrice && <s className="text-muted lining-nums">{formatMoney(product.compareAtPrice.amount, product.compareAtPrice.currency)}</s>}
               {product.price && <span className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">{product.price.currency}</span>}
             </p>
-            <p className="mt-1 text-xs text-muted">{product.freeShipping ? <><span className="font-medium text-success">Envío a domicilio gratis</span> por temporada.</> : "El envío se calcula en el checkout."} <Link href={legalPaths.shipping} className="underline underline-offset-4">Envíos y recolección</Link></p>
+            {digital ? (
+              <p className="mt-1 text-xs text-muted">Producto digital: sin envío. El enlace de descarga (de un solo uso) llega a tu correo al confirmar tu pago.</p>
+            ) : (
+              <p className="mt-1 text-xs text-muted">{product.freeShipping ? <><span className="font-medium text-success">Envío a domicilio gratis</span> por temporada.</> : "El envío se calcula en el checkout."} <Link href={legalPaths.shipping} className="underline underline-offset-4">Envíos y recolección</Link></p>
+            )}
             <div id="comprar" className="mt-6">
               {purchasable ? (
-                <AddToCartButton productId={product.id} productName={product.name} withQuantity max={product.maxQuantityPerOrder} />
+                <AddToCartButton productId={product.id} productName={product.name} withQuantity={product.maxQuantityPerOrder > 1} max={product.maxQuantityPerOrder} />
               ) : (
                 <p className="border border-border bg-surface px-4 py-3 text-sm">{product.status === "sold_out" ? "Agotado por ahora." : "Disponible muy pronto."}</p>
               )}
             </div>
+            {complement && complement.price && (
+              <div className="mt-6 flex items-center gap-4 border border-border bg-surface p-3">
+                <Link href={`/productos/${complement.slug}`} className="relative size-16 shrink-0 overflow-hidden bg-sand">
+                  <Image src={complement.image.src} alt="" fill sizes="64px" className="object-cover" />
+                </Link>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">Complemento digital</p>
+                  <Link href={`/productos/${complement.slug}`} className="block font-semibold hover:underline">{complement.name}</Link>
+                  <p className="text-sm lining-nums">
+                    {formatMoney(complement.price.amount, complement.price.currency)}
+                    {complement.compareAtPrice && <s className="ml-2 text-muted">{formatMoney(complement.compareAtPrice.amount, complement.compareAtPrice.currency)}</s>}
+                    <span className="ml-2 text-xs text-muted">PDF · sin envío</span>
+                  </p>
+                </div>
+                <AddToCartButton productId={complement.id} productName={complement.name} compact />
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -102,7 +126,7 @@ export default async function ProductPage({ params }: PageProps<"/productos/[slu
             </ul>
           </Reveal>
           <Reveal delay={120}>
-            <SectionHeading align="left" eyebrow="Cómo se juega" title="Pequeñas preguntas, grandes conversaciones." />
+            <SectionHeading align="left" eyebrow={digital ? "Cómo funciona" : "Cómo se juega"} title={digital ? "Del correo a la conversación." : "Pequeñas preguntas, grandes conversaciones."} />
             <ol className="mt-8 grid gap-5 sm:grid-cols-2">
               {product.howToPlay.map((step, index) => (
                 <li key={step.title} className="border-l border-border pl-4">

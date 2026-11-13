@@ -43,8 +43,9 @@ export type CreateStoreCheckoutInput = {
   orderNumber: string;
   currency: string;
   lines: { name: string; unitAmount: number; quantity: number }[];
-  deliveryMethod: "shipping" | "pickup";
-  /** Centavos; 0 en recolección. */
+  /** "digital": pedido solo con productos digitales (sin envío). */
+  deliveryMethod: "shipping" | "pickup" | "digital";
+  /** Centavos; 0 en recolección y en digital. */
   shippingAmount: number;
   shippingLabel: string | null;
   email: string;
@@ -161,7 +162,7 @@ export function createStripeGateway(stripe: Stripe): PaymentGateway {
           metadata,
           payment_intent_data: {
             metadata,
-            description: `Pedido inttimo ${input.orderNumber} · ${input.deliveryMethod === "pickup" ? "Recolección en Chihuahua" : "Envío a domicilio"}`,
+            description: `Pedido inttimo ${input.orderNumber} · ${{ pickup: "Recolección en Chihuahua", shipping: "Envío a domicilio", digital: "Descarga digital" }[input.deliveryMethod]}`,
           },
           // Dirección y tarifa se eligen en el checkout de inttimo (antes de Stripe); aquí solo se cobra. Un envío gratis
           // se muestra igual, en $0, para que el cliente vea que no se le cobra.

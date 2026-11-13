@@ -93,7 +93,9 @@ export async function quoteStoreShipping(deps: Pick<StoreDeps, "db" | "shipping"
   if (found.some(({ product }) => !product || !isPurchasable(product))) {
     return fail(409, "out_of_stock", "Revisa tu carrito: hay productos que ya no están disponibles.");
   }
-  const items = found as { product: ForSale; quantity: number }[];
+  // Los productos digitales no van en la caja.
+  const items = (found as { product: ForSale; quantity: number }[]).filter(({ product }) => product.type !== "digital");
+  if (!items.length) return fail(400, "validation_error", "Tu carrito solo tiene productos digitales: no necesita envío.");
   const free = hasFreeShipping(items.map(({ product }) => product));
 
   if (input.clientIp && (await hitRateLimit(deps.db, `store:quote:${hash(input.clientIp)}`, RATE_LIMIT.limit, RATE_LIMIT.windowSeconds))) {

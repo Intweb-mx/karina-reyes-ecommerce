@@ -59,6 +59,9 @@ export function CheckoutView() {
   const { quote, loading } = useCartQuote();
   const purchasableLines = (quote?.lines ?? []).filter((line) => line.available).map((line) => ({ productId: line.productId, quantity: line.quantity }));
   const unavailableLines = (quote?.lines ?? []).filter((line) => !line.available);
+  // Solo productos digitales: no hay entrega que elegir (el enlace de descarga llega por correo).
+  const availableQuoteLines = (quote?.lines ?? []).filter((line) => line.available);
+  const digitalOnly = availableQuoteLines.length > 0 && availableQuoteLines.every((line) => line.digital);
   const [options, setOptions] = useState<DeliveryOptionsResponse | null>(null);
   const [method, setMethod] = useState<"pickup" | "shipping" | null>(null);
   const [pickupPointId, setPickupPointId] = useState("");
@@ -115,7 +118,7 @@ export function CheckoutView() {
 
   const rate = shippingQuote?.rates.find((r) => r.id === rateId) ?? null;
   const currency = quote?.total.currency ?? "mxn";
-  const shippingAmount = method === "pickup" ? 0 : rate?.price.amount ?? null;
+  const shippingAmount = digitalOnly || method === "pickup" ? 0 : rate?.price.amount ?? null;
   const total = quote ? quote.total.amount + (shippingAmount ?? 0) : null;
 
   function setAddressField(key: keyof Address, value: string) {
@@ -213,9 +216,9 @@ export function CheckoutView() {
     const e: Errors = {};
     if (fullName.length < 2) e.fullName = ["Escribe tu nombre completo."];
     if (!EMAIL.test(email)) e.email = ["Correo no válido."];
-    if (!method) e.deliveryMethod = ["Elige cómo quieres recibir tu pedido."];
-    if (method === "pickup" && !pickupPointId) e.pickupPointId = ["Elige el punto de recolección."];
-    if (method === "shipping") {
+    if (!digitalOnly && !method) e.deliveryMethod = ["Elige cómo quieres recibir tu pedido."];
+    if (!digitalOnly && method === "pickup" && !pickupPointId) e.pickupPointId = ["Elige el punto de recolección."];
+    if (!digitalOnly && method === "shipping") {
       Object.assign(e, addressErrors());
       if (!shippingQuote || !rateId) e.shipping = ["Calcula el envío y elige una opción."];
     }
@@ -231,7 +234,11 @@ export function CheckoutView() {
         contact: { fullName, email, phone: contact.phone.trim() || undefined },
         // Las líneas que cotizó el servidor (puede recortar cantidades o quitar productos), no las del navegador.
         lines: purchasableLines,
-        delivery: method === "pickup" ? { method: "pickup", pickupPointId } : { method: "shipping", quoteId: shippingQuote!.quoteId, rateId: rateId!, address: { ...address, reference: address.reference || undefined } },
+        delivery: digitalOnly
+          ? { method: "digital" }
+          : method === "pickup"
+            ? { method: "pickup", pickupPointId }
+            : { method: "shipping", quoteId: shippingQuote!.quoteId, rateId: rateId!, address: { ...address, reference: address.reference || undefined } },
         acceptTerms: true,
         termsVersion: options.termsVersion,
         marketingConsent: form.get("marketingConsent") === "on",
@@ -271,7 +278,7 @@ export function CheckoutView() {
   const money = (amount: number) => formatMoney(amount, currency);
   const done = {
     contact: contact.fullName.trim().length >= 2 && EMAIL.test(contact.email.trim()),
-    delivery: method === "pickup" ? !!pickupPointId : method === "shipping" ? !!rate : false,
+    delivery: digitalOnly || (method === "pickup" ? !!pickupPointId : method === "shipping" ? !!rate : false),
   };
 
   return (
@@ -308,8 +315,13 @@ export function CheckoutView() {
           </div>
         </FormSection>
 
-        <FormSection step="2" title="Entrega" description="¿Cómo quieres recibir tu pedido?" id="paso-entrega" complete={done.delivery}>
-          {!options ? (
+        <FormSection step="2" title="Entrega" description={digitalOnly ? "Tu pedido es digital: no necesita envío." : "¿Cómo quieres recibir tu pedido?"} id="paso-entrega" complete={done.delivery}>
+          {digitalOnly ? (
+            <p className="border border-border bg-surface px-4 py-3 text-sm leading-relaxed">
+              <span className="font-semibold">Descarga digital.</span> Al confirmar tu pago te enviamos a tu correo un enlace para descargar el archivo. El enlace
+              sirve una sola vez: ábrelo cuando estés listo para guardarlo.
+            </p>
+          ) : !options ? (
             <p className="flex items-center gap-2 text-sm text-muted"><Spinner className="size-4" /> Cargando opciones de entrega…</p>
           ) : (
             <fieldset aria-describedby={errors.deliveryMethod ? "deliveryMethod-error" : undefined}>
@@ -330,7 +342,7 @@ export function CheckoutView() {
             </fieldset>
           )}
 
-          {method === "pickup" && options && (
+          {!digitalOnly && method === "pickup" && options && (
             <fieldset aria-describedby={errors.pickupPointId ? "pickupPointId-error" : undefined}>
               <legend className="block text-[0.9375rem] font-semibold">Punto de recolección</legend>
               <div className="mt-3 grid gap-3">
@@ -345,7 +357,7 @@ export function CheckoutView() {
             </fieldset>
           )}
 
-          {method === "shipping" && (
+          {!digitalOnly && method === "shipping" && (
             <div className="space-y-6">
               <div className="grid gap-6 sm:grid-cols-2">
                 {ADDRESS_FIELDS.map((field) => (
@@ -429,15 +441,19 @@ export function CheckoutView() {
           <dl className="space-y-3 border-t border-border pt-5 text-sm">
             <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd className="lining-nums">{quote ? money(quote.subtotal.amount) : "—"}</dd></div>
             {quote?.discount && <div className="flex justify-between text-success"><dt>Descuento</dt><dd className="lining-nums">−{money(quote.discount.amount)}</dd></div>}
-            <div className="flex justify-between">
-              <dt className="text-muted">{method === "pickup" ? "Recolección en Chihuahua" : "Envío"}</dt>
-              <dd className="lining-nums">{method === "pickup" ? <span className="text-success">$0</span> : rate ? money(rate.price.amount) : <span className="text-muted">Por calcular</span>}</dd>
-            </div>
+            {digitalOnly ? (
+              <div className="flex justify-between"><dt className="text-muted">Entrega</dt><dd>Descarga digital</dd></div>
+            ) : (
+              <div className="flex justify-between">
+                <dt className="text-muted">{method === "pickup" ? "Recolección en Chihuahua" : "Envío"}</dt>
+                <dd className="lining-nums">{method === "pickup" ? <span className="text-success">$0</span> : rate ? money(rate.price.amount) : <span className="text-muted">Por calcular</span>}</dd>
+              </div>
+            )}
             <div className="flex items-baseline justify-between border-t-2 border-fg pt-4">
               <dt className="text-base font-semibold">Total</dt>
               <dd key={total ?? 0} className="animate-tick font-serif text-4xl font-medium lining-nums" aria-live="polite">{total !== null ? money(total) : "—"}</dd>
             </div>
-            {method === "shipping" && !rate && <p className="text-right text-xs text-muted">Calcula el envío para ver el total definitivo.</p>}
+            {!digitalOnly && method === "shipping" && !rate && <p className="text-right text-xs text-muted">Calcula el envío para ver el total definitivo.</p>}
           </dl>
 
           <div className="space-y-3">

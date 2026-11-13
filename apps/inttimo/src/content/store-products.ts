@@ -65,6 +65,49 @@ PRODUCTS["uno-mas-uno-duo"] = unoPack(2, "Pack dúo", "Uno para ustedes y otro p
 PRODUCTS["uno-mas-uno-paquete-6"] = unoPack(6, "Paquete de 6", "Pensado para iglesias, ministerios y grupos de matrimonios.");
 PRODUCTS["uno-mas-uno-paquete-10"] = unoPack(10, "Paquete de 10", "Pensado para iglesias, ministerios, retiros y grupos de matrimonios.");
 
+/**
+ * Guía digital «Después de la pregunta» (el mismo PDF del bonus de preventa), a la venta como complemento de UNO+UNO o
+ * sola. Se entrega con un enlace de descarga de un solo uso. Texto basado en el del bonus: PENDIENTE DE APROBACIÓN.
+ */
+const bonus = uno.bonus!;
+PRODUCTS["despues-de-la-pregunta"] = {
+  tagline: "Guía digital para seguir conversando",
+  image: { ...bonus.image },
+  gallery: [{ ...bonus.image }],
+  description: [
+    "«Después de la pregunta» es una guía digital de preguntas complementarias para seguir conversando juntos, más allá de las tarjetas.",
+    "Es el complemento de UNO+UNO: úsenla después de jugar o en cualquier momento en que quieran ir un poco más profundo.",
+  ],
+  includes: ["Guía en PDF «Después de la pregunta»", "Enlace de descarga por correo al confirmar tu pago", "Para leer en el teléfono o imprimir"],
+  howToPlay: [
+    { title: "Compra la guía", body: "Sola o junto con tu UNO+UNO." },
+    { title: "Revisa tu correo", body: "Al confirmar tu pago te llega el enlace de descarga." },
+    { title: "Descárgala una vez", body: "El enlace sirve una sola vez: guarda el archivo en tu dispositivo." },
+    { title: "Sigan conversando", body: "Úsenla después de jugar o cuando quieran ir más profundo." },
+  ],
+  faqs: [
+    {
+      id: "pdf-descarga",
+      category: "producto",
+      question: "¿Cómo recibo la guía?",
+      answer: "Al confirmar tu pago te enviamos a tu correo un enlace de descarga. El enlace sirve una sola vez: ábrelo cuando estés listo para guardar el archivo.",
+    },
+    {
+      id: "pdf-perdido",
+      category: "producto",
+      question: "¿Qué hago si perdí el archivo o la descarga falló?",
+      answer: "Escríbenos por WhatsApp o correo con tu número de pedido y te enviamos un enlace nuevo al correo de tu compra.",
+    },
+    {
+      id: "pdf-envio",
+      category: "producto",
+      question: "¿Tiene costo de envío?",
+      answer: "No. Es un producto digital: si compras solo la guía, no necesitas dirección ni envío.",
+    },
+  ],
+  seo: { title: "Después de la pregunta · Guía digital de UNO+UNO", description: "Guía digital en PDF con preguntas complementarias para seguir conversando juntos. Complemento de UNO+UNO." },
+};
+
 export function getStoreProductContent(slug: string): StoreProductContent | null {
   return PRODUCTS[slug] ?? null;
 }

@@ -65,6 +65,7 @@ function quoteLines(lines: { productId: string; quantity: number }[]): CartQuote
         notice: quantity < line.quantity ? `Máximo ${max} por pedido.` : null,
         available: product.status !== "sold_out",
         maxQuantity: max,
+        digital: product.type === "digital",
       },
     ];
   });
@@ -79,7 +80,7 @@ function demoOrder(orderNumber: string, method: "shipping" | "pickup" = "shippin
     createdAt: at(30),
     paymentStatus: "paid",
     fulfillmentStatus: method === "shipping" ? "in_transit" : "ready_for_pickup",
-    lines: [{ name: "UNO+UNO", image: unoMasUno.image, quantity: 1, unitPrice: MXN(50000), subtotal: MXN(50000) }],
+    lines: [{ name: "UNO+UNO", image: unoMasUno.image, quantity: 1, unitPrice: MXN(50000), subtotal: MXN(50000), digital: false }],
     subtotal: MXN(50000),
     discount: null,
     shipping,

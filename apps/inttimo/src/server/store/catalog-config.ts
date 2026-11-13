@@ -18,6 +18,10 @@ const productSchema = z
     compareAtPrice: pesos.nullable().optional(),
     saleStatus: z.enum(["coming_soon", "presale", "on_sale"]),
     published: z.boolean(),
+    /** "digital": se entrega con un enlace de descarga de un solo uso (sin inventario ni envío). */
+    type: z.enum(["physical", "digital"]).default("physical"),
+    /** Llave del archivo en el almacenamiento privado (obligatoria en un producto digital). */
+    digitalFileKey: z.string().regex(/^[\w./-]{1,300}$/, "Llave de archivo no válida.").nullable().optional(),
     maxQuantityPerOrder: z.number().int().min(1).max(100).optional(),
     /** Paquete: descuenta `units` piezas del inventario de `slug`. */
     bundleOf: z.object({ slug, units: z.number().int().min(2).max(100) }).nullable().optional(),
@@ -39,6 +43,14 @@ const productSchema = z
   .refine((product) => !product.saleEndsAt || product.compareAtPrice != null, {
     message: "El fin del descuento necesita el precio normal en compareAtPrice.",
     path: ["saleEndsAt"],
+  })
+  .refine((product) => (product.type === "digital") === !!product.digitalFileKey, {
+    message: "Un producto digital necesita digitalFileKey, y solo los digitales lo llevan.",
+    path: ["digitalFileKey"],
+  })
+  .refine((product) => product.type !== "digital" || (!product.bundleOf && !product.freeShippingUntil), {
+    message: "Un producto digital no puede ser paquete ni tener envío gratis.",
+    path: ["type"],
   })
   .refine((product) => product.bundleOf?.slug !== product.slug, { message: "Un paquete no puede descontar de sí mismo.", path: ["bundleOf"] });
 

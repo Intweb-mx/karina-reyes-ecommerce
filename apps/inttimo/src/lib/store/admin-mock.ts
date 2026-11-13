@@ -82,7 +82,7 @@ function build(seed: Seed): AdminOrderDetail {
     createdAt: created,
     paymentStatus: seed.payment ?? "paid",
     fulfillmentStatus: seed.status,
-    lines: [{ name: "UNO+UNO", image, quantity: seed.units, unitPrice: MXN(PRICE), subtotal }],
+    lines: [{ name: "UNO+UNO", image, quantity: seed.units, unitPrice: MXN(PRICE), subtotal, digital: false }],
     subtotal,
     discount: null,
     shipping,

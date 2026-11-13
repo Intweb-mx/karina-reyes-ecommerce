@@ -27,6 +27,7 @@ export const PAYMENT_TEXT: Record<PaymentStatus, string> = {
 
 const SHIPPING_FLOW: FulfillmentStatus[] = ["confirmed", "preparing", "handed_to_carrier", "in_transit", "delivered"];
 const PICKUP_FLOW: FulfillmentStatus[] = ["confirmed", "preparing", "ready_for_pickup", "delivered"];
+const DIGITAL_FLOW: FulfillmentStatus[] = ["confirmed", "delivered"];
 
 /** Pasos del pedido (mockups 09 y 12). Solo se marcan como hechos los que reportó el sistema. */
 export function OrderSteps({ order }: { order: OrderView }) {
@@ -39,7 +40,7 @@ export function OrderSteps({ order }: { order: OrderView }) {
       </p>
     );
   }
-  const flow = order.delivery.method === "pickup" ? PICKUP_FLOW : SHIPPING_FLOW;
+  const flow = order.delivery.method === "pickup" ? PICKUP_FLOW : order.delivery.method === "digital" ? DIGITAL_FLOW : SHIPPING_FLOW;
   const rank = (status: FulfillmentStatus) => {
     const index = flow.indexOf(status === "label_generated" ? "preparing" : status === "out_for_delivery" ? "in_transit" : status);
     return index === -1 ? 0 : index;
@@ -84,7 +85,11 @@ export function OrderLines({ order }: { order: OrderView }) {
       <dl className="mt-5 space-y-2 border-t border-border pt-4 text-sm">
         <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd className="lining-nums">{money(order.subtotal)}</dd></div>
         {order.discount && <div className="flex justify-between text-success"><dt>Descuento</dt><dd className="lining-nums">−{money(order.discount)}</dd></div>}
-        <div className="flex justify-between"><dt className="text-muted">{order.delivery.method === "pickup" ? "Recolección" : "Envío"}</dt><dd className="lining-nums">{order.shipping.amount ? money(order.shipping) : order.delivery.method === "shipping" ? "Gratis" : "$0"}</dd></div>
+        {order.delivery.method === "digital" ? (
+          <div className="flex justify-between"><dt className="text-muted">Entrega</dt><dd>Descarga digital</dd></div>
+        ) : (
+          <div className="flex justify-between"><dt className="text-muted">{order.delivery.method === "pickup" ? "Recolección" : "Envío"}</dt><dd className="lining-nums">{order.shipping.amount ? money(order.shipping) : order.delivery.method === "shipping" ? "Gratis" : "$0"}</dd></div>
+        )}
         <div className="flex items-baseline justify-between border-t border-border pt-3"><dt className="font-semibold">Total</dt><dd className="font-serif text-3xl font-medium lining-nums">{money(order.total)}</dd></div>
       </dl>
     </div>
@@ -110,7 +115,9 @@ export function DeliveryInfo({ order }: { order: OrderView }) {
   const { delivery, shipment } = order;
   return (
     <div className="space-y-2 text-sm">
-      {delivery.method === "pickup" && delivery.pickupPoint ? (
+      {delivery.method === "digital" ? (
+        <p className="font-semibold">Descarga digital: el enlace llega a tu correo.</p>
+      ) : delivery.method === "pickup" && delivery.pickupPoint ? (
         <>
           <p className="font-semibold">Recolección: {delivery.pickupPoint.name}</p>
           <p className="text-muted">{delivery.pickupPoint.schedule}</p>

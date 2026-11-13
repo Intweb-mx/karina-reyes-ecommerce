@@ -192,6 +192,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "reservation.hand_to_carrier": "Entregó un pedido a la paquetería",
   "reservation.note": "Agregó una nota a un pedido",
   "reservation.resend_email": "Reenvió un correo a un cliente",
+  "store_order.download_resend": "Reenvió el enlace de descarga de un pedido de la tienda",
 };
 
 export const FIELD_LABELS: Record<string, string> = {

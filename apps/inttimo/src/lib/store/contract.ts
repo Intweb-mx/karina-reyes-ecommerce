@@ -72,6 +72,8 @@ export type CartQuoteLine = {
   notice: string | null;
   available: boolean;
   maxQuantity: number;
+  /** Producto digital (descarga por correo): un carrito solo con estos no lleva entrega. */
+  digital: boolean;
 };
 
 export type CartQuoteResponse = {
@@ -87,7 +89,8 @@ export type CartQuoteResponse = {
 // ---------------------------------------------------------------------------------------------
 // Checkout
 
-export type DeliveryMethod = "shipping" | "pickup";
+/** "digital": pedido solo con productos digitales (sin envío; el enlace de descarga llega por correo). */
+export type DeliveryMethod = "shipping" | "pickup" | "digital";
 
 export type PickupPoint = { id: string; name: string; schedule: string };
 
@@ -123,7 +126,8 @@ export type CheckoutRequest = {
   contact: { fullName: string; email: string; phone?: string };
   lines: CartLine[];
   couponCode?: string;
-  delivery: { method: "pickup"; pickupPointId: string } | { method: "shipping"; quoteId: string; rateId: string; address: Address };
+  /** `{ method: "digital" }` solo (y siempre) cuando todo el carrito son productos digitales. */
+  delivery: { method: "pickup"; pickupPointId: string } | { method: "shipping"; quoteId: string; rateId: string; address: Address } | { method: "digital" };
   acceptTerms: true;
   termsVersion: number;
   marketingConsent: boolean;
@@ -140,7 +144,8 @@ export type PaymentStatus = "pending" | "authorized" | "paid" | "failed" | "canc
 
 export type FulfillmentStatus = "confirmed" | "preparing" | "label_generated" | "ready_for_pickup" | "handed_to_carrier" | "in_transit" | "out_for_delivery" | "delivered" | "exception";
 
-export type OrderLine = { name: string; image: ProductImage; quantity: number; unitPrice: Money; subtotal: Money };
+/** `digital`: se entrega con un enlace de descarga por correo. */
+export type OrderLine = { name: string; image: ProductImage; quantity: number; unitPrice: Money; subtotal: Money; digital: boolean };
 
 export type TrackingEvent = { at: string; status: FulfillmentStatus; description: string; location: string | null };
 

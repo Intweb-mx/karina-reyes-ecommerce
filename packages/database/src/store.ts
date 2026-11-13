@@ -4,6 +4,7 @@ import type { Database } from "./client.ts";
 import type { EventSource, Executor } from "./presale.ts";
 import { presaleCampaigns, type DeliveryAddress, type ShippingSelection } from "./schema/presale.ts";
 import {
+  storeDownloadLinks,
   storeInventory,
   storeOrderEvents,
   storeOrderItems,
@@ -183,14 +184,16 @@ export async function listStockMovements(db: Executor, productId: string, limit 
 export type StoreOrder = typeof storeOrders.$inferSelect;
 export type StoreOrderItem = typeof storeOrderItems.$inferSelect;
 export type StoreOrderNote = typeof storeOrderNotes.$inferSelect;
+export type StoreDownloadLink = typeof storeDownloadLinks.$inferSelect;
 
 export type NewStoreOrderLine = { productId: string; quantity: number };
 
 export type NewStoreOrder = {
   contact: { fullName: string; email: string; phone: string | null };
   lines: NewStoreOrderLine[];
-  delivery: { method: "pickup"; pickupPointId: string } | { method: "shipping"; address: DeliveryAddress; selection: ShippingSelection };
-  /** Centavos, ya validados contra la cotización de SkyDropX por quien llama. Debe ser 0 en recolección. */
+  /** "digital": solo cuando todo el pedido son productos digitales (y entonces es obligatorio). */
+  delivery: { method: "pickup"; pickupPointId: string } | { method: "shipping"; address: DeliveryAddress; selection: ShippingSelection } | { method: "digital" };
+  /** Centavos, ya validados contra la cotización de SkyDropX por quien llama. Debe ser 0 en recolección y en digital. */
   shippingAmount: number;
   termsVersion: number;
   marketingConsent: boolean;
@@ -270,12 +273,16 @@ function mergeLines(lines: NewStoreOrderLine[]): NewStoreOrderLine[] {
   return [...merged].map(([productId, quantity]) => ({ productId, quantity })).sort((a, b) => (a.productId < b.productId ? -1 : 1));
 }
 
-type StockLine = { productId: string; quantity: number; stockProductId: string | null; stockUnits: number };
+type StockLine = { productId: string; quantity: number; stockProductId: string | null; stockUnits: number; digital?: boolean };
 
-/** Piezas que mueve cada inventario (un paquete cuenta sus piezas en el de su producto base), ordenadas por id. */
+/**
+ * Piezas que mueve cada inventario (un paquete cuenta sus piezas en el de su producto base), ordenadas por id. Las líneas
+ * digitales no mueven inventario.
+ */
 function stockUnitsByKey(lines: StockLine[]): Map<string, number> {
   const units = new Map<string, number>();
   for (const line of lines) {
+    if (line.digital) continue;
     const key = line.stockProductId ?? line.productId;
     units.set(key, (units.get(key) ?? 0) + line.quantity * line.stockUnits);
   }
@@ -298,6 +305,7 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
   const lines = mergeLines(input.lines);
   if (!lines.length) throw new InvalidStoreOrderError("El pedido no tiene productos.");
   if (input.delivery.method === "pickup" && input.shippingAmount !== 0) throw new InvalidStoreOrderError("La recolección no tiene costo de envío.");
+  if (input.delivery.method === "digital" && input.shippingAmount !== 0) throw new InvalidStoreOrderError("Un pedido digital no tiene costo de envío.");
   if (!Number.isInteger(input.shippingAmount) || input.shippingAmount < 0) throw new InvalidStoreOrderError("El costo de envío no es válido.");
   const productIds = lines.map((line) => line.productId);
 
@@ -311,8 +319,10 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
     const products = new Map(
       (await tx.select().from(storeProducts).where(inArray(storeProducts.id, productIds))).map((row) => [row.id, { ...row, ...currentPrice(row, now) }]),
     );
-    const stockIds = [...new Set(lines.map((line) => { const product = products.get(line.productId); return product ? stockKeyOf(product) : line.productId; }))];
-    const inventory = await tx.select().from(storeInventory).where(inArray(storeInventory.productId, stockIds)).orderBy(asc(storeInventory.productId)).for("update");
+    const isDigital = (productId: string) => products.get(productId)?.type === "digital";
+    // Los productos digitales no llevan inventario: solo se bloquea el de las líneas físicas.
+    const stockIds = [...new Set(lines.filter((line) => !isDigital(line.productId)).map((line) => { const product = products.get(line.productId); return product ? stockKeyOf(product) : line.productId; }))];
+    const inventory = stockIds.length ? await tx.select().from(storeInventory).where(inArray(storeInventory.productId, stockIds)).orderBy(asc(storeInventory.productId)).for("update") : [];
 
     // Con el inventario bloqueado, dos peticiones con la misma clave se serializan: la segunda ya ve el pedido de la primera.
     if (input.idempotencyKey) {
@@ -324,17 +334,22 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
 
     for (const line of lines) {
       const product = products.get(line.productId);
-      if (!product || !stock.has(stockKeyOf(product)) || !product.published || product.price === null || product.saleStatus === "coming_soon") {
+      const deliverable = product?.type === "digital" ? !!product.digitalFileKey : !!product && stock.has(stockKeyOf(product));
+      if (!product || !deliverable || !product.published || product.price === null || product.saleStatus === "coming_soon") {
         throw new StoreProductUnavailableError(line.productId);
       }
     }
+    const allDigital = lines.every((line) => isDigital(line.productId));
+    if (allDigital && input.delivery.method !== "digital") throw new InvalidStoreOrderError("Este pedido solo tiene productos digitales: no lleva envío ni recolección.");
+    if (!allDigital && input.delivery.method === "digital") throw new InvalidStoreOrderError("Elige cómo recibir los productos físicos del pedido.");
     for (const line of lines) {
       const product = products.get(line.productId)!;
       if (line.quantity > product.maxQuantityPerOrder) throw new InvalidStoreOrderError(`Máximo ${product.maxQuantityPerOrder} por pedido de ${product.name}.`);
     }
     // Piezas por inventario: UNO+UNO suelto y un dúo en el mismo carrito compiten por las mismas piezas.
-    const pieces = stockUnitsByKey(lines.map((line) => ({ ...line, stockProductId: products.get(line.productId)!.stockProductId, stockUnits: products.get(line.productId)!.stockUnits })));
+    const pieces = stockUnitsByKey(lines.map((line) => ({ ...line, stockProductId: products.get(line.productId)!.stockProductId, stockUnits: products.get(line.productId)!.stockUnits, digital: isDigital(line.productId) })));
     for (const line of lines) {
+      if (isDigital(line.productId)) continue;
       const product = products.get(line.productId)!;
       const row = stock.get(stockKeyOf(product))!;
       const free = row.onHand - row.reserved;
@@ -385,6 +400,7 @@ export async function createStoreOrder(db: Database, input: NewStoreOrder, now: 
             unitAmount: product.price!,
             stockProductId: product.stockProductId,
             stockUnits: product.stockUnits,
+            digital: product.type === "digital",
           };
         }),
       )
@@ -496,7 +512,7 @@ export async function getExpiredHeldUnits(db: Executor, productIds: string[], no
     .select({ productId: stockKey, units: sql<number>`sum(${storeOrderItems.quantity} * ${storeOrderItems.stockUnits})::int` })
     .from(storeOrderItems)
     .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.orderId))
-    .where(and(inArray(stockKey, productIds), expiredHoldWhere(holdCutoff(now))))
+    .where(and(inArray(stockKey, productIds), eq(storeOrderItems.digital, false), expiredHoldWhere(holdCutoff(now))))
     .groupBy(stockKey);
   return new Map(rows.map((row) => [row.productId, Number(row.units)]));
 }
@@ -515,6 +531,7 @@ export async function getStoreHeldUnits(db: Executor, buyer: { email: string } |
     .where(
       and(
         who,
+        eq(storeOrderItems.digital, false),
         eq(storeOrders.paymentStatus, "pending"),
         eq(storeOrders.inventoryReserved, true),
         // Negación explícita de expiredHoldWhere sin NULL: coalesce(vence la sesión, creado) >= corte.
@@ -862,4 +879,99 @@ export async function getStoreShippingQuote(db: Executor, id: string): Promise<S
   if (!UUID_PATTERN.test(id)) return null;
   const [row] = await db.select().from(storeShippingQuotes).where(eq(storeShippingQuotes.id, id)).limit(1);
   return row ?? null;
+}
+
+// ---------- Productos digitales: enlaces de descarga de un solo uso ----------
+
+/** Pagado (o con reembolso parcial): se puede entregar lo digital. */
+const DELIVERABLE_PAYMENT = ["paid", "partially_refunded"] as const;
+
+/**
+ * Emite enlaces nuevos para las líneas digitales de un pedido pagado (uno por producto) y revoca los anteriores que no se
+ * usaron: solo el último enlace enviado sirve. Quien llama genera los tokens y solo pasa su hash.
+ */
+export async function issueStoreDownloadLinks(
+  db: Database,
+  orderId: string,
+  links: { productId: string; tokenHash: string }[],
+  ctx: { source: EventSource; actor?: string | null },
+  now: Date = new Date(),
+): Promise<StoreDownloadLink[]> {
+  if (!links.length) return [];
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).for("update");
+    if (!order || !(DELIVERABLE_PAYMENT as readonly string[]).includes(order.paymentStatus)) throw new InvalidStoreOrderError("El pedido no está pagado: no se puede entregar el producto digital.");
+    const productIds = links.map((link) => link.productId);
+    const digitalItems = await tx
+      .select({ productId: storeOrderItems.productId })
+      .from(storeOrderItems)
+      .where(and(eq(storeOrderItems.orderId, orderId), eq(storeOrderItems.digital, true), inArray(storeOrderItems.productId, productIds)));
+    if (digitalItems.length !== new Set(productIds).size) throw new InvalidStoreOrderError("El pedido no incluye ese producto digital.");
+    await tx
+      .update(storeDownloadLinks)
+      .set({ revokedAt: now })
+      .where(and(eq(storeDownloadLinks.orderId, orderId), inArray(storeDownloadLinks.productId, productIds), isNull(storeDownloadLinks.usedAt), isNull(storeDownloadLinks.revokedAt)));
+    const rows = await tx
+      .insert(storeDownloadLinks)
+      .values(links.map((link) => ({ orderId, productId: link.productId, tokenHash: link.tokenHash, createdAt: now })))
+      .returning();
+    await addStoreOrderEvent(tx, orderId, "DOWNLOAD_LINK_ISSUED", ctx.source, { actor: ctx.actor ?? null, metadata: { products: productIds } });
+    return rows;
+  });
+}
+
+export type StoreDownloadState =
+  | { status: "ready" | "used"; productName: string; orderNumber: string; usedAt: Date | null }
+  | { status: "invalid" | "revoked" | "unpaid" };
+
+/** Estado de un enlace sin gastarlo (para la página que muestra el botón "Descargar"). */
+export async function getStoreDownloadLink(db: Executor, tokenHash: string): Promise<StoreDownloadState> {
+  const [row] = await db
+    .select({ link: storeDownloadLinks, paymentStatus: storeOrders.paymentStatus, orderNumber: storeOrders.orderNumber, productName: storeProducts.name })
+    .from(storeDownloadLinks)
+    .innerJoin(storeOrders, eq(storeOrders.id, storeDownloadLinks.orderId))
+    .innerJoin(storeProducts, eq(storeProducts.id, storeDownloadLinks.productId))
+    .where(eq(storeDownloadLinks.tokenHash, tokenHash))
+    .limit(1);
+  if (!row) return { status: "invalid" };
+  if (row.link.revokedAt) return { status: "revoked" };
+  if (!(DELIVERABLE_PAYMENT as readonly string[]).includes(row.paymentStatus)) return { status: "unpaid" };
+  return { status: row.link.usedAt ? "used" : "ready", productName: row.productName, orderNumber: row.orderNumber, usedAt: row.link.usedAt };
+}
+
+/**
+ * Gasta el enlace (una sola vez, bajo candado) y devuelve la llave del archivo a firmar. Dos clics simultáneos: solo uno
+ * obtiene el archivo. Un pedido reembolsado por completo o un enlace revocado no entregan nada.
+ */
+export async function consumeStoreDownloadLink(
+  db: Database,
+  tokenHash: string,
+  now: Date = new Date(),
+): Promise<{ status: "ok"; fileKey: string; productSlug: string; orderId: string } | { status: "invalid" | "revoked" | "unpaid" | "used" | "unavailable" }> {
+  return db.transaction(async (tx) => {
+    const [link] = await tx.select().from(storeDownloadLinks).where(eq(storeDownloadLinks.tokenHash, tokenHash)).for("update");
+    if (!link) return { status: "invalid" as const };
+    if (link.revokedAt) return { status: "revoked" as const };
+    if (link.usedAt) return { status: "used" as const };
+    const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, link.orderId));
+    if (!order || !(DELIVERABLE_PAYMENT as readonly string[]).includes(order.paymentStatus)) return { status: "unpaid" as const };
+    const [product] = await tx.select().from(storeProducts).where(eq(storeProducts.id, link.productId));
+    if (!product?.digitalFileKey) return { status: "unavailable" as const };
+    await tx.update(storeDownloadLinks).set({ usedAt: now }).where(eq(storeDownloadLinks.id, link.id));
+    await addStoreOrderEvent(tx, order.id, "DOWNLOAD_USED", "api", { metadata: { productId: product.id } });
+    return { status: "ok" as const, fileKey: product.digitalFileKey, productSlug: product.slug, orderId: order.id };
+  });
+}
+
+/** Pedido solo digital cuyo enlace ya salió: queda entregado (una vez). Los pedidos con productos físicos no cambian. */
+export async function markStoreDigitalOrderDelivered(db: Database, orderId: string, ctx: { source: EventSource }, now: Date = new Date()): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(storeOrders)
+      .set({ fulfillmentStatus: "delivered", fulfilledAt: now, deliveredAt: now })
+      .where(and(eq(storeOrders.id, orderId), eq(storeOrders.deliveryMethod, "digital"), ne(storeOrders.fulfillmentStatus, "delivered"), ne(storeOrders.fulfillmentStatus, "exception")))
+      .returning({ id: storeOrders.id });
+    if (updated) await addStoreOrderEvent(tx, orderId, "DELIVERED", ctx.source, { metadata: { digital: true } });
+    return !!updated;
+  });
 }

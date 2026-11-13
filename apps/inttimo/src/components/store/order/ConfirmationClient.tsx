@@ -85,7 +85,11 @@ export function ConfirmationClient({ sessionId }: { sessionId: string | null }) 
       {confirmed && (
         <p className="flex items-start gap-3 border border-border bg-surface px-5 py-4 text-sm">
           <MailIcon className="mt-0.5 size-5 shrink-0 text-fg/60" />
-          {order.delivery.method === "pickup" ? "Te avisaremos por correo cuando tu pedido esté LISTO PARA RECOGER. Espera ese aviso antes de acudir." : "Te enviaremos la guía de rastreo cuando tu pedido salga."} ¿Requieres factura? Solicítala respondiendo a tu correo de confirmación.
+          <span>
+            {order.delivery.method !== "digital" && (order.delivery.method === "pickup" ? "Te avisaremos por correo cuando tu pedido esté LISTO PARA RECOGER. Espera ese aviso antes de acudir. " : "Te enviaremos la guía de rastreo cuando tu pedido salga. ")}
+            {order.lines.some((line) => line.digital) && "En tu correo de confirmación está el enlace para descargar tu producto digital: sirve una sola vez, ábrelo cuando estés listo para guardarlo. "}
+            ¿Requieres factura? Solicítala respondiendo a tu correo de confirmación.
+          </span>
         </p>
       )}
     </div>
