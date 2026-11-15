@@ -28,7 +28,7 @@ Implementa A1–A8 de [BACKEND-REQUEST.md](./BACKEND-REQUEST.md): `apps/inttimo/
 - **Cancelar.** Pagado: reembolso completo en Stripe (clave de idempotencia `store-cancel-<id>`), se registra y las piezas vuelven al inventario con un movimiento de devolución; el cliente recibe un correo. Sin pagar: libera lo apartado y cierra la página de pago. Un pedido que ya salió no se cancela desde el panel. Si la guía ya estaba comprada hay que cancelarla a mano en SkyDropX. Reembolsos parciales: desde Stripe (el webhook los registra).
 - **Incidencias.** Las reporta el equipo (el pedido se pausa y se puede retomar) o el sistema (pago sin existencias, cobro con monto distinto: se resuelven cancelando).
 - **Cambios al contrato** (`admin-contract.ts`, con el simulador al día): acciones `register_shipment` (guía hecha por fuera) y `resolve_exception`; `AdminOrderDetail.notice` (lo que pasó en la última acción, incluido un correo que no salió); `AdminProduct.type` y `bundleOf`.
-- **Pendiente:** A9 Solicitudes (depende de los formularios de contacto e iglesias, subproyecto 7; oculto en producción). Los textos de los correos de enviado, listo para recoger y cancelado son funcionales: falta la aprobación de Karina. No hay correo de "entregado".
+- **Pendiente:** A9 Solicitudes (depende de los formularios de contacto e iglesias, subproyecto 7; oculto en producción). Los textos de los correos de enviado, listo para recoger y cancelado los aprobó Karina (2026-11-15). No hay correo de "entregado".
 - **Antes de usarlo en producción:** confirmar en SkyDropX que el webhook de rastreo apunta a `/api/webhooks/skydropx`, y probar con un pedido real: generar guía, marcar enviado y cancelar con reembolso.
 
 ## Pendientes de negocio (no inventar)

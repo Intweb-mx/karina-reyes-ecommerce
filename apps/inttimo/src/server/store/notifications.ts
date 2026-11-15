@@ -1,7 +1,7 @@
 /*
  * Correos de pedidos de la tienda.
- * COPIA PENDIENTE DE APROBACIÓN DE KARINA (los textos de estos correos son funcionales, no aprobados). El de pedido pagado
- * no promete envío ni guía: eso lo dicen los de ENVIADO / LISTO PARA RECOGER, que salen cuando el equipo lo marca en el panel.
+ * Los textos de ENVIADO, LISTO PARA RECOGER y CANCELADO los aprobó Karina (2026-11-15): no cambiarlos sin avisarle. El de
+ * pedido pagado sigue con copia funcional, pendiente de su aprobación. El de pedido pagado no promete envío ni guía: eso lo dicen los de ENVIADO / LISTO PARA RECOGER, que salen cuando el equipo lo marca en el panel.
  */
 import {
   addStoreOrderEvent,
