@@ -66,7 +66,7 @@ export async function handleStripeEvent(db: Database, event: Stripe.Event): Prom
         : { result: "unchanged", reservationId: reservation.id, status: reservation.status };
     }
 
-    // Reembolso de un pedido de la tienda: se registra; devolver piezas al inventario se decide en el panel (PR B).
+    // Reembolso de un pedido de la tienda: se registra; las piezas vuelven al inventario al cancelarlo en el panel (si aún no sale).
     const storeOrder = await findStoreOrderByPaymentIntent(tx, paymentIntentId);
     if (!storeOrder) return { result: "ignored" };
     const refunded = await applyStoreRefund(tx, storeOrder.id, charge.amount_refunded, ctx);

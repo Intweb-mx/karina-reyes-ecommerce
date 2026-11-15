@@ -1,5 +1,6 @@
 import { ConfigError, getFulfillmentDeps, handle } from "@/server/presale/runtime";
 import { handleSkydropxWebhook } from "@/server/presale/skydropx-webhook";
+import { applyStoreSkydropxEvent } from "@/server/store/fulfillment";
 
 /**
  * Avisos de rastreo de SkyDropX (Conexiones → Webhooks). Autenticación HMAC-SHA512 sobre el cuerpo crudo:
@@ -12,7 +13,9 @@ export async function POST(request: Request) {
     if (!secret) throw new ConfigError("SKYDROPX_WEBHOOK_SECRET no está configurada.");
     const header = process.env.SKYDROPX_WEBHOOK_HEADER || "authorization";
     const rawBody = await request.text();
-    const result = await handleSkydropxWebhook(getFulfillmentDeps(), secret, rawBody, request.headers.get(header));
+    const deps = getFulfillmentDeps();
+    // Una guía que no es de la preventa se busca en los pedidos de la tienda.
+    const result = await handleSkydropxWebhook(deps, secret, rawBody, request.headers.get(header), (event) => applyStoreSkydropxEvent(deps, event));
     return Response.json(result.body, { status: result.status, headers: { "cache-control": "no-store" } });
   });
 }

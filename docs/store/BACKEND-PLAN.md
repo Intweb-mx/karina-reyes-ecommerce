@@ -9,16 +9,27 @@ Implementa lo que pide frontend en [BACKEND-REQUEST.md](./BACKEND-REQUEST.md) y 
 | 2 | Catálogo y carrito: `GET /api/tienda/productos`, `/productos/[slug]`, `POST /carrito/cotizar` | PR A "Vender" ([diseño](./vender-diseno.md), [plan](./vender-plan.md)) |
 | 3 | Entrega, envío y código postal: `/entrega`, `/envio/cotizar`, `/codigo-postal/[cp]` | PR A "Vender" |
 | 4 | Checkout, Stripe y webhook: `/checkout`, `/pedido/confirmacion`, `pnpm store:reconcile` | PR A "Vender" |
-| 5 | Pedidos de la tienda en el panel, con reembolsos y cancelación | pendiente |
-| 6 | Productos e inventario en el panel | pendiente |
+| 5 | Pedidos de la tienda en el panel, con reembolsos y cancelación | hecho (2026-11-14, rama `feat/tienda-panel`; ver "Panel de la tienda") |
+| 6 | Productos e inventario en el panel | hecho (2026-11-14) |
 | 7 | Rastreo, cuenta, contacto, iglesias y newsletter | pendiente |
-| 8 | Resumen del panel | pendiente |
+| 8 | Resumen del panel | hecho (2026-11-14; `newLeads` queda en 0 hasta el subproyecto 7) |
 
 ## Decisiones
 
 - Los pedidos de la tienda viven en tablas `store_*`, separadas de `presale_*` (la preventa tiene dinero real y sigue abierta hasta el 15 de octubre de 2026). Se comparte el código de Stripe, SkyDropX y correos.
 - Stock sin sobreventa: se aparta al iniciar el checkout, se descuenta al confirmarse el pago y se libera si el pago no llega (sesión de 30 minutos más 5 de gracia). Un pago tardío sin stock deja el pedido pagado como excepción para reembolsarlo.
 - Si el contrato de frontend debe cambiar, se edita `contract.ts` y el simulador (`mock.ts`) en el mismo PR que el endpoint.
+
+## Panel de la tienda (2026-11-14)
+
+Implementa A1–A8 de [BACKEND-REQUEST.md](./BACKEND-REQUEST.md): `apps/inttimo/src/server/store/admin.ts` (servicio), `fulfillment.ts` (guía y avisos de SkyDropX), `admin-http.ts` (autenticación de las rutas) y `packages/database/src/store-admin.ts`. Sin migraciones.
+
+- **Entrega.** Envío: `confirmed` → `label_generated` (guía comprada; el cliente aún no recibe nada) → `handed_to_carrier` (correo con la guía) → `in_transit` / `out_for_delivery` → `delivered`. Recolección: `confirmed` → `ready_for_pickup` (correo con el punto) → `delivered`. Los avisos de SkyDropX (`/api/webhooks/skydropx`) avanzan solos los pedidos de la tienda.
+- **Cancelar.** Pagado: reembolso completo en Stripe (clave de idempotencia `store-cancel-<id>`), se registra y las piezas vuelven al inventario con un movimiento de devolución; el cliente recibe un correo. Sin pagar: libera lo apartado y cierra la página de pago. Un pedido que ya salió no se cancela desde el panel. Si la guía ya estaba comprada hay que cancelarla a mano en SkyDropX. Reembolsos parciales: desde Stripe (el webhook los registra).
+- **Incidencias.** Las reporta el equipo (el pedido se pausa y se puede retomar) o el sistema (pago sin existencias, cobro con monto distinto: se resuelven cancelando).
+- **Cambios al contrato** (`admin-contract.ts`, con el simulador al día): acciones `register_shipment` (guía hecha por fuera) y `resolve_exception`; `AdminOrderDetail.notice` (lo que pasó en la última acción, incluido un correo que no salió); `AdminProduct.type` y `bundleOf`.
+- **Pendiente:** A9 Solicitudes (depende de los formularios de contacto e iglesias, subproyecto 7; oculto en producción). Los textos de los correos de enviado, listo para recoger y cancelado son funcionales: falta la aprobación de Karina. No hay correo de "entregado".
+- **Antes de usarlo en producción:** confirmar en SkyDropX que el webhook de rastreo apunta a `/api/webhooks/skydropx`, y probar con un pedido real: generar guía, marcar enviado y cancelar con reembolso.
 
 ## Pendientes de negocio (no inventar)
 
@@ -60,7 +71,7 @@ Implementa lo que pide frontend en [BACKEND-REQUEST.md](./BACKEND-REQUEST.md) y 
 
 La tienda está abierta, pero UNO+UNO sigue `coming_soon` y sin precio: nadie puede comprar hasta completar esta lista.
 
-- [ ] Precio y existencias de UNO+UNO, y pasarlo a `on_sale` (el panel de tienda aún no existe: subproyectos 5, 6 y 8).
+- [x] Precio y existencias de UNO+UNO, y pasarlo a `on_sale` (cargado el 2026-11-12 con `store:catalog` y `store:stock`; desde el 2026-11-14 precio, publicación e inventario se editan en el panel).
 - [ ] Términos y Condiciones de la tienda (los actuales son de la preventa).
 - [ ] `pnpm store:reconcile` programado y compra real de prueba (lista de arriba).
 - [ ] Endpoints de rastreo, cuenta, contacto, iglesias y newsletter (subproyecto 7). Al terminar cada uno, quitarlo de `pendingBackendEnabled`.

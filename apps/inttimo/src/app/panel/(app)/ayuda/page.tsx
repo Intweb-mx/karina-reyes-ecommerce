@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { pendingBackendEnabled } from "@/lib/store/flags";
 import { requireAdmin } from "@/server/auth/admin";
 import { Badge, Card, FULFILLMENT_LABELS, FULFILLMENT_TONES, PageHeader, STATUS_LABELS, STATUS_TONES } from "../../ui";
 
@@ -58,11 +57,12 @@ export default async function PanelHelpPage() {
           <Guide title="Actividad" href="/panel/bitacora">
             Registro de quién hizo qué en el panel (entradas, guías generadas, cambios de configuración). No se puede editar ni borrar.
           </Guide>
-          {pendingBackendEnabled && (
-            <Guide title="Tienda (demo)" href="/panel/tienda">
-              El panel de la tienda completa: pedidos, productos e inventario y solicitudes de contacto e iglesias. <strong>Hoy usa datos de ejemplo</strong>; funcionará con datos reales cuando el backend de la tienda esté listo.
-            </Guide>
-          )}
+          <Guide title="Tienda" href="/panel/tienda">
+            Los pedidos de la tienda en línea. Arriba ves lo que hay <strong>por atender</strong> y las ventas; abajo, los pedidos con pestañas (por enviar, por preparar, en camino, con incidencia…). Al abrir un pedido, el bloque <strong>Siguiente paso</strong> muestra solo los botones que aplican: generar guía, marcar como enviado, avisar que está listo, marcar entregado, reportar una incidencia o <strong>cancelar</strong> (si ya estaba pagado, se reembolsa completo en Stripe y las piezas vuelven al inventario).
+          </Guide>
+          <Guide title="Productos e inventario" href="/panel/tienda/productos">
+            Cambia el precio, publica u oculta un producto y registra entradas o salidas de piezas con su motivo. Los paquetes (dúo, 6 y 10) descuentan piezas de UNO+UNO: las existencias se ajustan ahí.
+          </Guide>
         </div>
       </section>
 

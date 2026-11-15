@@ -104,6 +104,16 @@ export class FakeGateway implements PaymentGateway {
     this.expired.push(sessionId);
   }
 
+  refunds: { paymentIntentId: string; idempotencyKey: string }[] = [];
+  refundFail = false;
+  alreadyRefunded = false;
+
+  async refundPayment(input: { paymentIntentId: string; idempotencyKey: string }) {
+    if (this.refundFail) throw new Error("stripe down");
+    this.refunds.push(input);
+    return { status: this.alreadyRefunded ? ("already_refunded" as const) : ("refunded" as const) };
+  }
+
   async retrieveCheckout(sessionId: string): Promise<CheckoutSnapshot> {
     this.retrieved.push(sessionId);
     const base = { id: sessionId, status: "open" as const, paymentStatus: "unpaid" as const, paymentIntentId: null, shippingAddress: null };

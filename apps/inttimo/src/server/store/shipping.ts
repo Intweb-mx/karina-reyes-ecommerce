@@ -59,11 +59,13 @@ export function cartParcel(items: { product: Pick<StoreProduct, "weightGrams" | 
   return { weightKg: Math.round(weightKg * 1000) / 1000, lengthCm, widthCm, heightCm };
 }
 
+export type ParcelProduct = Pick<StoreProduct, "weightGrams" | "lengthCm" | "widthCm" | "heightCm" | "stockProductId" | "stockUnits">;
+
 /**
  * Lo que va en la caja: un paquete sin medidas propias se cotiza como sus piezas del producto base (p. ej. dúo = 2 cajas
  * de UNO+UNO apiladas). Si el paquete tiene peso y medidas propios, se usan esos.
  */
-export function parcelItems(items: { product: ForSale; quantity: number }[], byId: Map<string, ForSale>) {
+export function parcelItems<P extends ParcelProduct>(items: { product: P; quantity: number }[], byId: Map<string, P>) {
   return items.map(({ product, quantity }) => {
     const measured = !!(product.weightGrams && product.lengthCm && product.widthCm && product.heightCm);
     if (measured || !product.stockProductId) return { product, quantity };

@@ -123,6 +123,8 @@ const products: AdminProduct[] = [
     price: MXN(PRICE),
     image,
     maxQuantityPerOrder: 10,
+    type: "physical",
+    bundleOf: null,
     inventory: { onHand: 40, reserved: 3, available: 37, lowStockThreshold: 15 },
     updatedAt: ago(5),
   },
@@ -182,6 +184,8 @@ const ACTION_RESULT: Record<AdminOrderAction, { label: string; apply: (o: AdminO
   report_exception: { label: "Incidencia reportada", apply: (o) => void (o.fulfillmentStatus = "exception") },
   resend_confirmation: { label: "Correo de confirmación reenviado", apply: () => undefined },
   cancel: { label: "Pedido cancelado", apply: (o) => void (o.paymentStatus = o.paymentStatus === "paid" ? "refunded" : "cancelled") },
+  register_shipment: { label: "Guía registrada y pedido marcado como enviado", apply: (o) => void (o.fulfillmentStatus = "handed_to_carrier") },
+  resolve_exception: { label: "Incidencia resuelta", apply: (o) => void (o.fulfillmentStatus = "confirmed") },
 };
 
 export const mockStoreAdminApi: StoreAdminApi = {

@@ -13,7 +13,7 @@ type Section = { title: string; badge?: string; items: Item[] };
  * Navegación del panel: barra lateral fija en computadora y menú desplegable en celular.
  * Cada opción dice para qué sirve, para que nadie tenga que adivinar dónde está cada cosa.
  */
-export function PanelSidebar({ campaigns, email, storeEnabled }: { campaigns: { slug: string; name: string }[]; email: string; storeEnabled: boolean }) {
+export function PanelSidebar({ campaigns, email, storeDemo }: { campaigns: { slug: string; name: string }[]; email: string; /** El panel de la tienda usa datos de ejemplo (simulador). */ storeDemo: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -33,6 +33,17 @@ export function PanelSidebar({ campaigns, email, storeEnabled }: { campaigns: { 
   const sections: Section[] = [
     { title: "Inicio", items: [{ href: "/panel", label: "Hoy", hint: "Lo que hay que atender ahora", icon: SunIcon, active: (p) => p === "/panel" }] },
     {
+      title: "Tienda",
+      ...(storeDemo ? { badge: "Demo" } : {}),
+      items: [
+        { href: "/panel/tienda", label: "Resumen y pedidos", hint: "Ventas, guías, entregas y cancelaciones", icon: BagIcon, active: (p: string) => p === "/panel/tienda" || p.startsWith("/panel/tienda/pedidos") },
+        { href: "/panel/tienda/productos", label: "Productos e inventario", hint: "Precios, existencias y publicación", icon: FileIcon, active: (p: string) => p.startsWith("/panel/tienda/productos") },
+        // Contacto e iglesias aún no tienen backend: las solicitudes solo existen en el simulador.
+        ...(storeDemo ? [{ href: "/panel/tienda/solicitudes", label: "Solicitudes", hint: "Mensajes de contacto e iglesias", icon: ChatIcon, active: (p: string) => p.startsWith("/panel/tienda/solicitudes") }] : []),
+        { href: "/panel/descargas", label: "Reenviar descarga", hint: "Enlace nuevo del PDF para un cliente", icon: FileIcon, active: (p: string) => p.startsWith("/panel/descargas") },
+      ],
+    },
+    {
       title: "Preventa",
       items: [
         { href: "/panel/pedidos", label: "Pedidos", hint: "Buscar, filtrar y descargar compras", icon: BoxIcon, active: (p) => (p.startsWith("/panel/pedidos") && p !== "/panel/pedidos/nueva") || p.startsWith("/panel/reservas") },
@@ -46,23 +57,6 @@ export function PanelSidebar({ campaigns, email, storeEnabled }: { campaigns: { 
           active: (p: string) => p === `/panel/campanas/${campaign.slug}/editar`,
         })),
       ],
-    },
-    ...(storeEnabled
-      ? [
-          {
-            title: "Tienda",
-            badge: "Demo",
-            items: [
-              { href: "/panel/tienda", label: "Resumen y pedidos", hint: "Ventas y pedidos de la tienda", icon: BagIcon, active: (p: string) => p === "/panel/tienda" || p.startsWith("/panel/tienda/pedidos") },
-              { href: "/panel/tienda/productos", label: "Productos e inventario", hint: "Precios, existencias y publicación", icon: FileIcon, active: (p: string) => p.startsWith("/panel/tienda/productos") },
-              { href: "/panel/tienda/solicitudes", label: "Solicitudes", hint: "Mensajes de contacto e iglesias", icon: ChatIcon, active: (p: string) => p.startsWith("/panel/tienda/solicitudes") },
-            ],
-          },
-        ]
-      : []),
-    {
-      title: "Tienda en línea",
-      items: [{ href: "/panel/descargas", label: "Reenviar descarga", hint: "Enlace nuevo del PDF para un cliente", icon: FileIcon, active: (p) => p.startsWith("/panel/descargas") }],
     },
     {
       title: "Registro y ayuda",

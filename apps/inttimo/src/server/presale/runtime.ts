@@ -52,6 +52,7 @@ const lazyGateway: PaymentGateway = {
   createStoreCheckout: (input) => createStripeGateway(getStripe()).createStoreCheckout(input),
   retrieveCheckout: (sessionId) => createStripeGateway(getStripe()).retrieveCheckout(sessionId),
   expireCheckout: (sessionId) => createStripeGateway(getStripe()).expireCheckout(sessionId),
+  refundPayment: (input) => createStripeGateway(getStripe()).refundPayment(input),
 };
 
 /** Pasarela de pago compartida por la preventa y la tienda (Stripe se inicializa al usarse). */

@@ -3,9 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authFetch } from "./server/auth/fetch";
 
 /**
- * Solo para /panel: refresca la sesión de Supabase (escribe las cookies
- * renovadas) y hace una redirección optimista si no hay sesión. La
- * autorización real ocurre en cada página y acción con `requireAdmin()`.
+ * Solo para /panel y /api/panel: refresca la sesión de Supabase (escribe las cookies
+ * renovadas) y hace una redirección optimista si no hay sesión (401 en las rutas de API). La
+ * autorización real ocurre en cada página, acción y ruta con `requireAdmin()` / `adminRoute()`.
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -28,6 +28,9 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getClaims();
   const isPublicPanelPath = request.nextUrl.pathname === "/panel/login";
+  if (!data?.claims && request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: { code: "not_found", message: "Sesión vencida. Vuelve a entrar al panel." } }, { status: 401, headers: { "cache-control": "private, no-store" } });
+  }
   if (!data?.claims && !isPublicPanelPath) {
     const login = request.nextUrl.clone();
     login.pathname = "/panel/login";
@@ -38,5 +41,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/panel/:path*"],
+  matcher: ["/panel/:path*", "/api/panel/:path*"],
 };

@@ -53,7 +53,11 @@ export type StoreOrderEventType =
   | "REFUND_REQUESTED"
   | "REFUNDED"
   | "PARTIALLY_REFUNDED"
-  | "EXCEPTION";
+  | "EXCEPTION"
+  | "EXCEPTION_RESOLVED"
+  | "FULFILLMENT_EMAIL_SENT"
+  | "FULFILLMENT_EMAIL_FAILED"
+  | "LABEL_FAILED";
 
 export const storeProducts = pgTable(
   "store_products",

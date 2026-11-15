@@ -37,6 +37,8 @@ Convenciones iguales a la preventa: montos en **centavos**, fechas ISO, errores 
 
 Las pantallas ya están construidas en `/panel/tienda` con datos simulados (`src/lib/store/admin-mock.ts`). El contrato está en `apps/inttimo/src/lib/store/admin-contract.ts`, y el adaptador HTTP en `src/lib/store/admin.ts` ya llama a estas rutas.
 
+**Estado (2026-11-14):** A1–A8 implementadas (ver "Panel de la tienda" en [BACKEND-PLAN.md](./BACKEND-PLAN.md)). A9 sigue pendiente.
+
 Reglas para **todas** estas rutas:
 
 - Solo administradores (`requireAdmin`, con MFA).

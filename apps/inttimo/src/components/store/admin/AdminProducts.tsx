@@ -41,6 +41,8 @@ function ProductCard({ product, onChange }: { product: AdminProduct; onChange: (
   const [panel, setPanel] = useState<"stock" | "edit" | "history" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const { onHand, reserved, available, lowStockThreshold } = product.inventory;
+  const digital = product.type === "digital";
+  const bundle = product.bundleOf;
   const low = available <= lowStockThreshold;
   const reservedPct = onHand ? Math.min(100, (reserved / onHand) * 100) : 0;
 
@@ -68,28 +70,41 @@ function ProductCard({ product, onChange }: { product: AdminProduct; onChange: (
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge tone={product.published ? "good" : "neutral"}>{product.published ? "Publicado" : "Oculto"}</Badge>
-              {available <= 0 ? <Badge tone="bad">Agotado</Badge> : low ? <Badge tone="attention">Poco inventario</Badge> : <Badge tone="good">Con inventario</Badge>}
+              {digital ? <Badge tone="info">Digital</Badge> : available <= 0 ? <Badge tone="bad">Agotado</Badge> : low ? <Badge tone="attention">Poco inventario</Badge> : <Badge tone="good">Con inventario</Badge>}
             </div>
           </div>
 
-          <dl className="grid grid-cols-3 gap-3 text-sm">
-            <Metric label="Disponible para vender" value={available} strong tone={available <= 0 ? "bad" : low ? "attention" : undefined} />
-            <Metric label="Apartado en pedidos" value={reserved} />
-            <Metric label="Existencias físicas" value={onHand} />
-          </dl>
-          <div>
-            <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-sand">
-              <div className="h-full bg-warning/70 transition-[width] duration-500" style={{ width: `${reservedPct}%` }} />
-            </div>
-            <p className="mt-1.5 text-xs text-muted">Aviso de poco inventario al llegar a {lowStockThreshold} piezas disponibles.</p>
-          </div>
+          {digital ? (
+            <p className="text-sm text-muted">Producto digital: no lleva inventario. Se entrega con un enlace de descarga por correo.</p>
+          ) : (
+            <>
+              {bundle && (
+                <p className="text-sm text-muted">
+                  Paquete: cada uno descuenta {bundle.units} piezas de {bundle.name}. Las existencias se ajustan en {bundle.name}.
+                </p>
+              )}
+              <dl className="grid grid-cols-3 gap-3 text-sm">
+                <Metric label={bundle ? "Paquetes disponibles" : "Disponible para vender"} value={available} strong tone={available <= 0 ? "bad" : low ? "attention" : undefined} />
+                <Metric label={bundle ? `Apartado (piezas de ${bundle.name})` : "Apartado en pedidos"} value={reserved} />
+                <Metric label={bundle ? `Existencias (piezas de ${bundle.name})` : "Existencias físicas"} value={onHand} />
+              </dl>
+              {!bundle && (
+                <div>
+                  <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-sand">
+                    <div className="h-full bg-warning/70 transition-[width] duration-500" style={{ width: `${reservedPct}%` }} />
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted">Aviso de poco inventario al llegar a {lowStockThreshold} piezas disponibles.</p>
+                </div>
+              )}
+            </>
+          )}
 
           {message && <Alert tone="ok">{message}</Alert>}
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" aria-expanded={panel === "stock"} onClick={() => setPanel(panel === "stock" ? null : "stock")} className={panel === "stock" ? buttonClass : secondaryButtonClass}>Ajustar inventario</button>
+            {!digital && !bundle && <button type="button" aria-expanded={panel === "stock"} onClick={() => setPanel(panel === "stock" ? null : "stock")} className={panel === "stock" ? buttonClass : secondaryButtonClass}>Ajustar inventario</button>}
             <button type="button" aria-expanded={panel === "edit"} onClick={() => setPanel(panel === "edit" ? null : "edit")} className={panel === "edit" ? buttonClass : secondaryButtonClass}>Editar precio y límites</button>
-            <button type="button" aria-expanded={panel === "history"} onClick={() => setPanel(panel === "history" ? null : "history")} className={panel === "history" ? buttonClass : secondaryButtonClass}>Movimientos</button>
+            {!digital && <button type="button" aria-expanded={panel === "history"} onClick={() => setPanel(panel === "history" ? null : "history")} className={panel === "history" ? buttonClass : secondaryButtonClass}>Movimientos</button>}
             <PublishToggle product={product} onDone={done} />
           </div>
 
@@ -119,6 +134,7 @@ function PublishToggle({ product, onDone }: { product: AdminProduct; onDone: (p:
     const result = await getStoreAdminApi().updateProduct(product.id, { published: !product.published });
     setSaving(false);
     if (result.ok) onDone(result.data, result.data.published ? "Producto publicado." : "Producto oculto de la tienda.");
+    else window.alert(result.error.message);
   }
   return (
     <button type="button" onClick={toggle} disabled={saving} className={secondaryButtonClass}>
