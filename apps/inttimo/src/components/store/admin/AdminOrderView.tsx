@@ -22,6 +22,7 @@ export function AdminOrderView({ orderNumber }: { orderNumber: string }) {
   const [running, setRunning] = useState<AdminOrderAction | null>(null);
   const [confirming, setConfirming] = useState<AdminOrderAction | null>(null);
   const [note, setNote] = useState("");
+  const [shipment, setShipment] = useState({ carrier: "", trackingNumber: "", trackingUrl: "" });
 
   useEffect(() => {
     void api.order(orderNumber).then((result) => (result.ok ? setOrder(result.data) : setError(result.error.message)));
@@ -31,13 +32,17 @@ export function AdminOrderView({ orderNumber }: { orderNumber: string }) {
     setRunning(action);
     setMessage(null);
     setError(null);
-    const result = await api.orderAction(orderNumber, { action, note: actionNote || undefined }, crypto.randomUUID());
+    const guide = ACTIONS[action].shipment ? { carrier: shipment.carrier.trim(), trackingNumber: shipment.trackingNumber.trim(), trackingUrl: shipment.trackingUrl.trim() || undefined } : undefined;
+    const result = await api.orderAction(orderNumber, { action, note: actionNote || undefined, shipment: guide }, crypto.randomUUID());
     setRunning(null);
-    setConfirming(null);
-    setNote("");
     if (result.ok) {
+      setConfirming(null);
+      setNote("");
+      setShipment({ carrier: "", trackingNumber: "", trackingUrl: "" });
       setOrder(result.data);
-      setMessage(`Listo: ${ACTIONS[action].label.toLowerCase()}.`);
+      // El backend dice qué pasó (p. ej. si el correo al cliente no salió); sin aviso, el texto de la acción.
+      if (result.data.notice?.tone === "error") setError(result.data.notice.text);
+      else setMessage(result.data.notice?.text ?? `Listo: ${ACTIONS[action].label.toLowerCase()}.`);
     } else setError(result.error.message);
   }
 
@@ -47,7 +52,7 @@ export function AdminOrderView({ orderNumber }: { orderNumber: string }) {
 
   const primary = order.allowedActions.filter((a) => ACTIONS[a].primary);
   const secondary = order.allowedActions.filter((a) => !ACTIONS[a].primary);
-  const paid = order.paymentStatus === "paid";
+  const paid = order.paymentStatus === "paid" || order.paymentStatus === "partially_refunded";
   const whatsapp = order.phone ? `https://wa.me/52${order.phone.replace(/\D/g, "").slice(-10)}` : null;
 
   return (
@@ -106,6 +111,22 @@ export function AdminOrderView({ orderNumber }: { orderNumber: string }) {
               className="animate-rise mt-4 space-y-3 border border-border bg-surface p-4 [animation-duration:300ms]"
             >
               <p className="text-sm font-medium">{ACTIONS[confirming].confirm}</p>
+              {ACTIONS[confirming].shipment && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-sm">
+                    Paquetería
+                    <input value={shipment.carrier} onChange={(e) => setShipment({ ...shipment, carrier: e.target.value })} required maxLength={80} className={inputClass} />
+                  </label>
+                  <label className="block text-sm">
+                    Número de guía
+                    <input value={shipment.trackingNumber} onChange={(e) => setShipment({ ...shipment, trackingNumber: e.target.value })} required maxLength={80} className={inputClass} />
+                  </label>
+                  <label className="block text-sm sm:col-span-2">
+                    Liga para rastrear (opcional)
+                    <input type="url" value={shipment.trackingUrl} onChange={(e) => setShipment({ ...shipment, trackingUrl: e.target.value })} maxLength={500} placeholder="https://" className={inputClass} />
+                  </label>
+                </div>
+              )}
               <label className="block text-sm">
                 Nota (opcional)
                 <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputClass} />

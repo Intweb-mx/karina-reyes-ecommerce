@@ -45,7 +45,18 @@ export type AdminOrderSummary = {
 export type AdminOrdersQuery = { filter: AdminOrderFilter; search?: string; page?: number };
 export type AdminOrdersResponse = { orders: AdminOrderSummary[]; total: number; pageSize: number; counts: Record<AdminOrderFilter, number> };
 
-export type AdminOrderAction = "generate_label" | "mark_ready_for_pickup" | "mark_shipped" | "mark_delivered" | "report_exception" | "resend_confirmation" | "cancel";
+export type AdminOrderAction =
+  | "generate_label"
+  | "mark_ready_for_pickup"
+  | "mark_shipped"
+  | "mark_delivered"
+  | "report_exception"
+  | "resend_confirmation"
+  | "cancel"
+  /** La guía se compró por fuera del panel: se registra (paquetería y número) y el pedido queda enviado. */
+  | "register_shipment"
+  /** La incidencia reportada por el equipo se resolvió: el pedido vuelve al estado que tenía. */
+  | "resolve_exception";
 
 /** Bitácora completa del pedido: solo se agrega, nunca se borra (CLAUDE.md §21). */
 export type AdminOrderEvent = { at: string; type: string; label: string; actor: string | null; note: string | null };
@@ -60,10 +71,17 @@ export type AdminOrderDetail = OrderView & {
   allowedActions: AdminOrderAction[];
   notes: { at: string; author: string; text: string }[];
   timeline: AdminOrderEvent[];
+  /** Resultado de la última acción, en palabras del backend (p. ej. si el correo al cliente salió o no). */
+  notice?: { tone: "ok" | "error"; text: string };
 };
 
 /** POST /api/panel/tienda/pedidos/[folio]/acciones (Idempotency-Key). Devuelve el pedido actualizado. */
-export type AdminOrderActionRequest = { action: AdminOrderAction; note?: string };
+export type AdminOrderActionRequest = {
+  action: AdminOrderAction;
+  note?: string;
+  /** Solo con `register_shipment`. */
+  shipment?: { carrier: string; trackingNumber: string; trackingUrl?: string };
+};
 
 /** POST /api/panel/tienda/pedidos/[folio]/notas — nota interna, nunca visible para el cliente. */
 export type AdminOrderNoteRequest = { text: string };
@@ -83,6 +101,10 @@ export type AdminProduct = {
   price: Money | null;
   image: ProductImage;
   maxQuantityPerOrder: number;
+  /** Un producto digital no lleva inventario. */
+  type: "physical" | "digital";
+  /** Paquete: descuenta `units` piezas del inventario de su producto base (el inventario mostrado es el de ese producto). */
+  bundleOf: { name: string; units: number } | null;
   inventory: AdminInventory;
   updatedAt: string;
 };

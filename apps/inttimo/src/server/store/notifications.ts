@@ -1,7 +1,7 @@
 /*
  * Correos de pedidos de la tienda.
- * COPIA PENDIENTE DE APROBACIÓN DE KARINA (los textos de estos correos son funcionales, no aprobados): texto funcional que no promete envío ni guía (eso lo dirán los correos de
- * ENVIADO / LISTO PARA RECOGER que manda el panel, PR B).
+ * Los textos de ENVIADO, LISTO PARA RECOGER y CANCELADO los aprobó Karina (2026-11-15): no cambiarlos sin avisarle. El de
+ * pedido pagado sigue con copia funcional, pendiente de su aprobación. El de pedido pagado no promete envío ni guía: eso lo dicen los de ENVIADO / LISTO PARA RECOGER, que salen cuando el equipo lo marca en el panel.
  */
 import {
   addStoreOrderEvent,
@@ -229,4 +229,89 @@ export async function resendStoreDownloads(
     return { status: "failed", message: "No se pudo enviar el correo. Inténtalo de nuevo en unos minutos." };
   }
   return { status: "sent", email: order.email };
+}
+
+// ---------- Avisos de entrega (los manda el panel o el aviso de la paquetería) ----------
+
+const contactLine = `Dudas o incidencias: ${business.email} · WhatsApp ${business.whatsapp} · Horario: ${business.hours}.`;
+
+/** ENVIADO: el paquete ya está con la paquetería. Solo datos guardados de la guía, nunca fechas de entrega inventadas. */
+export function storeShippedMail(order: StoreOrder, items: StoreOrderItem[]): Mail {
+  const address = addressText(order);
+  const lines = [
+    `Hola ${order.fullName}: tu pedido ${order.orderNumber} ya va en camino.`,
+    "",
+    `Paquetería: ${order.carrier ?? "—"}`,
+    `Número de guía: ${order.trackingNumber ?? "—"}`,
+    ...(order.trackingUrl?.startsWith("https://") ? [`Rastrea tu paquete: ${order.trackingUrl}`] : []),
+    ...(address ? [`Dirección de entrega: ${address}`] : []),
+    "",
+    ...itemLines(order, items.filter((item) => !item.digital)),
+    "",
+    contactLine,
+    "",
+    "— inttimo —",
+  ];
+  return { to: order.email, subject: `Tu pedido de inttimo va en camino · ${order.orderNumber}`, text: lines.join("\n"), html: toHtml(lines) };
+}
+
+/** LISTO PARA RECOGER, con el punto que eligió el cliente. */
+export function storeReadyForPickupMail(order: StoreOrder, items: StoreOrderItem[], point: PickupPoint | undefined): Mail {
+  const lines = [
+    `Hola ${order.fullName}: tu pedido ${order.orderNumber} está LISTO PARA RECOGER.`,
+    "",
+    ...(point ? [`Punto de recolección: ${point.name}`, `Horario: ${point.schedule}`] : ["Escríbenos para acordar el punto y el horario de recolección."]),
+    "",
+    ...itemLines(order, items.filter((item) => !item.digital)),
+    "",
+    "Presenta este correo o tu número de pedido al recoger.",
+    "",
+    contactLine,
+    "",
+    "— inttimo —",
+  ];
+  return { to: order.email, subject: `Tu pedido de inttimo está listo para recoger · ${order.orderNumber}`, text: lines.join("\n"), html: toHtml(lines) };
+}
+
+/** Pedido cancelado. `refunded`: se devolvió el pago completo al método original (los días dependen del banco). */
+export function storeCancelledMail(order: StoreOrder, refunded: boolean): Mail {
+  const lines = [
+    `Hola ${order.fullName}: tu pedido ${order.orderNumber} fue cancelado.`,
+    ...(refunded ? ["", `Reembolsamos ${formatMoney(order.totalAmount, order.currency)} al método de pago original. El tiempo en que se refleja depende de tu banco.`] : []),
+    "",
+    contactLine,
+    "",
+    "— inttimo —",
+  ];
+  return { to: order.email, subject: `Tu pedido de inttimo fue cancelado · ${order.orderNumber}`, text: lines.join("\n"), html: toHtml(lines) };
+}
+
+export type StoreMailOutcome = "sent" | "failed";
+
+/** Manda un correo al cliente y lo deja en el historial del pedido. Un fallo se registra y nunca revierte el cambio de estado. */
+export async function sendStoreOrderMail(db: Database, send: MailSender, order: StoreOrder, mail: Mail, kind: string, source: "panel" | "skydropx" = "panel"): Promise<StoreMailOutcome> {
+  try {
+    await send(mail);
+    await addStoreOrderEvent(db, order.id, "FULFILLMENT_EMAIL_SENT", source, { metadata: { kind } });
+    return "sent";
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", msg: "store_order_mail_failed", orderId: order.id, kind, error: redactError(error) }));
+    await addStoreOrderEvent(db, order.id, "FULFILLMENT_EMAIL_FAILED", source, { metadata: { kind, error: redactError(error) } }).catch(() => undefined);
+    return "failed";
+  }
+}
+
+/** Reenvío manual del correo de pedido pagado (sin enlaces de descarga: esos se reenvían aparte y revocan los anteriores). */
+export async function resendStoreConfirmation(db: Database, send: MailSender, order: StoreOrder): Promise<StoreMailOutcome> {
+  const items = await listStoreOrderItems(db, order.id);
+  const point = (await getStoreSettings(db))?.pickupPoints.find((candidate) => candidate.id === order.pickupPointId);
+  try {
+    await send(storeCustomerMail(order, items, point));
+    await addStoreOrderEvent(db, order.id, "CONFIRMATION_EMAIL_SENT", "panel", { metadata: { manual: true } });
+    return "sent";
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", msg: "store_confirmation_resend_failed", orderId: order.id, error: redactError(error) }));
+    await addStoreOrderEvent(db, order.id, "CONFIRMATION_EMAIL_FAILED", "panel", { metadata: { manual: true, error: redactError(error) } }).catch(() => undefined);
+    return "failed";
+  }
 }

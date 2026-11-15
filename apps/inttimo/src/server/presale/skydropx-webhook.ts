@@ -27,13 +27,17 @@ export function verifySkydropxSignature(rawBody: string, header: string | null, 
   return received.length === expected.length && timingSafeEqual(Buffer.from(received), Buffer.from(expected));
 }
 
-export type SkydropxOutcome = "ignored" | "unchanged" | "shipped" | "delivered";
+export type SkydropxOutcome = "ignored" | "unchanged" | "shipped" | "in_transit" | "delivered";
+
+/** Aviso ya validado, para quien atiende los envíos que no son de la preventa (los pedidos de la tienda). */
+export type SkydropxPackageEvent = { status: string; shipmentId: string | null; trackingNumber: string | null; trackingUrl: string | null };
+export type SkydropxFallback = (event: SkydropxPackageEvent) => Promise<SkydropxOutcome>;
 
 /**
  * Aviso de rastreo de SkyDropX: "en camino" marca ENVIADO (correo con la guía) y "entregado" marca ENTREGADO (correo con el bonus).
  * Es idempotente y tolera avisos repetidos o fuera de orden: una transición que ya ocurrió no hace nada.
  */
-export async function applySkydropxEvent(deps: FulfillmentDeps, body: unknown): Promise<SkydropxOutcome> {
+export async function applySkydropxEvent(deps: FulfillmentDeps, body: unknown, fallback?: SkydropxFallback): Promise<SkydropxOutcome> {
   const parsed = packageEvent.safeParse(body);
   if (!parsed.success) return "ignored";
   const { attributes, relationships } = parsed.data.data;
@@ -41,6 +45,10 @@ export async function applySkydropxEvent(deps: FulfillmentDeps, body: unknown): 
   if (!IN_CARRIER_HANDS.has(status) && status !== "delivered") return "ignored";
 
   const reservation = await findReservationByShipment(deps.db, { shipmentId: relationships?.shipment.data.id, trackingNumber: attributes.tracking_number });
+  // La guía no es de una preventa: puede ser de un pedido de la tienda.
+  if (!reservation && fallback) {
+    return fallback({ status, shipmentId: relationships?.shipment.data.id ?? null, trackingNumber: attributes.tracking_number ?? null, trackingUrl: attributes.tracking_url_provider ?? null });
+  }
   if (!reservation || reservation.deliveryMethod !== "shipping") return "ignored";
   if (reservation.status !== "paid" && reservation.status !== "partially_refunded") return "ignored";
 
@@ -61,7 +69,7 @@ export async function applySkydropxEvent(deps: FulfillmentDeps, body: unknown): 
 export type SkydropxWebhookResult = { status: 200; body: { received: true; result: SkydropxOutcome } } | { status: 400 | 401; body: { error: string } };
 
 /** Verifica la firma sobre el cuerpo crudo y, si es válida, aplica el aviso. Los eventos que no son de paquetes se aceptan sin efecto. */
-export async function handleSkydropxWebhook(deps: FulfillmentDeps, secret: string, rawBody: string, authHeader: string | null): Promise<SkydropxWebhookResult> {
+export async function handleSkydropxWebhook(deps: FulfillmentDeps, secret: string, rawBody: string, authHeader: string | null, fallback?: SkydropxFallback): Promise<SkydropxWebhookResult> {
   if (!verifySkydropxSignature(rawBody, authHeader, secret)) return { status: 401, body: { error: "invalid_signature" } };
   let body: unknown;
   try {
@@ -69,5 +77,5 @@ export async function handleSkydropxWebhook(deps: FulfillmentDeps, secret: strin
   } catch {
     return { status: 400, body: { error: "invalid_json" } };
   }
-  return { status: 200, body: { received: true, result: await applySkydropxEvent(deps, body) } };
+  return { status: 200, body: { received: true, result: await applySkydropxEvent(deps, body, fallback) } };
 }

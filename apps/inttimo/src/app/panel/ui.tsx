@@ -193,6 +193,20 @@ export const ACTION_LABELS: Record<string, string> = {
   "reservation.note": "Agregó una nota a un pedido",
   "reservation.resend_email": "Reenvió un correo a un cliente",
   "store_order.download_resend": "Reenvió el enlace de descarga de un pedido de la tienda",
+  "store_order.view": "Consultó un pedido de la tienda",
+  "store_order.note": "Agregó una nota a un pedido de la tienda",
+  "store_order.generate_label": "Generó la guía de un pedido de la tienda",
+  "store_order.mark_shipped": "Marcó un pedido de la tienda como enviado",
+  "store_order.register_shipment": "Registró una guía hecha por fuera en un pedido de la tienda",
+  "store_order.mark_ready_for_pickup": "Marcó un pedido de la tienda listo para recoger",
+  "store_order.mark_delivered": "Marcó un pedido de la tienda como entregado",
+  "store_order.report_exception": "Reportó una incidencia en un pedido de la tienda",
+  "store_order.resolve_exception": "Resolvió una incidencia de un pedido de la tienda",
+  "store_order.resend_confirmation": "Reenvió la confirmación de un pedido de la tienda",
+  "store_order.cancel": "Canceló un pedido de la tienda",
+  "store_orders.export": "Descargó la lista de pedidos de la tienda",
+  "store_product.update": "Editó un producto de la tienda",
+  "store_product.stock": "Ajustó el inventario de un producto",
 };
 
 export const FIELD_LABELS: Record<string, string> = {

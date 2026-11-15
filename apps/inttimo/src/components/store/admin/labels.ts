@@ -58,7 +58,7 @@ export const PAYMENT_TONE: Record<PaymentStatus, Tone> = {
 };
 
 /** Acciones del pedido. `primary`: el siguiente paso natural; `confirm`: pide confirmación (y nota opcional). */
-export const ACTIONS: Record<AdminOrderAction, { label: string; help: string; primary?: boolean; confirm?: string; danger?: boolean }> = {
+export const ACTIONS: Record<AdminOrderAction, { label: string; help: string; primary?: boolean; confirm?: string; danger?: boolean; /** Pide paquetería y número de guía. */ shipment?: boolean }> = {
   generate_label: { label: "Generar guía", help: "Compra la guía con la paquetería elegida por el cliente y la deja lista para imprimir.", primary: true },
   mark_shipped: { label: "Marcar como enviado", help: "Cuando entregues el paquete a la paquetería. El cliente recibe su número de guía.", primary: true },
   mark_ready_for_pickup: { label: "Avisar que está listo", help: "Le enviamos un correo al cliente para que pase a recoger.", primary: true },
@@ -66,6 +66,8 @@ export const ACTIONS: Record<AdminOrderAction, { label: string; help: string; pr
   report_exception: { label: "Reportar incidencia", help: "Paquete detenido, dirección incorrecta, daño… Queda registrado en el pedido.", confirm: "¿Qué pasó? Esta nota se guarda en el pedido (el cliente no la ve)." },
   resend_confirmation: { label: "Reenviar correo de confirmación", help: "Útil si el cliente no encuentra su correo." },
   cancel: { label: "Cancelar pedido", help: "Si ya se pagó, se reembolsa el total en Stripe. No se puede deshacer.", confirm: "Esto cancela el pedido y, si está pagado, reembolsa el total. No se puede deshacer.", danger: true },
+  register_shipment: { label: "Registrar guía hecha por fuera", help: "Si compraste la guía directo en SkyDropX o con la paquetería: anótala y el pedido queda enviado.", confirm: "Anota la guía. El pedido queda como enviado y el cliente recibe su número de guía por correo.", shipment: true },
+  resolve_exception: { label: "Incidencia resuelta", help: "El pedido vuelve al estado que tenía antes de la incidencia.", confirm: "¿Cómo se resolvió? Esta nota se guarda en el pedido (el cliente no la ve)." },
 };
 
 export const LEAD_STATUS: Record<AdminLeadStatus, { label: string; tone: Tone }> = {

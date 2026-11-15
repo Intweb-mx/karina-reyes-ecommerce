@@ -477,7 +477,8 @@ export async function listStoreOrderNotes(db: Executor, orderId: string): Promis
 
 // ---------- Ciclo de pago y liberación de stock ----------
 
-type StoreTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+/** Transacción de Drizzle. Exportado para `store-admin.ts`. */
+export type StoreTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** Minutos extra después de que vence la sesión de Stripe antes de liberar el apartado (un webhook puede llegar tarde). */
 export const STORE_HOLD_GRACE_MINUTES = 5;
@@ -545,7 +546,7 @@ export async function getStoreHeldUnits(db: Executor, buyer: { email: string } |
  * Bloquea en el orden único del módulo: primero el inventario de los productos del pedido (por id) y después la fila del
  * pedido. Las líneas de un pedido no cambian después de crearse, así que leerlas sin bloqueo es seguro.
  */
-async function lockOrderAndInventory(
+export async function lockOrderAndInventory(
   tx: StoreTx,
   orderId: string,
 ): Promise<{ order: StoreOrder; items: StoreOrderItem[]; pieces: Map<string, number>; inventory: Map<string, StoreInventory> } | null> {
@@ -560,7 +561,7 @@ async function lockOrderAndInventory(
 }
 
 /** Libera las piezas apartadas de un pedido. Solo dentro de una transacción que ya bloqueó inventario y pedido. */
-async function releaseReservedStock(tx: StoreTx, order: StoreOrder, pieces: Map<string, number>, source: EventSource): Promise<void> {
+export async function releaseReservedStock(tx: StoreTx, order: StoreOrder, pieces: Map<string, number>, source: EventSource): Promise<void> {
   for (const [productId, units] of pieces) {
     await tx
       .update(storeInventory)
@@ -734,7 +735,7 @@ export async function markStoreOrderPaymentMismatch(
 
 /**
  * Reembolso informado por Stripe (`amountRefunded` es el acumulado; nunca baja). Solo pedidos pagados. Devolver piezas
- * al inventario depende de si el pedido ya salió y se decide en el panel (PR B).
+ * al inventario depende de si el pedido ya salió: lo hace `cancelStoreOrder` (store-admin.ts) al cancelar desde el panel.
  */
 export async function applyStoreRefund(
   db: Database,

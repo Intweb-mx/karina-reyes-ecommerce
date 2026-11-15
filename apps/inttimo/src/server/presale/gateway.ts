@@ -60,6 +60,11 @@ export interface PaymentGateway {
   retrieveCheckout(sessionId: string): Promise<CheckoutSnapshot>;
   /** Cierra una sesión abierta que ya no sirve (p. ej. el pedido se cerró antes de ligarla). */
   expireCheckout(sessionId: string): Promise<void>;
+  /**
+   * Reembolsa todo lo que quede por reembolsar de un pago (cancelación desde el panel). `idempotencyKey`: un reintento
+   * nunca reembolsa dos veces. `already_refunded`: el pago ya estaba reembolsado por completo (p. ej. desde Stripe).
+   */
+  refundPayment(input: { paymentIntentId: string; idempotencyKey: string }): Promise<{ status: "refunded" | "already_refunded" }>;
 }
 
 
@@ -197,6 +202,16 @@ export function createStripeGateway(stripe: Stripe): PaymentGateway {
 
     async expireCheckout(sessionId) {
       await stripe.checkout.sessions.expire(sessionId);
+    },
+
+    async refundPayment(input) {
+      try {
+        await stripe.refunds.create({ payment_intent: input.paymentIntentId, reason: "requested_by_customer" }, { idempotencyKey: input.idempotencyKey });
+        return { status: "refunded" };
+      } catch (error) {
+        if ((error as { code?: string }).code === "charge_already_refunded") return { status: "already_refunded" };
+        throw error;
+      }
     },
   };
 }

@@ -25,6 +25,7 @@ export function StoreAdminOverview() {
   const [filter, setFilter] = useState<AdminOrderFilter>("to_ship");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [data, setData] = useState<AdminOrdersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +40,10 @@ export function StoreAdminOverview() {
 
   // Búsqueda con pausa corta para no consultar en cada tecla.
   useEffect(() => {
-    const timer = setTimeout(() => setQuery(search.trim()), 300);
+    const timer = setTimeout(() => {
+      setQuery(search.trim());
+      setPage(1);
+    }, 300);
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -47,7 +51,7 @@ export function StoreAdminOverview() {
     let active = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- indica la consulta en curso
     setLoading(true);
-    void api.orders({ filter, search: query || undefined }).then((result) => {
+    void api.orders({ filter, search: query || undefined, page }).then((result) => {
       if (!active) return;
       setLoading(false);
       if (result.ok) setData(result.data);
@@ -56,7 +60,12 @@ export function StoreAdminOverview() {
     return () => {
       active = false;
     };
-  }, [api, filter, query]);
+  }, [api, filter, query, page]);
+
+  const chooseFilter = (next: AdminOrderFilter) => {
+    setFilter(next);
+    setPage(1);
+  };
 
   function exportCsv() {
     const url = api.exportOrdersUrl({ filter, search: query || undefined });
@@ -102,7 +111,7 @@ export function StoreAdminOverview() {
       {dashboard && (dashboard.exceptions > 0 || dashboard.lowStock > 0 || dashboard.newLeads > 0) && (
         <ul className="grid gap-3 md:grid-cols-3">
           {dashboard.exceptions > 0 && (
-            <AttentionItem tone="bad" onClick={() => setFilter("exception")}>
+            <AttentionItem tone="bad" onClick={() => chooseFilter("exception")}>
               {dashboard.exceptions} {dashboard.exceptions === 1 ? "pedido con incidencia" : "pedidos con incidencia"}
             </AttentionItem>
           )}
@@ -143,7 +152,7 @@ export function StoreAdminOverview() {
                   key={f.id}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => setFilter(f.id)}
+                  onClick={() => chooseFilter(f.id)}
                   className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm transition-colors ${active ? "border-fg bg-fg text-bg" : "border-border bg-bg hover:border-fg/40"}`}
                 >
                   {f.label}
@@ -161,6 +170,15 @@ export function StoreAdminOverview() {
             <ul aria-busy={loading} className={`-mx-5 divide-y divide-border border-t border-border transition-opacity ${loading ? "opacity-60" : ""}`}>
               {data.orders.map((order) => <OrderRow key={order.orderNumber} order={order} now={now} />)}
             </ul>
+          )}
+          {data && data.total > data.pageSize && (
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <p className="text-muted lining-nums">Página {page} de {Math.ceil(data.total / data.pageSize)} · {data.total} pedidos</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setPage(page - 1)} disabled={page <= 1 || loading} className={secondaryButtonClass}>Anteriores</button>
+                <button type="button" onClick={() => setPage(page + 1)} disabled={page * data.pageSize >= data.total || loading} className={secondaryButtonClass}>Siguientes</button>
+              </div>
+            </div>
           )}
         </div>
       </Card>
@@ -192,7 +210,8 @@ function AttentionItem({ tone, href, onClick, children }: { tone: "bad" | "atten
 
 function OrderRow({ order, now }: { order: AdminOrderSummary; now: number }) {
   const waitingDays = order.waitingSince ? Math.floor((now - Date.parse(order.waitingSince)) / 86_400_000) : 0;
-  const paid = order.paymentStatus === "paid";
+  const paid = order.paymentStatus === "paid" || order.paymentStatus === "partially_refunded";
+  const deliveryLabel = order.deliveryMethod === "pickup" ? "Recolección" : order.deliveryMethod === "digital" ? "Descarga digital" : "Envío";
   return (
     <li>
       <Link href={`/panel/tienda/pedidos/${encodeURIComponent(order.orderNumber)}`} className="group grid gap-x-4 gap-y-1.5 px-5 py-3.5 text-sm transition-colors hover:bg-surface sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-center">
@@ -206,9 +225,9 @@ function OrderRow({ order, now }: { order: AdminOrderSummary; now: number }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-muted" title={order.deliveryMethod === "pickup" ? "Recolección" : "Envío"}>
-            {order.deliveryMethod === "pickup" ? <MapPinIcon className="size-4" /> : <TruckIcon className="size-4" />}
-            <span className="sr-only">{order.deliveryMethod === "pickup" ? "Recolección" : "Envío"}</span>
+          <span className="inline-flex items-center gap-1 text-muted" title={deliveryLabel}>
+            {order.deliveryMethod === "pickup" ? <MapPinIcon className="size-4" /> : order.deliveryMethod === "digital" ? <span aria-hidden="true" className="text-xs font-semibold">PDF</span> : <TruckIcon className="size-4" />}
+            <span className="sr-only">{deliveryLabel}</span>
           </span>
           {paid ? <Badge tone={FULFILLMENT_TONE[order.fulfillmentStatus]}>{FULFILLMENT_LABEL[order.fulfillmentStatus]}</Badge> : <Badge tone={PAYMENT_TONE[order.paymentStatus]}>{PAYMENT_LABEL[order.paymentStatus]}</Badge>}
         </div>
