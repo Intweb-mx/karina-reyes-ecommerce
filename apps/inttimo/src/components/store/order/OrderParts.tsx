@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { FulfillmentStatus, OrderView, PaymentStatus } from "@/lib/store/contract";
 import { AlertIcon, CheckIcon } from "@/components/ui/icons";
 import { formatDate, formatMoney } from "@/lib/format";
+import { productImageClasses } from "@/lib/store/image";
 
 export const FULFILLMENT_TEXT: Record<FulfillmentStatus, string> = {
   confirmed: "Pedido confirmado",
@@ -76,7 +77,7 @@ export function OrderLines({ order }: { order: OrderView }) {
       <ul className="space-y-4">
         {order.lines.map((line) => (
           <li key={line.name} className="flex gap-3">
-            <span className="relative size-16 shrink-0 overflow-hidden bg-sand"><Image src={line.image.src} alt="" fill sizes="64px" className="object-cover" /></span>
+            <span className={`relative size-16 shrink-0 overflow-hidden ${productImageClasses(line.image).frame}`}><Image src={line.image.src} alt="" fill sizes="64px" className={productImageClasses(line.image, "p-1").img} /></span>
             <span className="min-w-0 flex-1"><span className="block font-semibold">{line.name}</span><span className="block text-xs text-muted">Cantidad: {line.quantity}</span></span>
             <span className="font-semibold lining-nums">{money(line.subtotal)}</span>
           </li>

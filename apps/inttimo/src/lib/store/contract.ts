@@ -15,7 +15,7 @@ export type Money = { amount: number; currency: string };
 
 export type ProductStatus = "available" | "low_stock" | "sold_out" | "presale" | "coming_soon";
 
-export type ProductImage = { src: string; alt: string; width: number; height: number; /** Render de referencia, no foto aprobada. */ placeholder?: boolean };
+export type ProductImage = { src: string; alt: string; width: number; height: number; /** Render de referencia, no foto aprobada. */ placeholder?: boolean; /** Foto de producto sobre fondo blanco: se muestra completa (contain) sobre blanco, sin recortar. */ fit?: "contain" };
 
 /** Territorios del brief: lo que la pareja quiere cultivar (relación muchos-a-muchos con productos). */
 export type TerritoryId = "conversacion" | "conexion" | "intimidad" | "disfrute" | "conocimiento" | "fe";

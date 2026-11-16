@@ -5,6 +5,7 @@ import { BookIcon, ChatIcon, GemIcon, HeartIcon, LeafIcon, LockIcon, MapPinIcon,
 import { PlaceholderTag } from "@/components/presale/sections/PresaleHero";
 import { territories, trustPoints } from "@/content/store";
 import { formatMoney } from "@/lib/format";
+import { productImageClasses } from "@/lib/store/image";
 import { Reveal } from "@/components/ui/Reveal";
 import { AddToCartButton } from "./cart/AddToCartButton";
 
@@ -72,10 +73,11 @@ const STATUS_LABEL: Record<ProductSummary["status"], string | null> = {
 
 export function ProductCard({ product, priority }: { product: ProductSummary; priority?: boolean }) {
   const status = STATUS_LABEL[product.status];
+  const fit = productImageClasses(product.image);
   return (
     <article className="group flex h-full flex-col border border-border bg-[#fffdf9] transition-shadow duration-(--duration-base) hover:shadow-[0_24px_48px_-32px_rgb(34_28_23/0.5)]">
-      <Link href={`/productos/${product.slug}`} className="relative block aspect-[4/3] overflow-hidden bg-sand">
-        <Image src={product.image.src} alt={product.image.alt} fill priority={priority} sizes="(min-width: 1024px) 30vw, (min-width: 640px) 50vw, 100vw" className="object-cover transition-transform duration-[1200ms] ease-soft group-hover:scale-[1.04]" />
+      <Link href={`/productos/${product.slug}`} className={`relative block aspect-[4/3] overflow-hidden ${fit.frame}`}>
+        <Image src={product.image.src} alt={product.image.alt} fill priority={priority} sizes="(min-width: 1024px) 30vw, (min-width: 640px) 50vw, 100vw" className={`${fit.img} transition-transform duration-[1200ms] ease-soft group-hover:scale-[1.04]`} />
         {status && <span className="absolute top-3 left-3 rounded-full bg-ink/80 px-3 py-1 text-xs font-medium text-on-ink backdrop-blur">{status}</span>}
         {product.image.placeholder && <PlaceholderTag className="right-3 bottom-3" />}
       </Link>

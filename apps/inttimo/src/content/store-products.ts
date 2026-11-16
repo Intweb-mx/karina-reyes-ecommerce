@@ -5,7 +5,7 @@
  * ESTADO: PENDIENTE DE APROBACIÓN de Karina.
  * - Textos e imágenes de UNO+UNO salen de content/products.ts (los de la preventa); las fotos son renders de referencia.
  * - "Cómo se juega" se copió del simulador del frontend (src/lib/store/mock.ts): confirmar el texto con Karina.
- * - La imagen del bonus no se usa: el bonus es exclusivo de la preventa.
+ * - Fotos de los paquetes y del PDF: fotografía de producto del cliente (2026-11-16), en public/images/tienda/.
  * Un producto publicado sin entrada aquí no aparece en el catálogo ni se puede comprar.
  */
 import type { Faq, ProductImage } from "../lib/store/contract.ts";
@@ -24,6 +24,9 @@ export type StoreProductContent = {
 };
 
 const uno = getProductContent("uno-mas-uno")!;
+
+/** Fotografía de producto sobre fondo blanco (public/images/tienda/): se muestra completa, sin recortar. */
+const packshot = (file: string, width: number, height: number, alt: string): ProductImage => ({ src: `/images/tienda/${file}`, width, height, alt, fit: "contain" });
 const UNO_FAQ_IDS = ["envios-mexico", "recoleccion", "devoluciones", "para-quien"];
 
 const PRODUCTS: Record<string, StoreProductContent> = {
@@ -46,34 +49,34 @@ const PRODUCTS: Record<string, StoreProductContent> = {
 
 /**
  * Paquetes de UNO+UNO (dúo, 6 y 10). Precio, envío gratis e inventario vienen de la base (docs/store/catalogo.json);
- * aquí solo el texto. Fotos: las de UNO+UNO hasta tener fotografía del paquete. Textos PENDIENTES DE APROBACIÓN.
+ * aquí solo el texto. Foto principal: la del paquete; después, las de UNO+UNO. Textos PENDIENTES DE APROBACIÓN.
  */
-function unoPack(units: number, tagline: string, extra: string): StoreProductContent {
+function unoPack(units: number, tagline: string, extra: string, photo: ProductImage): StoreProductContent {
   const base = PRODUCTS["uno-mas-uno"]!;
   return {
     ...base,
     tagline,
-    gallery: base.gallery.map((image) => ({ ...image })),
-    image: { ...base.image },
+    gallery: [photo, ...base.gallery].map((image) => ({ ...image })),
+    image: { ...photo },
     description: [`${units} juegos UNO+UNO completos, cada uno con sus 164 tarjetas.`, extra, ...uno.intro.slice(1)],
     includes: [`${units} juegos UNO+UNO`, ...base.includes.map((item) => `${item} (en cada juego)`)],
     seo: { title: `UNO+UNO · ${tagline}`, description: `${units} juegos UNO+UNO. ${extra}` },
   };
 }
 
-PRODUCTS["uno-mas-uno-duo"] = unoPack(2, "Pack dúo", "Uno para ustedes y otro para regalar.");
-PRODUCTS["uno-mas-uno-paquete-6"] = unoPack(6, "Paquete de 6", "Pensado para iglesias, ministerios y grupos de matrimonios.");
-PRODUCTS["uno-mas-uno-paquete-10"] = unoPack(10, "Paquete de 10", "Pensado para iglesias, ministerios, retiros y grupos de matrimonios.");
+PRODUCTS["uno-mas-uno-duo"] = unoPack(2, "Pack dúo", "Uno para ustedes y otro para regalar.", packshot("inttimo-uno-mas-uno-duo.webp", 864, 864, "Dos cajas de UNO+UNO"));
+PRODUCTS["uno-mas-uno-paquete-6"] = unoPack(6, "Paquete de 6", "Pensado para iglesias, ministerios y grupos de matrimonios.", packshot("inttimo-uno-mas-uno-paquete-6.webp", 864, 835, "Seis cajas de UNO+UNO apiladas en pirámide junto a tarjetas del juego"));
+PRODUCTS["uno-mas-uno-paquete-10"] = unoPack(10, "Paquete de 10", "Pensado para iglesias, ministerios, retiros y grupos de matrimonios.", packshot("inttimo-uno-mas-uno-paquete-10.webp", 864, 835, "Diez cajas de UNO+UNO apiladas en pirámide junto a tarjetas del juego"));
 
 /**
  * Guía digital «Después de la pregunta» (el mismo PDF del bonus de preventa), a la venta como complemento de UNO+UNO o
  * sola. Se entrega con un enlace de descarga de un solo uso. Texto basado en el del bonus: PENDIENTE DE APROBACIÓN.
  */
-const bonus = uno.bonus!;
+const guidePhoto = packshot("inttimo-despues-de-la-pregunta-pdf.webp", 807, 1134, "Tableta con la portada de la guía «Después de la pregunta»");
 PRODUCTS["despues-de-la-pregunta"] = {
   tagline: "Guía digital para seguir conversando",
-  image: { ...bonus.image },
-  gallery: [{ ...bonus.image }],
+  image: { ...guidePhoto },
+  gallery: [{ ...guidePhoto }],
   description: [
     "«Después de la pregunta» es una guía digital de preguntas complementarias para seguir conversando juntos, más allá de las tarjetas.",
     "Es el complemento de UNO+UNO: úsenla después de jugar o en cualquier momento en que quieran ir un poco más profundo.",
