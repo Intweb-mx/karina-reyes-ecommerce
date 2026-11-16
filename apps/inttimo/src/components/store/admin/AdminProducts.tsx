@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { getStoreAdminApi } from "@/lib/store/admin";
 import type { AdminProduct, StockMovement, StockMovementReason } from "@/lib/store/admin-contract";
 import { formatMoney } from "@/lib/format";
+import { productImageClasses } from "@/lib/store/image";
 import { dateTime, MOVEMENT_REASON } from "./labels";
 
 const REASONS: StockMovementReason[] = ["reception", "adjustment", "damage", "return", "correction"];
@@ -55,8 +56,8 @@ function ProductCard({ product, onChange }: { product: AdminProduct; onChange: (
   return (
     <Card>
       <div className="grid gap-6 md:grid-cols-[7rem_minmax(0,1fr)]">
-        <div className="relative aspect-square w-28 overflow-hidden bg-sand">
-          <Image src={product.image.src} alt="" fill sizes="112px" className="object-cover" />
+        <div className={`relative aspect-square w-28 overflow-hidden ${productImageClasses(product.image).frame}`}>
+          <Image src={product.image.src} alt="" fill sizes="112px" className={productImageClasses(product.image, "p-1.5").img} />
         </div>
         <div className="min-w-0 space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-3">

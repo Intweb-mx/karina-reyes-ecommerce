@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { CartQuoteLine } from "@/lib/store/contract";
 import { MinusIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { formatMoney } from "@/lib/format";
+import { productImageClasses } from "@/lib/store/image";
 import { useCart } from "./CartProvider";
 
 /** Línea del carrito con cantidad y eliminar. Se usa en la página del carrito y en el carrito lateral (compact). */
@@ -14,8 +15,8 @@ export function CartLineItem({ line, compact = false, onNavigate }: { line: Cart
   const step = compact ? "size-9" : "size-11";
   return (
     <li className={`flex ${compact ? "gap-4 py-4" : "gap-4 py-5 sm:gap-6"}`}>
-      <Link href={`/productos/${line.slug}`} onClick={onNavigate} className={`relative shrink-0 overflow-hidden bg-sand ${compact ? "size-20" : "size-24 sm:size-28"}`}>
-        <Image src={line.image.src} alt="" fill sizes="112px" className="object-cover transition-transform duration-500 ease-soft hover:scale-105" />
+      <Link href={`/productos/${line.slug}`} onClick={onNavigate} className={`relative shrink-0 overflow-hidden ${productImageClasses(line.image).frame} ${compact ? "size-20" : "size-24 sm:size-28"}`}>
+        <Image src={line.image.src} alt="" fill sizes="112px" className={`${productImageClasses(line.image, "p-1.5").img} transition-transform duration-500 ease-soft hover:scale-105`} />
       </Link>
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-start justify-between gap-3">

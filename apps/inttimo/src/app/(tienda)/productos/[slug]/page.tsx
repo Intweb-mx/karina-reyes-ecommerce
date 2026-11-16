@@ -13,6 +13,7 @@ import { SectionHeading } from "@/components/store/PageHero";
 import { legalPaths } from "@/content/legal";
 import { getStoreApi } from "@/lib/store/api";
 import { formatMoney } from "@/lib/format";
+import { productImageClasses } from "@/lib/store/image";
 
 async function load(slug: string) {
   const result = await getStoreApi().product(slug);
@@ -44,16 +45,16 @@ export default async function ProductPage({ params }: PageProps<"/productos/[slu
         {/* Galería */}
         <div className="space-y-3">
           {main && (
-            <div className="relative aspect-[4/5] overflow-hidden bg-sand sm:aspect-[5/4] lg:aspect-[4/5]">
-              <Image src={main.src} alt={main.alt} fill priority sizes="(min-width: 1024px) 50vw, 100vw" className="object-cover" />
+            <div className={`relative aspect-[4/5] overflow-hidden sm:aspect-[5/4] lg:aspect-[4/5] ${productImageClasses(main).frame}`}>
+              <Image src={main.src} alt={main.alt} fill priority sizes="(min-width: 1024px) 50vw, 100vw" className={productImageClasses(main, "p-[8%]").img} />
               {main.placeholder && <PlaceholderTag />}
             </div>
           )}
           {rest.length > 0 && (
             <ul className="grid grid-cols-3 gap-3">
               {rest.map((image) => (
-                <li key={image.src} className="relative aspect-[4/3] overflow-hidden bg-sand">
-                  <Image src={image.src} alt={image.alt} fill sizes="20vw" className="object-cover" />
+                <li key={image.src} className={`relative aspect-[4/3] overflow-hidden ${productImageClasses(image).frame}`}>
+                  <Image src={image.src} alt={image.alt} fill sizes="20vw" className={productImageClasses(image).img} />
                 </li>
               ))}
             </ul>
@@ -93,8 +94,8 @@ export default async function ProductPage({ params }: PageProps<"/productos/[slu
             </div>
             {complement && complement.price && (
               <div className="mt-6 flex items-center gap-4 border border-border bg-surface p-3">
-                <Link href={`/productos/${complement.slug}`} className="relative size-16 shrink-0 overflow-hidden bg-sand">
-                  <Image src={complement.image.src} alt="" fill sizes="64px" className="object-cover" />
+                <Link href={`/productos/${complement.slug}`} className={`relative size-16 shrink-0 overflow-hidden ${productImageClasses(complement.image).frame}`}>
+                  <Image src={complement.image.src} alt="" fill sizes="64px" className={productImageClasses(complement.image, "p-1").img} />
                 </Link>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">Complemento digital</p>
