@@ -40,7 +40,7 @@ El panel sirve para que el negocio opere **sin tocar código, sin entrar a Strip
 | Pedido `/panel/reservas/[id]` | Pasos de envío o recolección, datos, dirección, respuestas, historial | 7 tarjetas. El estado de la entrega aparece 3 veces. Para reembolsar hay que ir a Stripe. |
 | Editar preventa `/panel/campanas/[slug]/editar` | Precio, fechas, entrega, puntos, preguntas (JSON) y términos | Mezcla ajustes del negocio con ajustes técnicos. Las preguntas se editan en JSON. |
 | Actividad `/panel/bitacora` | Auditoría de acciones | Útil, pero ocupa lugar en el menú principal y se usa poco. |
-| Login + 2FA | Supabase Auth, rol `admin`, MFA obligatorio | Bien. Los usuarios solo se crean por CLI (`pnpm admin`). |
+| Login | Supabase Auth, rol `admin`, acceso por correo (enlace o código), sesión de 30 días; app autenticadora opcional (ADR-004) | Los usuarios solo se crean por CLI (`pnpm admin`). |
 
 **Solo por CLI hoy:** crear o revocar administradores, crear preventas (`presale:upsert`), reconciliar con Stripe (`presale:reconcile`), configurar el bonus y el perfil de envío.
 
@@ -264,7 +264,7 @@ Solo métricas reales (CLAUDE.md §22).
 
 | Función | Fase | Estado |
 |---|---|---|
-| Login con 2FA obligatorio | A | ✅ |
+| Login por correo, sesión de 30 días (ADR-004) | A | ✅ |
 | Invitar, ver y revocar usuarios desde el panel (hoy `pnpm admin`) | A | ⬜ |
 | Reiniciar 2FA de otro usuario | A | ⬜ |
 | Cerrar sesión por inactividad | B | ⬜ |

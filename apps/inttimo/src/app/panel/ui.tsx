@@ -178,6 +178,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "admin.reset_password": "Se cambió una contraseña",
   "admin.reset_mfa": "Se reinició la verificación en dos pasos",
   "admin.revoke": "Se quitó el acceso a un usuario",
+  "admin.grant": "Se dio acceso a un usuario",
+  "auth.access_requested": "Pidió un correo de acceso",
   "campaign.create": "Se creó la campaña",
   "campaign.update": "Se editó la campaña",
   "terms.publish": "Se publicaron los términos",

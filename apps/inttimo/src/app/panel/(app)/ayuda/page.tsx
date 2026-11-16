@@ -144,7 +144,7 @@ export default async function PanelHelpPage() {
         <h2 className="font-serif text-2xl font-medium">Seguridad</h2>
         <Card>
           <ul className="list-disc space-y-2 pl-5 text-sm">
-            <li>Cada persona entra con su propia cuenta y su código de verificación en dos pasos. No compartas tu cuenta.</li>
+            <li>Cada persona entra con su propio correo: le llega un botón para entrar y queda dentro 30 días en ese navegador. No reenvíes ese correo ni compartas tu cuenta.</li>
             <li>Si perdiste tu código o necesitas dar acceso a alguien más, pídelo al equipo técnico.</li>
             <li>Al terminar en una computadora compartida, presiona <strong>Salir</strong> (abajo en la barra lateral).</li>
             <li>Todo lo que haces queda registrado en <Link prefetch={false} href="/panel/bitacora" className="underline underline-offset-4">Actividad</Link>.</li>

@@ -27,7 +27,7 @@ export async function proxy(request: NextRequest) {
   });
 
   const { data } = await supabase.auth.getClaims();
-  const isPublicPanelPath = request.nextUrl.pathname === "/panel/login";
+  const isPublicPanelPath = request.nextUrl.pathname === "/panel/login" || request.nextUrl.pathname === "/panel/entrar";
   if (!data?.claims && request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ error: { code: "not_found", message: "Sesión vencida. Vuelve a entrar al panel." } }, { status: 401, headers: { "cache-control": "private, no-store" } });
   }
