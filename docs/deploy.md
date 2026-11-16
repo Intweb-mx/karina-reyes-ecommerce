@@ -72,7 +72,7 @@ pnpm admin --create --email=persona@dominio.com
 DATABASE_URL="<pooler session 5432>" pnpm presale:upsert --file=campana.json --terms=terminos.md
 ```
 
-Después, en `https://<dominio>/panel`: iniciar sesión, configurar 2FA, revisar la campaña y activarla.
+Después, en `https://<dominio>/panel/login`: entrar con el correo del administrador (llega un botón y un código), revisar la campaña y activarla.
 
 ## 5. Checklist antes de abrir al público
 
@@ -81,7 +81,7 @@ Después, en `https://<dominio>/panel`: iniciar sesión, configurar 2FA, revisar
 - [ ] Verificación: con la llave publicable, `GET https://<ref>.supabase.co/rest/v1/presale_reservations` responde error (no datos).
 - [ ] Variables de Production cargadas; Preview apunta a otro proyecto de Supabase.
 - [ ] Dominio de Resend verificado; correo de prueba recibido.
-- [ ] Administrador creado, con 2FA configurado; `pnpm admin --list` muestra `2FA`.
+- [ ] Administrador creado (`pnpm admin --create`) y `SUPABASE_SECRET_KEY` en Vercel; el correo de acceso llega y deja entrar (ADR-004).
 - [ ] Campaña con precio, fechas, preguntas y términos **aprobados**; nota de entrega revisada.
 - [ ] Stripe configurado y probado de punta a punta (fase del motor de pagos).
 - [ ] `/panel` no aparece en buscadores (cabecera `X-Robots-Tag: noindex`).
@@ -94,7 +94,7 @@ Después, en `https://<dominio>/panel`: iniciar sesión, configurar 2FA, revisar
 | Editar campaña, preguntas y términos | `/panel/campanas/<slug>/editar` |
 | Exportar CSV | Botón en `/panel` o `pnpm presale:export` |
 | Auditoría | `/panel/bitacora` (append-only) |
-| Nuevo admin / reset de contraseña / reset de 2FA / revocar | `pnpm admin --create | --reset-password | --reset-mfa | --revoke --email=…` |
+| Nuevo admin / devolver acceso / quitar app autenticadora / revocar | `pnpm admin --create | --grant | --reset-mfa | --revoke --email=…` |
 | Sincronizar con Stripe | `pnpm presale:reconcile` (automatizar en la fase del motor de pagos) |
 
 ## Desarrollo local

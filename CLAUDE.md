@@ -58,7 +58,7 @@ Se puede dejar preparada la arquitectura de este repo (scaffold, tipos, tokens v
 
 - Drizzle es el ORM y la herramienta de migraciones. El navegador nunca consulta tablas; todo pasa por el servidor.
 - **Toda tabla nueva** lleva RLS activado y sin privilegios para `anon`/`authenticated` (test en `packages/database/tests`).
-- Panel: Supabase Auth, sin registro público, rol `app_metadata.role = "admin"`.
+- Panel: Supabase Auth, sin registro público, rol `app_metadata.role = "admin"`. Se entra con el correo (enlace o código de un solo uso que manda la app), sesión de 30 días; sin contraseñas y app autenticadora opcional (ADR-004). Producción necesita `SUPABASE_SECRET_KEY`.
 - Supabase local en puertos 55321–55329 (`supabase start`). PGlite solo en tests.
 
 ---
@@ -1008,7 +1008,7 @@ pnpm typecheck
 pnpm test
 pnpm test:e2e
 pnpm supabase:start    # Supabase local (puertos 55321–55329)
-pnpm admin --create --email=...   # administradores del panel (también --reset-mfa, --revoke, --list)
+pnpm admin --create --email=...   # administradores del panel, entran con su correo (también --grant, --reset-mfa, --revoke, --list)
 pnpm db:generate
 pnpm db:migrate
 pnpm presale:upsert --file=...    # crear/editar campaña de preventa

@@ -7,7 +7,7 @@ export const metadata = { title: "Entrar" };
 export default async function LoginPage({ searchParams }: PageProps<"/panel/login">) {
   const state = await getAdminState();
   if (state.status === "ok") redirect("/panel");
-  if (state.status === "needs_mfa_enroll" || state.status === "needs_mfa_verify") redirect("/panel/mfa");
+  if (state.status === "needs_mfa_verify") redirect("/panel/mfa");
   const forbidden = (await searchParams).error === "forbidden" || state.status === "forbidden";
 
   return (

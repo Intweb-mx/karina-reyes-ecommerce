@@ -25,7 +25,7 @@ function sameOrigin(request: Request): boolean {
 }
 
 /**
- * Envoltura de cada ruta /api/panel/tienda/*: solo administradores con verificación en dos pasos (misma regla que las
+ * Envoltura de cada ruta /api/panel/tienda/*: solo administradores con sesión válida del panel (misma regla que las
  * páginas del panel), origen propio en las peticiones que cambian datos y 503 genérico con log si algo inesperado falla.
  */
 export async function adminRoute(name: string, request: Request, run: (actor: StoreAdminActor) => Promise<Response>): Promise<Response> {
